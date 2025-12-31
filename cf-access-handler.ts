@@ -90,7 +90,8 @@ function buildAuthorizationUrl(
     params.set("scope", scope);
   }
 
-  return `https://${teamDomain}/cdn-cgi/access/authorize?${params.toString()}`;
+  // Use OIDC-specific authorization endpoint with client_id in path
+  return `https://${teamDomain}/cdn-cgi/access/sso/oidc/${clientId}/authorization?${params.toString()}`;
 }
 
 const CFAccessHandler = {
@@ -212,8 +213,8 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
     original_code_challenge?: string;
   };
 
-  // Exchange code for tokens with Cloudflare Access
-  const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/token`;
+  // Exchange code for tokens with Cloudflare Access OIDC endpoint
+  const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
   const baseUrl = new URL(request.url).origin;
 
   const tokenResponse = await fetch(tokenUrl, {
@@ -360,7 +361,7 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
     }
 
     // Return the actual CF Access JWT - downstream apps can validate it directly
-    // using JWKS at https://{team}.cloudflareaccess.com/cdn-cgi/access/certs
+    // using JWKS at https://{team}.cloudflareaccess.com/cdn-cgi/access/sso/oidc/{client_id}/jwks
     const response: Record<string, unknown> = {
       access_token: storedData.access_token,
       token_type: "Bearer",
@@ -402,8 +403,8 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    // Exchange CF Access refresh token for new access token
-    const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/token`;
+    // Exchange CF Access refresh token for new access token via OIDC endpoint
+    const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
     const tokenResponse = await fetch(tokenUrl, {
       method: "POST",
       headers: {
@@ -536,8 +537,8 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
     // MCP server URL - clients should connect here after obtaining token
     resource_server: env.DOWNSTREAM_MCP_URL,
-    // JWKS endpoint for token validation
-    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`,
+    // JWKS endpoint for token validation (OIDC-specific)
+    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
   });
 }
 
