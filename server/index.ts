@@ -137,8 +137,13 @@ export default class MyMCPServer {
         this.expressApp.get("/sse", async (req: Request, res: Response) => {
             const authResult = await validateAuthentication(req);
             if (!authResult.authenticated) {
-                // Return 401 with RFC 9728 Protected Resource Metadata URL
+                // Return 401 with RFC 9728 Protected Resource Metadata URL and CORS headers
                 const baseUrl = `https://${req.get('host')}`;
+                const origin = req.get('origin') || '*';
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, *');
+                res.setHeader('Access-Control-Allow-Methods', '*');
+                res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate');
                 res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
                 res.status(401).json({ error: "invalid_token", error_description: authResult.error || "Authentication required" });
                 return;
@@ -177,8 +182,13 @@ export default class MyMCPServer {
         this.expressApp.post("/mcp", async (req: Request, res: Response) => {
             const authResult = await validateAuthentication(req);
             if (!authResult.authenticated) {
-                // Return 401 with RFC 9728 Protected Resource Metadata URL
+                // Return 401 with RFC 9728 Protected Resource Metadata URL and CORS headers
                 const baseUrl = `https://${req.get('host')}`;
+                const origin = req.get('origin') || '*';
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, *');
+                res.setHeader('Access-Control-Allow-Methods', '*');
+                res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate');
                 res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
                 res.status(401).json({ error: "invalid_token", error_description: authResult.error || "Authentication required" });
                 return;
