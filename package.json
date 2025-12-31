@@ -1,0 +1,39 @@
+{
+  "name": "mcp-oauth-proxy",
+  "version": "1.0.0",
+  "description": "OAuth authentication proxy for MCP servers using Cloudflare Access",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "types": "wrangler types",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "wrangler": "^3.95.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "mcp",
+    "model-context-protocol",
+    "cloudflare-access",
+    "oauth",
+    "proxy",
+    "authentication"
+  ],
+  "license": "MIT"
+}

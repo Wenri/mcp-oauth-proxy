@@ -1,0 +1,16 @@
+# Cloudflare Access OIDC Application Credentials
+# Get these from: Cloudflare One Dashboard → Access → Applications → Your SaaS App
+CF_ACCESS_CLIENT_ID=your-client-id-here
+CF_ACCESS_CLIENT_SECRET=your-client-secret-here
+
+# Your Cloudflare Access team domain
+# Found in: Cloudflare One Dashboard → Settings → Custom Pages
+CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+
+# Cookie encryption key - generate with: openssl rand -hex 32
+COOKIE_ENCRYPTION_KEY=your-random-32-byte-hex-string
+
+# Downstream MCP server URL
+# This is the MCP server that will receive authenticated requests
+# Example: https://sy.wenri.me/mcp or http://localhost:3000/mcp for local development
+DOWNSTREAM_MCP_URL=https://sy.wenri.me/mcp
