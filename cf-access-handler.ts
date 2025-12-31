@@ -39,8 +39,7 @@ interface JWTClaims {
 }
 
 // Helper to decode JWT claims (without verification - verification done by CF Access)
-// Exported so the proxy can decode tokens for downstream requests
-export function decodeJWTClaims(token: string): JWTClaims {
+function decodeJWTClaims(token: string): JWTClaims {
   const parts = token.split(".");
   if (parts.length !== 3) {
     throw new Error("Invalid JWT format");
@@ -523,7 +522,7 @@ async function handleClientRegistration(request: Request, env: Env): Promise<Res
   );
 }
 
-async function handleOAuthMetadata(request: Request, _env: Env): Promise<Response> {
+async function handleOAuthMetadata(request: Request, env: Env): Promise<Response> {
   const baseUrl = new URL(request.url).origin;
 
   return jsonResponse({
@@ -535,6 +534,10 @@ async function handleOAuthMetadata(request: Request, _env: Env): Promise<Respons
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
+    // MCP server URL - clients should connect here after obtaining token
+    resource_server: env.DOWNSTREAM_MCP_URL,
+    // JWKS endpoint for token validation
+    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`,
   });
 }
 
