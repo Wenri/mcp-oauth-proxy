@@ -537,6 +537,7 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
     token_endpoint: `${baseUrl}/token`,
     registration_endpoint: `${baseUrl}/register`,
     response_types_supported: ["code"],
+    response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
@@ -552,8 +553,8 @@ async function handleProtectedResourceMetadata(request: Request, env: Env): Prom
   const baseUrl = new URL(request.url).origin;
 
   return jsonResponse({
-    // The protected resource identifier (the MCP server)
-    resource: env.DOWNSTREAM_MCP_URL,
+    // The protected resource identifier (aligned with mcp.wenri.me)
+    resource: baseUrl,
     // Authorization servers that can issue tokens for this resource
     authorization_servers: [baseUrl],
     // Scopes supported by this protected resource
