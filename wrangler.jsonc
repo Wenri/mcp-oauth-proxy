@@ -8,10 +8,10 @@
 
   // Routes for OAuth endpoints - other paths pass through to origin
   "routes": [
-    { "pattern": "sy.wenri.me/authorize", "zone_name": "wenri.me" },
-    { "pattern": "sy.wenri.me/callback", "zone_name": "wenri.me" },
-    { "pattern": "sy.wenri.me/token", "zone_name": "wenri.me" },
-    { "pattern": "sy.wenri.me/register", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/authorize*", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/callback*", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/token*", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/register*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" }
   ],
 
