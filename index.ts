@@ -44,7 +44,6 @@ async function proxyToDownstream(
   }
 
   // Clone the request to forward to downstream
-  const url = new URL(request.url);
   const downstreamRequest = new Request(downstreamUrl, {
     method: request.method,
     headers: {
@@ -91,7 +90,7 @@ async function proxyToDownstream(
 
 // MCP API handler that proxies requests to downstream server
 const McpApiHandler = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     // The auth context is passed via request headers by OAuthProvider
     const authHeader = request.headers.get("X-Auth-Context");
     if (!authHeader) {
@@ -111,10 +110,11 @@ const McpApiHandler = {
 };
 
 // Export the OAuthProvider as the default handler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default new OAuthProvider({
   apiRoute: "/mcp",
-  apiHandler: McpApiHandler,
-  defaultHandler: CFAccessHandler,
+  apiHandler: McpApiHandler as any,
+  defaultHandler: CFAccessHandler as any,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",

@@ -1,4 +1,4 @@
-import type { Env, AuthContext } from "./index";
+import type { Env } from "./index";
 
 /**
  * Cloudflare Access OAuth Handler
@@ -94,7 +94,7 @@ function buildAuthorizationUrl(
 }
 
 const CFAccessHandler = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     // Handle authorization endpoint
@@ -482,7 +482,7 @@ async function handleClientRegistration(request: Request, env: Env): Promise<Res
   );
 }
 
-async function handleOAuthMetadata(request: Request, env: Env): Promise<Response> {
+async function handleOAuthMetadata(request: Request, _env: Env): Promise<Response> {
   const baseUrl = new URL(request.url).origin;
 
   return jsonResponse({
