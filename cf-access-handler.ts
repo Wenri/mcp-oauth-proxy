@@ -39,7 +39,8 @@ interface JWTClaims {
 }
 
 // Helper to decode JWT claims (without verification - verification done by CF Access)
-function decodeJWTClaims(token: string): JWTClaims {
+// Exported so the proxy can decode tokens for downstream requests
+export function decodeJWTClaims(token: string): JWTClaims {
   const parts = token.split(".");
   if (parts.length !== 3) {
     throw new Error("Invalid JWT format");
@@ -339,43 +340,38 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
       }
     }
 
-    // Generate our own access token for the MCP client
-    const mcpAccessToken = generateRandomString(64);
-
-    // Store the token mapping
-    await env.OAUTH_KV.put(
-      `token:${mcpAccessToken}`,
-      JSON.stringify({
-        cf_access_token: storedData.access_token,
-        cf_refresh_token: storedData.refresh_token,
-        claims: storedData.claims,
-        client_id: storedData.client_id,
-        created_at: Date.now(),
-      }),
-      { expirationTtl: 3600 } // 1 hour
-    );
-
     // Clean up auth code
     await env.OAUTH_KV.delete(`auth_code:${code}`);
 
-    // Generate refresh token for the MCP client
-    const mcpRefreshToken = generateRandomString(64);
-    await env.OAUTH_KV.put(
-      `refresh:${mcpRefreshToken}`,
-      JSON.stringify({
-        cf_refresh_token: storedData.refresh_token,
-        claims: storedData.claims,
-        client_id: storedData.client_id,
-      }),
-      { expirationTtl: 86400 * 30 } // 30 days
-    );
+    // Calculate expires_in from JWT exp claim
+    const expiresIn = Math.max(0, storedData.claims.exp - Math.floor(Date.now() / 1000));
 
-    return jsonResponse({
-      access_token: mcpAccessToken,
+    // Generate refresh token for the MCP client (still needed to get new CF Access tokens)
+    let mcpRefreshToken: string | undefined;
+    if (storedData.refresh_token) {
+      mcpRefreshToken = generateRandomString(64);
+      await env.OAUTH_KV.put(
+        `refresh:${mcpRefreshToken}`,
+        JSON.stringify({
+          cf_refresh_token: storedData.refresh_token,
+          client_id: storedData.client_id,
+        }),
+        { expirationTtl: 86400 * 30 } // 30 days
+      );
+    }
+
+    // Return the actual CF Access JWT - downstream apps can validate it directly
+    // using JWKS at https://{team}.cloudflareaccess.com/cdn-cgi/access/certs
+    const response: Record<string, unknown> = {
+      access_token: storedData.access_token,
       token_type: "Bearer",
-      expires_in: 3600,
-      refresh_token: mcpRefreshToken,
-    });
+      expires_in: expiresIn,
+    };
+    if (mcpRefreshToken) {
+      response.refresh_token = mcpRefreshToken;
+    }
+
+    return jsonResponse(response);
   }
 
   // Handle refresh token grant
@@ -397,29 +393,74 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
 
     const storedRefresh = JSON.parse(refreshData) as {
       cf_refresh_token?: string;
-      claims: JWTClaims;
       client_id: string;
     };
 
-    // Generate new access token
-    const newAccessToken = generateRandomString(64);
+    if (!storedRefresh.cf_refresh_token) {
+      return jsonResponse(
+        { error: "invalid_grant", error_description: "No refresh token available" },
+        400
+      );
+    }
 
-    await env.OAUTH_KV.put(
-      `token:${newAccessToken}`,
-      JSON.stringify({
-        cf_refresh_token: storedRefresh.cf_refresh_token,
-        claims: storedRefresh.claims,
-        client_id: storedRefresh.client_id,
-        created_at: Date.now(),
-      }),
-      { expirationTtl: 3600 }
-    );
+    // Exchange CF Access refresh token for new access token
+    const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/token`;
+    const tokenResponse = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: storedRefresh.cf_refresh_token,
+        client_id: env.CF_ACCESS_CLIENT_ID,
+        client_secret: env.CF_ACCESS_CLIENT_SECRET,
+      }).toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error("Token refresh failed:", errorText);
+      // Delete invalid refresh token
+      await env.OAUTH_KV.delete(`refresh:${refreshToken}`);
+      return jsonResponse(
+        { error: "invalid_grant", error_description: "Failed to refresh token" },
+        400
+      );
+    }
+
+    const tokens = (await tokenResponse.json()) as TokenResponse;
+
+    // Decode claims from new token
+    let claims: JWTClaims;
+    try {
+      claims = decodeJWTClaims(tokens.id_token || tokens.access_token);
+    } catch {
+      return jsonResponse(
+        { error: "server_error", error_description: "Failed to decode refreshed token" },
+        500
+      );
+    }
+
+    const expiresIn = Math.max(0, claims.exp - Math.floor(Date.now() / 1000));
+
+    // Update stored refresh token if a new one was issued
+    if (tokens.refresh_token && tokens.refresh_token !== storedRefresh.cf_refresh_token) {
+      await env.OAUTH_KV.put(
+        `refresh:${refreshToken}`,
+        JSON.stringify({
+          cf_refresh_token: tokens.refresh_token,
+          client_id: storedRefresh.client_id,
+        }),
+        { expirationTtl: 86400 * 30 }
+      );
+    }
 
     return jsonResponse({
-      access_token: newAccessToken,
+      access_token: tokens.access_token,
       token_type: "Bearer",
-      expires_in: 3600,
-      refresh_token: refreshToken, // Return same refresh token
+      expires_in: expiresIn,
+      refresh_token: refreshToken, // Return same MCP refresh token
     });
   }
 

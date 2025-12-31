@@ -1,5 +1,5 @@
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
-import CFAccessHandler from "./cf-access-handler";
+import CFAccessHandler, { decodeJWTClaims } from "./cf-access-handler";
 
 // Define the authentication context type
 export interface AuthContext {
@@ -91,17 +91,45 @@ async function proxyToDownstream(
 // MCP API handler that proxies requests to downstream server
 const McpApiHandler = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    // The auth context is passed via request headers by OAuthProvider
-    const authHeader = request.headers.get("X-Auth-Context");
-    if (!authHeader) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
     let authContext: AuthContext;
-    try {
-      authContext = JSON.parse(authHeader);
-    } catch {
-      return new Response("Invalid auth context", { status: 400 });
+
+    // Try X-Auth-Context header first (set by OAuthProvider)
+    const xAuthContext = request.headers.get("X-Auth-Context");
+    if (xAuthContext) {
+      try {
+        authContext = JSON.parse(xAuthContext);
+      } catch {
+        return new Response("Invalid auth context", { status: 400 });
+      }
+    } else {
+      // Fall back to decoding JWT from Authorization header
+      // This supports clients sending CF Access JWT directly
+      const authHeader = request.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(
+          JSON.stringify({ error: "invalid_token", error_description: "Missing or invalid access token" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const token = authHeader.slice(7); // Remove "Bearer " prefix
+      try {
+        const claims = decodeJWTClaims(token);
+        authContext = {
+          claims: {
+            sub: claims.sub,
+            email: claims.email,
+            name: claims.name,
+            groups: claims.groups,
+          },
+          accessToken: token,
+        };
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "invalid_token", error_description: "Invalid JWT token" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Proxy all requests to downstream MCP server
