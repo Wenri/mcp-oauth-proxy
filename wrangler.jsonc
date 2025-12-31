@@ -6,6 +6,15 @@
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "1002d1dfb85d7af05bfac3f26e586878",
 
+  // Routes for OAuth endpoints - other paths pass through to origin
+  "routes": [
+    { "pattern": "sy.wenri.me/authorize", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/callback", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/token", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/register", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" }
+  ],
+
   // KV namespace for OAuth state management
   "kv_namespaces": [
     {
