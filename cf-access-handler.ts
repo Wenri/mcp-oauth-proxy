@@ -574,11 +574,22 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
 
 // RFC 9728 Protected Resource Metadata
 async function handleProtectedResourceMetadata(request: Request, env: Env): Promise<Response> {
-  const baseUrl = new URL(request.url).origin;
+  const url = new URL(request.url);
+  const baseUrl = url.origin;
+
+  // Extract the resource path from path-aware discovery URL
+  // e.g., /.well-known/oauth-protected-resource/sse → /sse
+  const prefix = "/.well-known/oauth-protected-resource";
+  const resourcePath = url.pathname.startsWith(prefix)
+    ? url.pathname.slice(prefix.length)
+    : "";
+
+  // For path-aware discovery, include the path in resource identifier
+  const resource = resourcePath ? `${baseUrl}${resourcePath}` : baseUrl;
 
   return jsonResponse({
-    // The protected resource identifier (aligned with mcp.wenri.me)
-    resource: baseUrl,
+    // The protected resource identifier (matches path-aware discovery per RFC 9728)
+    resource,
     // Authorization servers that can issue tokens for this resource
     authorization_servers: [baseUrl],
     // Scopes supported by this protected resource
