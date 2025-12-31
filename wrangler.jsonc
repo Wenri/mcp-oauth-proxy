@@ -32,7 +32,7 @@
   // Optional: configure these in wrangler.toml or as secrets
   "vars": {
     // Your Cloudflare Access team domain (e.g., "myteam.cloudflareaccess.com")
-    "CF_ACCESS_TEAM_DOMAIN": "<YOUR_TEAM>.cloudflareaccess.com",
+    "CF_ACCESS_TEAM_DOMAIN": "wenri.cloudflareaccess.com",
     // Downstream MCP server URL (e.g., "https://sy.wenri.me/mcp")
     "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp"
   },
