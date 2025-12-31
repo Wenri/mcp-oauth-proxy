@@ -123,6 +123,11 @@ const CFAccessHandler = {
       return handleOAuthMetadata(request, env);
     }
 
+    // Handle RFC 9728 Protected Resource Metadata
+    if (url.pathname === "/.well-known/oauth-protected-resource") {
+      return handleProtectedResourceMetadata(request, env);
+    }
+
     // Default: return 404
     return new Response("Not found", { status: 404 });
   },
@@ -538,6 +543,24 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
     // MCP server URL - clients should connect here after obtaining token
     resource_server: env.DOWNSTREAM_MCP_URL,
     // JWKS endpoint for token validation (OIDC-specific)
+    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
+  });
+}
+
+// RFC 9728 Protected Resource Metadata
+async function handleProtectedResourceMetadata(request: Request, env: Env): Promise<Response> {
+  const baseUrl = new URL(request.url).origin;
+
+  return jsonResponse({
+    // The protected resource identifier (the MCP server)
+    resource: env.DOWNSTREAM_MCP_URL,
+    // Authorization servers that can issue tokens for this resource
+    authorization_servers: [baseUrl],
+    // Scopes supported by this protected resource
+    scopes_supported: ["openid", "email", "profile", "groups"],
+    // How bearer tokens can be presented
+    bearer_methods_supported: ["header"],
+    // JWKS for token validation
     jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
   });
 }
