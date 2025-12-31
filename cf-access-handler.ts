@@ -131,18 +131,29 @@ const CFAccessHandler = {
       return handleClientRegistration(request, env);
     }
 
-    // Handle well-known OAuth metadata
-    if (url.pathname === "/.well-known/oauth-authorization-server") {
+    // Handle well-known OAuth metadata (supports path-aware discovery per RFC 8414)
+    // SDK may try /.well-known/oauth-authorization-server or /.well-known/oauth-authorization-server/path
+    if (url.pathname === "/.well-known/oauth-authorization-server" ||
+        url.pathname.startsWith("/.well-known/oauth-authorization-server/")) {
       return handleOAuthMetadata(request, env);
     }
 
-    // Handle RFC 9728 Protected Resource Metadata
-    if (url.pathname === "/.well-known/oauth-protected-resource") {
+    // Handle RFC 9728 Protected Resource Metadata (supports path-aware discovery)
+    // SDK may try /.well-known/oauth-protected-resource or /.well-known/oauth-protected-resource/sse
+    if (url.pathname === "/.well-known/oauth-protected-resource" ||
+        url.pathname.startsWith("/.well-known/oauth-protected-resource/")) {
       return handleProtectedResourceMetadata(request, env);
     }
 
-    // Default: return 404
-    return new Response("Not found", { status: 404 });
+    // Default: return 404 with CORS headers so SDK can properly fallback
+    return new Response("Not found", {
+      status: 404,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+      },
+    });
   },
 };
 
