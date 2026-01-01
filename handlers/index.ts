@@ -8,10 +8,11 @@ import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { handleOAuthRoute } from './oauth';
-import { initializeSiyuanMCPServer, logPush, type Env } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
+import type { Env } from '../types/env';
 
 // Re-export Env for convenience
-export type { Env } from '../siyuan-mcp';
+export type { Env } from '../types/env';
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers
