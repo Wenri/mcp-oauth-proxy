@@ -11,7 +11,8 @@ import { queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
-export interface IndexerConfig extends Pick<SiyuanMCPConfig, 'kernelBaseUrl' | 'kernelToken' | 'ragBaseUrl' | 'ragApiKey'> {
+export interface IndexerConfig
+  extends Pick<SiyuanMCPConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN' | 'RAG_BASE_URL' | 'RAG_API_KEY'> {
   batchSize?: number;
   maxDocuments?: number;
 }
@@ -26,13 +27,12 @@ export interface RAGProvider {
  * Create RAG provider from config
  */
 function createRAGProvider(config: IndexerConfig): RAGProvider {
-  const baseUrl = config.ragBaseUrl.endsWith('/')
-    ? config.ragBaseUrl + 'api/v1'
-    : config.ragBaseUrl + '/api/v1';
+  const ragUrl = config.RAG_BASE_URL!;
+  const baseUrl = ragUrl.endsWith('/') ? ragUrl + 'api/v1' : ragUrl + '/api/v1';
 
   const headers = {
     'Content-Type': 'application/json',
-    'x-api-key': config.ragApiKey || '',
+    'x-api-key': config.RAG_API_KEY || '',
   };
 
   return {
@@ -131,10 +131,7 @@ export async function processIndexQueue(config: IndexerConfig, kv: KVNamespace):
   errors: number;
 }> {
   // Initialize context
-  await initializeContext({
-    kernelBaseUrl: config.kernelBaseUrl,
-    kernelToken: config.kernelToken,
-  });
+  await initializeContext(config);
 
   const provider = createRAGProvider(config);
   const queue = new IndexQueue(kv);
@@ -193,10 +190,7 @@ export async function queueRecentDocuments(
   sinceMinutes: number = 60
 ): Promise<number> {
   // Initialize context
-  await initializeContext({
-    kernelBaseUrl: config.kernelBaseUrl,
-    kernelToken: config.kernelToken,
-  });
+  await initializeContext(config);
 
   // Calculate timestamp for query
   const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
@@ -232,10 +226,7 @@ export async function queueAllDocuments(
   maxDocuments: number = 1000
 ): Promise<number> {
   // Initialize context
-  await initializeContext({
-    kernelBaseUrl: config.kernelBaseUrl,
-    kernelToken: config.kernelToken,
-  });
+  await initializeContext(config);
 
   // Query for all documents
   const sql = `SELECT id FROM blocks WHERE type = 'd' LIMIT ${maxDocuments}`;

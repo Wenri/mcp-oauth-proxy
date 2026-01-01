@@ -3,42 +3,27 @@
  */
 
 /**
- * Environment-style config (SCREAMING_SNAKE_CASE)
+ * Configuration for SiYuan MCP server
+ * Uses SCREAMING_SNAKE_CASE to match CF Workers env bindings
  * Can pass Cloudflare Workers env directly to initializeSiyuanMCPServer()
- */
-export interface SiyuanEnvConfig {
-  SIYUAN_KERNEL_URL: string;
-  SIYUAN_KERNEL_TOKEN?: string;
-  RAG_BASE_URL?: string;
-  RAG_API_KEY?: string;
-  FILTER_NOTEBOOKS?: string;
-  FILTER_DOCUMENTS?: string;
-  READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
-}
-
-/**
- * Internal configuration options (camelCase)
- * Used by initializeContext() and internal functions
  */
 export interface SiyuanMCPConfig {
   /** SiYuan kernel URL (e.g., https://siyuan.example.com) */
-  kernelBaseUrl: string;
+  SIYUAN_KERNEL_URL: string;
   /** SiYuan API token for authentication */
-  kernelToken?: string;
+  SIYUAN_KERNEL_TOKEN?: string;
   /** RAG backend URL */
-  ragBaseUrl?: string;
+  RAG_BASE_URL?: string;
   /** RAG API key */
-  ragApiKey?: string;
+  RAG_API_KEY?: string;
   /** Newline-separated notebook IDs to exclude */
-  filterNotebooks?: string;
+  FILTER_NOTEBOOKS?: string;
   /** Newline-separated document IDs to exclude */
-  filterDocuments?: string;
-  /** App ID for dailynote creation */
-  appId?: string;
+  FILTER_DOCUMENTS?: string;
   /** Read-only mode for tools */
-  readOnlyMode?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
+  READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
   /** Auto-approve local changes (default: true) */
-  autoApproveLocalChange?: boolean;
+  AUTO_APPROVE_LOCAL_CHANGE?: boolean;
 }
 
 /**

@@ -26,33 +26,33 @@ import { createSiyuanMCPServer, initializeSiyuanMCPServer, type SiyuanMCPConfig 
 function parseArgs(): SiyuanMCPConfig {
   const args = process.argv.slice(2);
   const config: SiyuanMCPConfig = {
-    kernelBaseUrl: '',
+    SIYUAN_KERNEL_URL: '',
   };
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--kernel-url':
       case '-u':
-        config.kernelBaseUrl = args[++i] || '';
+        config.SIYUAN_KERNEL_URL = args[++i] || '';
         break;
       case '--token':
       case '-t':
-        config.kernelToken = args[++i];
+        config.SIYUAN_KERNEL_TOKEN = args[++i];
         break;
       case '--rag-url':
-        config.ragBaseUrl = args[++i];
+        config.RAG_BASE_URL = args[++i];
         break;
       case '--rag-key':
-        config.ragApiKey = args[++i];
+        config.RAG_API_KEY = args[++i];
         break;
       case '--filter-notebooks':
-        config.filterNotebooks = args[++i];
+        config.FILTER_NOTEBOOKS = args[++i];
         break;
       case '--filter-documents':
-        config.filterDocuments = args[++i];
+        config.FILTER_DOCUMENTS = args[++i];
         break;
       case '--read-only':
-        config.readOnlyMode = args[++i] as SiyuanMCPConfig['readOnlyMode'];
+        config.READ_ONLY_MODE = args[++i] as SiyuanMCPConfig['READ_ONLY_MODE'];
         break;
       case '--help':
       case '-h':
@@ -83,12 +83,12 @@ Environment Variables:
   }
 
   // Fall back to environment variables
-  config.kernelBaseUrl = config.kernelBaseUrl || process.env.SIYUAN_KERNEL_URL || '';
-  config.kernelToken = config.kernelToken || process.env.SIYUAN_KERNEL_TOKEN;
-  config.ragBaseUrl = config.ragBaseUrl || process.env.RAG_BASE_URL;
-  config.ragApiKey = config.ragApiKey || process.env.RAG_API_KEY;
+  config.SIYUAN_KERNEL_URL = config.SIYUAN_KERNEL_URL || process.env.SIYUAN_KERNEL_URL || '';
+  config.SIYUAN_KERNEL_TOKEN = config.SIYUAN_KERNEL_TOKEN || process.env.SIYUAN_KERNEL_TOKEN;
+  config.RAG_BASE_URL = config.RAG_BASE_URL || process.env.RAG_BASE_URL;
+  config.RAG_API_KEY = config.RAG_API_KEY || process.env.RAG_API_KEY;
 
-  if (!config.kernelBaseUrl) {
+  if (!config.SIYUAN_KERNEL_URL) {
     console.error('Error: --kernel-url or SIYUAN_KERNEL_URL is required');
     process.exit(1);
   }

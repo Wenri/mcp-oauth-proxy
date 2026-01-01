@@ -17,16 +17,14 @@ let authToken: string | undefined;
  * Fetches config from kernel API on initialization
  */
 export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
-  const { kernelBaseUrl, kernelToken, ragBaseUrl, ragApiKey, filterNotebooks, filterDocuments, appId, autoApproveLocalChange } = options;
-
   // Normalize kernel URL (remove trailing slash)
-  baseUrl = kernelBaseUrl.replace(/\/$/, '');
-  authToken = kernelToken;
+  baseUrl = options.SIYUAN_KERNEL_URL.replace(/\/$/, '');
+  authToken = options.SIYUAN_KERNEL_TOKEN;
 
   // Fetch SiYuan config from kernel
   try {
     const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
-    const result = await response.json() as { code: number; data: { conf: SiyuanConfig } };
+    const result = (await response.json()) as { code: number; data: { conf: SiyuanConfig } };
     if (result.code !== 0) {
       throw new Error('Failed to get SiYuan config');
     }
@@ -44,12 +42,11 @@ export async function initializeContext(options: SiyuanMCPConfig): Promise<void>
   }
 
   // Merge extended config from options
-  config.filterNotebooks = filterNotebooks;
-  config.filterDocuments = filterDocuments;
-  config.appId = appId;
-  config.autoApproveLocalChange = autoApproveLocalChange;
-  if (ragBaseUrl) {
-    config.rag = { baseUrl: ragBaseUrl, apiKey: ragApiKey };
+  config.filterNotebooks = options.FILTER_NOTEBOOKS;
+  config.filterDocuments = options.FILTER_DOCUMENTS;
+  config.autoApproveLocalChange = options.AUTO_APPROVE_LOCAL_CHANGE;
+  if (options.RAG_BASE_URL) {
+    config.rag = { baseUrl: options.RAG_BASE_URL, apiKey: options.RAG_API_KEY };
   }
 }
 
