@@ -23,7 +23,7 @@ export * from './syapi/custom';
 export * from './tools';
 
 // Server
-export { initializeSiyuanMCPServer, createSiyuanMCPServer, runStdioServer, loadTools, loadPrompts } from './server';
+export { initializeSiyuanMCPServer, createSiyuanMCPServer, loadTools, loadPrompts } from './server';
 export type { SiyuanMCPConfig } from './server';
 
 // Utilities

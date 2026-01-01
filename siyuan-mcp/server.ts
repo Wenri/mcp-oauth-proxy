@@ -6,8 +6,6 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { setPlatformContext, createCloudflareContext } from './platform';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
@@ -60,11 +58,11 @@ export async function initializeSiyuanMCPServer(
 }
 
 /**
- * Create and configure a new SiYuan MCP server
- * Use this for CLI/stdio usage where you need a new server instance
+ * Create a new SiYuan MCP server instance (sync)
+ * Call initializeSiyuanMCPServer() to configure it with tools and prompts
  */
-export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<McpServer> {
-  const server = new McpServer(
+export function createSiyuanMCPServer(): McpServer {
+  return new McpServer(
     {
       name: 'siyuan-mcp',
       version: '1.0.0',
@@ -76,9 +74,6 @@ export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<Mc
       },
     }
   );
-
-  await initializeSiyuanMCPServer(server, config);
-  return server;
 }
 
 /**
@@ -178,14 +173,3 @@ export async function loadPrompts(server: McpServer): Promise<void> {
   );
 }
 
-/**
- * Run the MCP server with stdio transport (for CLI usage)
- */
-export async function runStdioServer(config: SiyuanMCPConfig): Promise<void> {
-  const server = await createSiyuanMCPServer(config);
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-}
-
-// Re-export SSEServerTransport for handlers
-export { SSEServerTransport };

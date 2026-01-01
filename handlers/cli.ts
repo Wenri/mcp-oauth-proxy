@@ -19,7 +19,8 @@
  *   }
  */
 
-import { runStdioServer, type SiyuanMCPConfig } from '../siyuan-mcp';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { createSiyuanMCPServer, initializeSiyuanMCPServer, type SiyuanMCPConfig } from '../siyuan-mcp';
 
 // Parse command line arguments
 function parseArgs(): SiyuanMCPConfig {
@@ -96,8 +97,15 @@ Environment Variables:
 }
 
 // Main
-const config = parseArgs();
-runStdioServer(config).catch((error) => {
+async function main() {
+  const config = parseArgs();
+  const server = createSiyuanMCPServer();
+  await initializeSiyuanMCPServer(server, config);
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((error) => {
   console.error('Failed to start MCP server:', error);
   process.exit(1);
 });
