@@ -13,7 +13,7 @@ import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, i
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
 import { filterBlock } from '../utils/filterCheck';
-import { getConfig } from '../context';
+import { getConfig } from '..';
 
 export class BlockWriteToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {

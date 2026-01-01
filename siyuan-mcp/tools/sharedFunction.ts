@@ -2,7 +2,7 @@
  * Shared functions for tools
  */
 
-import { generateNodeID } from '../context';
+import { generateNodeID } from '..';
 import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { checkIdValid, getDocDBitem } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';

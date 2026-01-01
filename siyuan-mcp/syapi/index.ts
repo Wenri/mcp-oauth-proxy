@@ -4,7 +4,7 @@
  * Uses kernelFetch from context for authenticated API calls.
  */
 
-import { kernelFetch } from '../context';
+import { kernelFetch } from '..';
 
 /**
  * Send POST request to SiYuan kernel API

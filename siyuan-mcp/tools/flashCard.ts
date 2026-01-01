@@ -11,7 +11,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { z } from 'zod';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterBlock } from '../utils/filterCheck';
-import { getConfig } from '../context';
+import { getConfig } from '..';
 
 const TYPE_VALID_LIST = ['h1', 'h2', 'h3', 'h4', 'h5', 'highlight', 'superBlock'] as const;
 

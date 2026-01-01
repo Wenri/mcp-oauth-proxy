@@ -7,7 +7,7 @@ import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
-import { getConfig } from '../context';
+import { getConfig } from '..';
 
 // RAG provider interface
 interface RAGProvider {

@@ -2,7 +2,7 @@
  * Common validation utilities
  */
 
-import { getConfig, hasContext } from '../context';
+import { getConfig, hasContext } from '..';
 
 export function isValidStr(s: any): boolean {
   if (s == undefined || s == null || s === '') {

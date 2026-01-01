@@ -7,7 +7,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2 } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
-import { getConfig } from '../context';
+import { getConfig } from '..';
 import { getBlockDBItem, getBlockAssets } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
 import { blobToBase64Object } from '../utils/common';

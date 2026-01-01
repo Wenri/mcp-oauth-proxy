@@ -19,7 +19,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, warnPush } from '../logger';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/filterCheck';
-import { getAppId } from '../context';
+import { getAppId } from '..';
 
 export class DailyNoteToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {

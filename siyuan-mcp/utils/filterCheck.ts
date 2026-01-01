@@ -3,7 +3,7 @@
  */
 
 import { getBlockDBItem } from '../syapi/custom';
-import { getConfig } from '../context';
+import { getConfig } from '..';
 import { logPush } from '../logger';
 
 function getFilterSettings() {
