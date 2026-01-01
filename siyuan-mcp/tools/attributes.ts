@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { filterBlock } from '../utils/filterCheck';

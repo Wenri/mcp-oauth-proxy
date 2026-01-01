@@ -10,7 +10,7 @@ import { getBlockDBItem, isValidDeck, QUICK_DECK_ID } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { createNewDocWithParentId } from './sharedFunction';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { z } from 'zod';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterBlock } from '../utils/filterCheck';

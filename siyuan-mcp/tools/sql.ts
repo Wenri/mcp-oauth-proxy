@@ -8,7 +8,7 @@ import { createErrorResponse, createJsonResponse, createSuccessResponse } from '
 import { queryAPI } from '../syapi';
 import { isSelectQuery } from '../utils/commonCheck';
 import { debugPush } from '../logger';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
 import { getBlockDBItem } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';

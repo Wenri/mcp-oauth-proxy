@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI } from '../syapi';
 import { checkIdValid, isADocId } from '../syapi/custom';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { createNewDocWithParentId } from './sharedFunction';
 import { lang } from '../utils/lang';

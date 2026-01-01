@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { getBlockDBItem, getDocDBitem } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';

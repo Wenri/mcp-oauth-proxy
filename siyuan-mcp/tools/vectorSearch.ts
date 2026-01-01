@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 import { getPlatformContext } from '../platform';

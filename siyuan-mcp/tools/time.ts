@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { createJsonResponse } from '../utils/mcpResponse';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
 
 export class TimeToolProvider extends McpToolsProvider<any> {

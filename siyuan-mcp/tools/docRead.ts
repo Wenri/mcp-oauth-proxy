@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
+import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2 } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';

@@ -6,8 +6,8 @@
 import { z } from 'zod';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
-import { McpToolsProvider, McpTool } from './baseToolProvider';
-import { formatSearchResult, FullTextSearchQuery } from '../utils/resultFilter';
+import { McpToolsProvider } from './baseToolProvider';
+import { formatSearchResult } from '../utils/resultFilter';
 import { debugPush, errorPush } from '../logger';
 import { lang } from '../utils/lang';
 
