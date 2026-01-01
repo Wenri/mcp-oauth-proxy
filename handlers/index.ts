@@ -18,7 +18,6 @@ export type { Env } from '../types';
  * SiYuan MCP Agent for Cloudflare Workers
  */
 export class SiyuanMCP extends McpAgent<Env> {
-  // @ts-expect-error - McpServer version mismatch between agents and @modelcontextprotocol/sdk
   server = new McpServer({
     name: 'siyuan-mcp',
     version: '1.0.0',
@@ -63,21 +62,28 @@ const defaultHandler = {
 
 /**
  * OAuthProvider with SiyuanMCP agent
+ *
+ * OAuth flow:
+ * 1. /authorize - handled by defaultHandler → oauth.ts → redirects to CF Access
+ * 2. /callback - handled by defaultHandler → oauth.ts → calls completeAuthorization()
+ * 3. /token - handled by OAuthProvider (automatic token exchange)
+ * 4. /register - handled by OAuthProvider (dynamic client registration)
  */
 export default new OAuthProvider({
-  // Use apiHandlers for multiple routes with different transports
+  // MCP transport endpoints (require valid access token)
   apiHandlers: {
-    // SSE transport for /sse endpoint
     '/sse': SiyuanMCP.serveSSE('/sse'),
-    // Streamable HTTP transport for /mcp endpoint
     '/mcp': SiyuanMCP.mount('/mcp'),
   },
   // @ts-expect-error - Handler type mismatch
   defaultHandler: defaultHandler,
+  // OAuth endpoints - OAuthProvider handles /token and /register
+  // /authorize is routed to defaultHandler which redirects to CF Access
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
   clientRegistrationEndpoint: '/register',
-  accessTokenTTL: 3600,
-  refreshTokenTTL: 2592000,
+  // Token TTLs
+  accessTokenTTL: 3600, // 1 hour
+  refreshTokenTTL: 2592000, // 30 days
   scopesSupported: ['openid', 'email', 'profile', 'offline_access'],
 });

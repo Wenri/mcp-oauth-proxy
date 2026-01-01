@@ -1,17 +1,22 @@
 /**
  * Cloudflare Access OAuth Handler
  *
- * Implements OAuth 2.1 flow with PKCE using Cloudflare Access as the identity provider.
- * Handles authorization, callback, token exchange, and client registration.
+ * Integrates Cloudflare Access as the identity provider with OAuthProvider.
+ * Handles /authorize (redirect to CF Access) and /callback (complete authorization).
+ * Token exchange is handled automatically by OAuthProvider.
  */
 
-import type { Env } from "../index";
+import type { Env } from '../types';
+import type { OAuthHelpers, AuthRequest } from '@cloudflare/workers-oauth-provider';
 
-interface OAuthState {
-  redirect_uri: string;
-  code_verifier: string;
-  client_id: string;
-  scope?: string;
+// Extend Env to include OAUTH_PROVIDER helpers injected by OAuthProvider
+interface EnvWithOAuth extends Env {
+  OAUTH_PROVIDER: OAuthHelpers;
+}
+
+interface StoredState {
+  authRequest: AuthRequest;
+  cfCodeVerifier: string;
 }
 
 interface TokenResponse {
@@ -34,596 +39,214 @@ interface JWTClaims {
   [key: string]: unknown;
 }
 
-// Helper to decode JWT claims (without verification - verification done by CF Access)
+// Helper to decode JWT claims (without verification - CF Access already verified)
 function decodeJWTClaims(token: string): JWTClaims {
-  const parts = token.split(".");
+  const parts = token.split('.');
   if (parts.length !== 3) {
-    throw new Error("Invalid JWT format");
+    throw new Error('Invalid JWT format');
   }
-
   const payload = parts[1];
-  const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+  const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
   return JSON.parse(decoded);
 }
 
-// Generate a random string for state/verifier
+// Generate a random string
 function generateRandomString(length: number): string {
   const array = new Uint8Array(length);
   crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-// Generate code challenge from verifier (S256)
+// Generate PKCE code challenge (S256)
 async function generateCodeChallenge(verifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
+  const digest = await crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 // Build Cloudflare Access authorization URL
-function buildAuthorizationUrl(
+function buildCFAccessAuthUrl(
   teamDomain: string,
   clientId: string,
   redirectUri: string,
   state: string,
   codeChallenge: string,
-  scope?: string
+  scope: string[]
 ): string {
   const params = new URLSearchParams({
     client_id: clientId,
-    response_type: "code",
+    response_type: 'code',
     redirect_uri: redirectUri,
     state: state,
     code_challenge: codeChallenge,
-    code_challenge_method: "S256",
+    code_challenge_method: 'S256',
+    // CF Access requires openid scope
+    scope: scope.includes('openid') ? scope.join(' ') : ['openid', ...scope].join(' '),
   });
-
-  if (scope) {
-    params.set("scope", scope);
-  }
-
-  // Use OIDC-specific authorization endpoint with client_id in path
   return `https://${teamDomain}/cdn-cgi/access/sso/oidc/${clientId}/authorization?${params.toString()}`;
 }
 
-function jsonResponse(data: unknown, status: number = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
-    },
-  });
-}
+/**
+ * Handle /authorize - Parse OAuth request and redirect to Cloudflare Access
+ */
+async function handleAuthorize(request: Request, env: EnvWithOAuth): Promise<Response> {
+  // Parse the OAuth authorization request using OAuthProvider helper
+  const authRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
 
-async function handleAuthorize(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const clientId = url.searchParams.get("client_id");
-  const redirectUri = url.searchParams.get("redirect_uri");
-  const codeChallengeMethod = url.searchParams.get("code_challenge_method");
-  const scope = url.searchParams.get("scope") || undefined;
-  const state = url.searchParams.get("state");
-  const codeChallenge = url.searchParams.get("code_challenge");
+  // Generate state and PKCE for CF Access
+  const cfState = generateRandomString(32);
+  const cfCodeVerifier = generateRandomString(64);
+  const cfCodeChallenge = await generateCodeChallenge(cfCodeVerifier);
 
-  // Validate required parameters
-  if (!clientId || !redirectUri) {
-    return new Response("Missing required parameters: client_id, redirect_uri", { status: 400 });
-  }
-
-  if (codeChallengeMethod && codeChallengeMethod !== "S256") {
-    return new Response("Only S256 code_challenge_method is supported", { status: 400 });
-  }
-
-  // Generate our own state and code verifier for the CF Access flow
-  const cfAccessState = generateRandomString(32);
-  const cfAccessCodeVerifier = generateRandomString(64);
-  const cfAccessCodeChallenge = await generateCodeChallenge(cfAccessCodeVerifier);
-
-  // Store the original OAuth request state
-  const oauthState: OAuthState = {
-    redirect_uri: redirectUri,
-    code_verifier: cfAccessCodeVerifier,
-    client_id: clientId,
-    scope,
+  // Store the original auth request with our CF Access state
+  const storedState: StoredState = {
+    authRequest,
+    cfCodeVerifier,
   };
+  await env.OAUTH_KV.put(`cf_state:${cfState}`, JSON.stringify(storedState), {
+    expirationTtl: 600, // 10 minutes
+  });
 
-  // Store state in KV with the client's state as additional data
-  await env.OAUTH_KV.put(
-    `state:${cfAccessState}`,
-    JSON.stringify({
-      ...oauthState,
-      original_state: state,
-      original_code_challenge: codeChallenge,
-    }),
-    { expirationTtl: 600 } // 10 minutes
-  );
-
-  // Build callback URL (our server's callback endpoint)
+  // Build callback URL
   const baseUrl = new URL(request.url).origin;
   const callbackUrl = `${baseUrl}/callback`;
 
   // Redirect to Cloudflare Access
-  const authUrl = buildAuthorizationUrl(
+  const cfAuthUrl = buildCFAccessAuthUrl(
     env.CF_ACCESS_TEAM_DOMAIN,
     env.CF_ACCESS_CLIENT_ID,
     callbackUrl,
-    cfAccessState,
-    cfAccessCodeChallenge,
-    scope
+    cfState,
+    cfCodeChallenge,
+    authRequest.scope
   );
 
-  return Response.redirect(authUrl, 302);
+  return Response.redirect(cfAuthUrl, 302);
 }
 
-async function handleCallback(request: Request, env: Env): Promise<Response> {
+/**
+ * Handle /callback - Exchange CF Access code for tokens, then complete OAuth flow
+ */
+async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Response> {
   const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
-  const error = url.searchParams.get("error");
-  const errorDescription = url.searchParams.get("error_description");
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+  const errorDescription = url.searchParams.get('error_description');
 
   if (error) {
     return new Response(`OAuth error: ${error} - ${errorDescription}`, { status: 400 });
   }
 
   if (!code || !state) {
-    return new Response("Missing code or state parameter", { status: 400 });
+    return new Response('Missing code or state parameter', { status: 400 });
   }
 
   // Retrieve stored state
-  const storedStateJson = await env.OAUTH_KV.get(`state:${state}`);
+  const storedStateJson = await env.OAUTH_KV.get(`cf_state:${state}`);
   if (!storedStateJson) {
-    return new Response("Invalid or expired state", { status: 400 });
+    return new Response('Invalid or expired state', { status: 400 });
   }
 
-  const storedState = JSON.parse(storedStateJson) as OAuthState & {
-    original_state?: string;
-    original_code_challenge?: string;
-  };
+  const storedState = JSON.parse(storedStateJson) as StoredState;
+  await env.OAUTH_KV.delete(`cf_state:${state}`);
 
-  // Exchange code for tokens with Cloudflare Access OIDC endpoint
+  // Exchange code for tokens with Cloudflare Access
   const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
   const baseUrl = new URL(request.url).origin;
 
   const tokenResponse = await fetch(tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       code: code,
       client_id: env.CF_ACCESS_CLIENT_ID,
       client_secret: env.CF_ACCESS_CLIENT_SECRET,
       redirect_uri: `${baseUrl}/callback`,
-      code_verifier: storedState.code_verifier,
+      code_verifier: storedState.cfCodeVerifier,
     }).toString(),
   });
 
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text();
-    console.error("Token exchange failed:", errorText);
+    console.error('CF Access token exchange failed:', errorText);
     return new Response(`Token exchange failed: ${errorText}`, { status: 500 });
   }
 
   const tokens = (await tokenResponse.json()) as TokenResponse;
 
-  // Decode the ID token to get user claims
+  // Decode user claims from the token
   let claims: JWTClaims;
   try {
     claims = decodeJWTClaims(tokens.id_token || tokens.access_token);
-  } catch (error) {
-    return new Response("Failed to decode token", { status: 500 });
+  } catch (err) {
+    return new Response('Failed to decode token claims', { status: 500 });
   }
 
-  // Generate our own authorization code to give back to the MCP client
-  const mcpAuthCode = generateRandomString(32);
-
-  // Store the tokens associated with this auth code
-  await env.OAUTH_KV.put(
-    `auth_code:${mcpAuthCode}`,
-    JSON.stringify({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      claims,
-      client_id: storedState.client_id,
-      redirect_uri: storedState.redirect_uri,
-      original_code_challenge: storedState.original_code_challenge,
-    }),
-    { expirationTtl: 300 } // 5 minutes
-  );
-
-  // Clean up the state
-  await env.OAUTH_KV.delete(`state:${state}`);
-
-  // Redirect back to the MCP client with our auth code
-  const redirectUrl = new URL(storedState.redirect_uri);
-  redirectUrl.searchParams.set("code", mcpAuthCode);
-  if (storedState.original_state) {
-    redirectUrl.searchParams.set("state", storedState.original_state);
-  }
-
-  return Response.redirect(redirectUrl.toString(), 302);
-}
-
-async function handleToken(request: Request, env: Env): Promise<Response> {
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const contentType = request.headers.get("Content-Type") || "";
-  let params: URLSearchParams;
-
-  if (contentType.includes("application/json")) {
-    const body = await request.json();
-    params = new URLSearchParams(body as Record<string, string>);
-  } else {
-    const body = await request.text();
-    params = new URLSearchParams(body);
-  }
-
-  const grantType = params.get("grant_type");
-  const code = params.get("code");
-  const clientId = params.get("client_id");
-  const codeVerifier = params.get("code_verifier");
-  const refreshToken = params.get("refresh_token");
-
-  // Handle authorization code grant
-  if (grantType === "authorization_code") {
-    if (!code) {
-      return jsonResponse({ error: "invalid_request", error_description: "Missing code" }, 400);
-    }
-
-    // Retrieve stored auth code data
-    const authCodeData = await env.OAUTH_KV.get(`auth_code:${code}`);
-    if (!authCodeData) {
-      return jsonResponse(
-        { error: "invalid_grant", error_description: "Invalid or expired authorization code" },
-        400
-      );
-    }
-
-    const storedData = JSON.parse(authCodeData) as {
-      access_token: string;
-      refresh_token?: string;
-      claims: JWTClaims;
-      client_id: string;
-      redirect_uri: string;
-      original_code_challenge?: string;
-    };
-
-    // Validate client_id
-    if (clientId && clientId !== storedData.client_id) {
-      return jsonResponse({ error: "invalid_client", error_description: "Client ID mismatch" }, 400);
-    }
-
-    // Validate PKCE code verifier if a challenge was provided
-    if (storedData.original_code_challenge && codeVerifier) {
-      const computedChallenge = await generateCodeChallenge(codeVerifier);
-      if (computedChallenge !== storedData.original_code_challenge) {
-        return jsonResponse(
-          { error: "invalid_grant", error_description: "Invalid code_verifier" },
-          400
-        );
-      }
-    }
-
-    // Clean up auth code
-    await env.OAUTH_KV.delete(`auth_code:${code}`);
-
-    // Calculate expires_in from JWT exp claim
-    const expiresIn = Math.max(0, storedData.claims.exp - Math.floor(Date.now() / 1000));
-
-    // Generate refresh token for the MCP client
-    let mcpRefreshToken: string | undefined;
-    if (storedData.refresh_token) {
-      mcpRefreshToken = generateRandomString(64);
-      await env.OAUTH_KV.put(
-        `refresh:${mcpRefreshToken}`,
-        JSON.stringify({
-          cf_refresh_token: storedData.refresh_token,
-          client_id: storedData.client_id,
-        }),
-        { expirationTtl: 86400 * 30 } // 30 days
-      );
-    }
-
-    // Return the actual CF Access JWT
-    const response: Record<string, unknown> = {
-      access_token: storedData.access_token,
-      token_type: "Bearer",
-      expires_in: expiresIn,
-    };
-    if (mcpRefreshToken) {
-      response.refresh_token = mcpRefreshToken;
-    }
-
-    return jsonResponse(response);
-  }
-
-  // Handle refresh token grant
-  if (grantType === "refresh_token") {
-    if (!refreshToken) {
-      return jsonResponse(
-        { error: "invalid_request", error_description: "Missing refresh_token" },
-        400
-      );
-    }
-
-    const refreshData = await env.OAUTH_KV.get(`refresh:${refreshToken}`);
-    if (!refreshData) {
-      return jsonResponse(
-        { error: "invalid_grant", error_description: "Invalid or expired refresh token" },
-        400
-      );
-    }
-
-    const storedRefresh = JSON.parse(refreshData) as {
-      cf_refresh_token?: string;
-      client_id: string;
-    };
-
-    if (!storedRefresh.cf_refresh_token) {
-      return jsonResponse(
-        { error: "invalid_grant", error_description: "No refresh token available" },
-        400
-      );
-    }
-
-    // Exchange CF Access refresh token for new access token
-    const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
-    const tokenResponse = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: storedRefresh.cf_refresh_token,
-        client_id: env.CF_ACCESS_CLIENT_ID,
-        client_secret: env.CF_ACCESS_CLIENT_SECRET,
-      }).toString(),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error("Token refresh failed:", errorText);
-      await env.OAUTH_KV.delete(`refresh:${refreshToken}`);
-      return jsonResponse(
-        { error: "invalid_grant", error_description: "Failed to refresh token" },
-        400
-      );
-    }
-
-    const tokens = (await tokenResponse.json()) as TokenResponse;
-
-    // Decode claims from new token
-    let claims: JWTClaims;
-    try {
-      claims = decodeJWTClaims(tokens.id_token || tokens.access_token);
-    } catch {
-      return jsonResponse(
-        { error: "server_error", error_description: "Failed to decode refreshed token" },
-        500
-      );
-    }
-
-    const expiresIn = Math.max(0, claims.exp - Math.floor(Date.now() / 1000));
-
-    // Update stored refresh token if a new one was issued
-    if (tokens.refresh_token && tokens.refresh_token !== storedRefresh.cf_refresh_token) {
-      await env.OAUTH_KV.put(
-        `refresh:${refreshToken}`,
-        JSON.stringify({
-          cf_refresh_token: tokens.refresh_token,
-          client_id: storedRefresh.client_id,
-        }),
-        { expirationTtl: 86400 * 30 }
-      );
-    }
-
-    return jsonResponse({
-      access_token: tokens.access_token,
-      token_type: "Bearer",
-      expires_in: expiresIn,
-      refresh_token: refreshToken,
-    });
-  }
-
-  return jsonResponse(
-    { error: "unsupported_grant_type", error_description: "Unsupported grant type" },
-    400
-  );
-}
-
-async function handleClientRegistration(request: Request, env: Env): Promise<Response> {
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const body = await request.json();
-  const {
-    redirect_uris,
-    client_name,
-    token_endpoint_auth_method,
-  } = body as {
-    redirect_uris?: string[];
-    client_name?: string;
-    token_endpoint_auth_method?: string;
-  };
-
-  if (!redirect_uris || redirect_uris.length === 0) {
-    return jsonResponse(
-      { error: "invalid_request", error_description: "redirect_uris is required" },
-      400
-    );
-  }
-
-  // Generate client credentials
-  const clientId = generateRandomString(32);
-  const clientSecret = generateRandomString(64);
-
-  // Store client registration
-  await env.OAUTH_KV.put(
-    `client:${clientId}`,
-    JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uris,
-      client_name: client_name || "MCP Client",
-      token_endpoint_auth_method: token_endpoint_auth_method || "none",
-      created_at: Date.now(),
-    }),
-    { expirationTtl: 86400 * 365 } // 1 year
-  );
-
-  return jsonResponse(
-    {
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uris,
-      client_name: client_name || "MCP Client",
-      token_endpoint_auth_method: token_endpoint_auth_method || "none",
+  // Complete the OAuth authorization using OAuthProvider
+  // This generates the authorization code that OAuthProvider will handle at /token
+  const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
+    request: storedState.authRequest,
+    userId: claims.sub,
+    metadata: {
+      email: claims.email,
+      name: claims.name,
+      groups: claims.groups,
+      authenticatedAt: Date.now(),
     },
-    201
-  );
-}
-
-async function handleRevoke(request: Request, env: Env): Promise<Response> {
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const contentType = request.headers.get("Content-Type") || "";
-  let params: URLSearchParams;
-
-  if (contentType.includes("application/json")) {
-    const body = await request.json();
-    params = new URLSearchParams(body as Record<string, string>);
-  } else {
-    const body = await request.text();
-    params = new URLSearchParams(body);
-  }
-
-  const token = params.get("token");
-  const tokenTypeHint = params.get("token_type_hint");
-
-  if (!token) {
-    return jsonResponse(
-      { error: "invalid_request", error_description: "Missing token parameter" },
-      400
-    );
-  }
-
-  if (tokenTypeHint === "refresh_token" || !tokenTypeHint) {
-    await env.OAUTH_KV.delete(`refresh:${token}`);
-  }
-
-  return new Response(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    scope: storedState.authRequest.scope,
+    props: {
+      // These props are passed to MCP handlers via ctx.props
+      sub: claims.sub,
+      email: claims.email,
+      name: claims.name,
+      groups: claims.groups,
+      cfAccessToken: tokens.access_token,
+      cfRefreshToken: tokens.refresh_token,
     },
   });
-}
 
-function handleOAuthMetadata(request: Request, env: Env): Response {
-  const baseUrl = new URL(request.url).origin;
-
-  return jsonResponse({
-    issuer: baseUrl,
-    authorization_endpoint: `${baseUrl}/authorize`,
-    token_endpoint: `${baseUrl}/token`,
-    registration_endpoint: `${baseUrl}/register`,
-    revocation_endpoint: `${baseUrl}/revoke`,
-    response_types_supported: ["code"],
-    response_modes_supported: ["query"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    scopes_supported: ["openid", "email", "profile", "groups", "offline_access"],
-    code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
-    resource_server: env.SIYUAN_KERNEL_URL,
-    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
-  });
-}
-
-function handleProtectedResourceMetadata(request: Request, env: Env): Response {
-  const url = new URL(request.url);
-  const baseUrl = url.origin;
-
-  const prefix = "/.well-known/oauth-protected-resource";
-  const resourcePath = url.pathname.startsWith(prefix)
-    ? url.pathname.slice(prefix.length)
-    : "";
-
-  const resource = resourcePath ? `${baseUrl}${resourcePath}` : baseUrl;
-
-  return jsonResponse({
-    resource,
-    authorization_servers: [baseUrl],
-    scopes_supported: ["openid", "email", "profile", "groups", "offline_access"],
-    bearer_methods_supported: ["header"],
-    jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
-  });
+  return Response.redirect(redirectTo, 302);
 }
 
 /**
- * Handle OAuth routes
+ * Handle OAuth-related routes
  * Returns Response if handled, null otherwise
+ *
+ * Note: env.OAUTH_PROVIDER is injected at runtime by OAuthProvider
  */
 export async function handleOAuthRoute(
   request: Request,
   env: Env,
   url: URL
 ): Promise<Response | null> {
+  // Cast to EnvWithOAuth since OAUTH_PROVIDER is injected by OAuthProvider at runtime
+  const envWithOAuth = env as EnvWithOAuth;
   // Handle CORS preflight
-  if (request.method === "OPTIONS") {
+  if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
-        "Access-Control-Max-Age": "86400",
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, MCP-Protocol-Version',
+        'Access-Control-Max-Age': '86400',
       },
     });
   }
 
   switch (url.pathname) {
-    case "/authorize":
-      return handleAuthorize(request, env);
-    case "/callback":
-      return handleCallback(request, env);
-    case "/token":
-      return handleToken(request, env);
-    case "/register":
-      return handleClientRegistration(request, env);
-    case "/revoke":
-      return handleRevoke(request, env);
+    case '/authorize':
+      return handleAuthorize(request, envWithOAuth);
+    case '/callback':
+      return handleCallback(request, envWithOAuth);
   }
 
-  // Well-known endpoints
-  if (
-    url.pathname === "/.well-known/oauth-authorization-server" ||
-    url.pathname.startsWith("/.well-known/oauth-authorization-server/")
-  ) {
-    return handleOAuthMetadata(request, env);
-  }
-
-  if (
-    url.pathname === "/.well-known/oauth-protected-resource" ||
-    url.pathname.startsWith("/.well-known/oauth-protected-resource/")
-  ) {
-    return handleProtectedResourceMetadata(request, env);
-  }
-
+  // /token, /register, /.well-known/* are handled by OAuthProvider
   return null;
 }
