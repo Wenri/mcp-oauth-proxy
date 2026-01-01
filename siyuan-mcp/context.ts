@@ -5,7 +5,7 @@
  * Call initializeContext() before using any API functions.
  */
 
-import type { SiyuanConfig, SiyuanMCPConfig } from './types/context';
+import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 
 // Module-level state
 let config: SiyuanConfig | null = null;

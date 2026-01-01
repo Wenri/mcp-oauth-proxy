@@ -9,10 +9,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { handleOAuthRoute } from './oauth';
 import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
-import type { Env } from '../types/env';
+import type { Env } from '../types';
 
 // Re-export Env for convenience
-export type { Env } from '../types/env';
+export type { Env } from '../types';
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers

@@ -7,7 +7,7 @@
 
 // Context
 export { initializeContext, getConfig, hasContext, kernelFetch, generateNodeID, getAppId } from './context';
-export type { Env, SiyuanConfig, SiyuanMCPConfig } from './types/context';
+export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
 
 // API functions
 export * from './syapi';

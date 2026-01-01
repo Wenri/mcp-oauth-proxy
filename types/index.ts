@@ -1,4 +1,8 @@
 /**
+ * Shared types for MCP OAuth Proxy
+ */
+
+/**
  * Cloudflare Workers environment bindings
  * Single source of truth for all env vars
  */
@@ -47,3 +51,39 @@ export type SiyuanMCPConfig = Pick<
   | 'READ_ONLY_MODE'
   | 'AUTO_APPROVE_LOCAL_CHANGE'
 >;
+
+/**
+ * Runtime config fetched from SiYuan kernel + merged user options
+ * This is what getConfig() returns
+ */
+export interface SiyuanConfig {
+  system: {
+    id: string;
+    os: string;
+    kernelVersion: string;
+  };
+  editor: {
+    markdown: {
+      inlineMath: boolean;
+    };
+  };
+  export: {
+    addTitle: boolean;
+  };
+  flashcard: {
+    deck: boolean;
+  };
+  fileTree: {
+    sort: number;
+  };
+  notebooks?: any[];
+  // Merged from SiyuanMCPConfig
+  filterNotebooks?: string;
+  filterDocuments?: string;
+  appId?: string;
+  autoApproveLocalChange?: boolean;
+  rag?: {
+    baseUrl: string;
+    apiKey?: string;
+  };
+}

@@ -4,7 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { initializeContext } from './context';
-import type { SiyuanMCPConfig } from './types/context';
+import type { SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 
@@ -13,7 +13,7 @@ import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md
 import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
 
 // Re-export config type for convenience
-export type { SiyuanMCPConfig } from './types/context';
+export type { SiyuanMCPConfig } from '../types';
 
 /**
  * Initialize an existing MCP server with SiYuan tools and prompts

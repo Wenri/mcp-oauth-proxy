@@ -6,7 +6,7 @@
  */
 
 import { initializeContext } from '../context';
-import type { SiyuanMCPConfig } from '../types/context';
+import type { SiyuanMCPConfig } from '../../types';
 import { queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
