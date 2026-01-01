@@ -6,17 +6,21 @@
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "1002d1dfb85d7af05bfac3f26e586878",
 
-  // Routes for OAuth endpoints - other paths pass through to origin
+  // Routes for OAuth and MCP endpoints
   "routes": [
+    // OAuth endpoints
     { "pattern": "sy.wenri.me/authorize*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/callback*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/token*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/register*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/revoke*", "zone_name": "wenri.me" },
-    { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" }
+    { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" },
+    // MCP endpoints (built-in SiYuan MCP server)
+    { "pattern": "sy.wenri.me/mcp*", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/sse*", "zone_name": "wenri.me" }
   ],
 
-  // KV namespace for OAuth state management
+  // KV namespace for OAuth state management and RAG indexing queue
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
@@ -24,18 +28,39 @@
     }
   ],
 
+  // Cron trigger for RAG indexing (runs every hour)
+  // Uncomment to enable automatic document indexing
+  // "triggers": {
+  //   "crons": ["0 * * * *"]
+  // },
+
   // Environment variables (set secrets via `wrangler secret put`)
   // Required secrets:
   // - CF_ACCESS_CLIENT_ID: Your Cloudflare Access OIDC application client ID
   // - CF_ACCESS_CLIENT_SECRET: Your Cloudflare Access OIDC application client secret
   // - COOKIE_ENCRYPTION_KEY: Random string for cookie encryption (generate with: openssl rand -hex 32)
+  //
+  // Optional secrets for SiYuan MCP:
+  // - SIYUAN_KERNEL_TOKEN: SiYuan API token for authentication
+  // - RAG_API_KEY: RAG backend API key
 
-  // Optional: configure these in wrangler.toml or as secrets
   "vars": {
     // Your Cloudflare Access team domain (e.g., "myteam.cloudflareaccess.com")
     "CF_ACCESS_TEAM_DOMAIN": "wenri.cloudflareaccess.com",
-    // Downstream MCP server URL (e.g., "https://sy.wenri.me/mcp")
-    "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp"
+
+    // Downstream MCP server URL - used when proxying to external MCP server
+    // Set to empty string to use built-in SiYuan MCP server
+    "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp",
+
+    // SiYuan kernel configuration (for built-in MCP server)
+    // "SIYUAN_KERNEL_URL": "https://siyuan.example.com",
+
+    // RAG backend configuration (optional)
+    // "RAG_BASE_URL": "http://127.0.0.1:26808",
+
+    // Filter settings (newline-separated IDs)
+    // "FILTER_NOTEBOOKS": "",
+    // "FILTER_DOCUMENTS": ""
   },
 
   // Development settings
