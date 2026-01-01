@@ -1,15 +1,11 @@
-import type { Env } from "./index";
-
 /**
  * Cloudflare Access OAuth Handler
  *
- * This handler implements the OAuth flow using Cloudflare Access as the identity provider.
- * It handles:
- * 1. Redirecting users to Cloudflare Access for authentication
- * 2. Handling the OAuth callback with authorization code
- * 3. Exchanging the authorization code for tokens
- * 4. Storing and managing tokens in KV
+ * Implements OAuth 2.1 flow with PKCE using Cloudflare Access as the identity provider.
+ * Handles authorization, callback, token exchange, and client registration.
  */
+
+import type { Env } from "../index";
 
 interface OAuthState {
   redirect_uri: string;
@@ -94,82 +90,26 @@ function buildAuthorizationUrl(
   return `https://${teamDomain}/cdn-cgi/access/sso/oidc/${clientId}/authorization?${params.toString()}`;
 }
 
-const CFAccessHandler = {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-
-    // Handle CORS preflight requests for all endpoints
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
-          "Access-Control-Max-Age": "86400",
-        },
-      });
-    }
-
-    // Handle authorization endpoint
-    if (url.pathname === "/authorize") {
-      return handleAuthorize(request, env);
-    }
-
-    // Handle OAuth callback from Cloudflare Access
-    if (url.pathname === "/callback") {
-      return handleCallback(request, env);
-    }
-
-    // Handle token endpoint
-    if (url.pathname === "/token") {
-      return handleToken(request, env);
-    }
-
-    // Handle client registration (dynamic client registration for MCP)
-    if (url.pathname === "/register") {
-      return handleClientRegistration(request, env);
-    }
-
-    // Handle token revocation (RFC 7009)
-    if (url.pathname === "/revoke") {
-      return handleRevoke(request, env);
-    }
-
-    // Handle well-known OAuth metadata (supports path-aware discovery per RFC 8414)
-    // SDK may try /.well-known/oauth-authorization-server or /.well-known/oauth-authorization-server/path
-    if (url.pathname === "/.well-known/oauth-authorization-server" ||
-        url.pathname.startsWith("/.well-known/oauth-authorization-server/")) {
-      return handleOAuthMetadata(request, env);
-    }
-
-    // Handle RFC 9728 Protected Resource Metadata (supports path-aware discovery)
-    // SDK may try /.well-known/oauth-protected-resource or /.well-known/oauth-protected-resource/sse
-    if (url.pathname === "/.well-known/oauth-protected-resource" ||
-        url.pathname.startsWith("/.well-known/oauth-protected-resource/")) {
-      return handleProtectedResourceMetadata(request, env);
-    }
-
-    // Default: return 404 with CORS headers so SDK can properly fallback
-    return new Response("Not found", {
-      status: 404,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
-      },
-    });
-  },
-};
+function jsonResponse(data: unknown, status: number = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+    },
+  });
+}
 
 async function handleAuthorize(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const clientId = url.searchParams.get("client_id");
   const redirectUri = url.searchParams.get("redirect_uri");
-  const codeChallenge = url.searchParams.get("code_challenge");
   const codeChallengeMethod = url.searchParams.get("code_challenge_method");
   const scope = url.searchParams.get("scope") || undefined;
   const state = url.searchParams.get("state");
+  const codeChallenge = url.searchParams.get("code_challenge");
 
   // Validate required parameters
   if (!clientId || !redirectUri) {
@@ -380,7 +320,7 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
     // Calculate expires_in from JWT exp claim
     const expiresIn = Math.max(0, storedData.claims.exp - Math.floor(Date.now() / 1000));
 
-    // Generate refresh token for the MCP client (still needed to get new CF Access tokens)
+    // Generate refresh token for the MCP client
     let mcpRefreshToken: string | undefined;
     if (storedData.refresh_token) {
       mcpRefreshToken = generateRandomString(64);
@@ -394,8 +334,7 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    // Return the actual CF Access JWT - downstream apps can validate it directly
-    // using JWKS at https://{team}.cloudflareaccess.com/cdn-cgi/access/sso/oidc/{client_id}/jwks
+    // Return the actual CF Access JWT
     const response: Record<string, unknown> = {
       access_token: storedData.access_token,
       token_type: "Bearer",
@@ -437,7 +376,7 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    // Exchange CF Access refresh token for new access token via OIDC endpoint
+    // Exchange CF Access refresh token for new access token
     const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
     const tokenResponse = await fetch(tokenUrl, {
       method: "POST",
@@ -455,7 +394,6 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error("Token refresh failed:", errorText);
-      // Delete invalid refresh token
       await env.OAUTH_KV.delete(`refresh:${refreshToken}`);
       return jsonResponse(
         { error: "invalid_grant", error_description: "Failed to refresh token" },
@@ -494,7 +432,7 @@ async function handleToken(request: Request, env: Env): Promise<Response> {
       access_token: tokens.access_token,
       token_type: "Bearer",
       expires_in: expiresIn,
-      refresh_token: refreshToken, // Return same MCP refresh token
+      refresh_token: refreshToken,
     });
   }
 
@@ -557,7 +495,6 @@ async function handleClientRegistration(request: Request, env: Env): Promise<Res
   );
 }
 
-// RFC 7009 Token Revocation
 async function handleRevoke(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -584,12 +521,10 @@ async function handleRevoke(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // Revoke based on token type hint or try both
   if (tokenTypeHint === "refresh_token" || !tokenTypeHint) {
     await env.OAUTH_KV.delete(`refresh:${token}`);
   }
 
-  // RFC 7009: Always return 200, even if token was invalid/already revoked
   return new Response(null, {
     status: 200,
     headers: {
@@ -600,7 +535,7 @@ async function handleRevoke(request: Request, env: Env): Promise<Response> {
   });
 }
 
-async function handleOAuthMetadata(request: Request, env: Env): Promise<Response> {
+function handleOAuthMetadata(request: Request, env: Env): Response {
   const baseUrl = new URL(request.url).origin;
 
   return jsonResponse({
@@ -615,52 +550,80 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
     scopes_supported: ["openid", "email", "profile", "groups", "offline_access"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
-    // MCP server URL - clients should connect here after obtaining token
     resource_server: env.DOWNSTREAM_MCP_URL,
-    // JWKS endpoint for token validation (OIDC-specific)
     jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
   });
 }
 
-// RFC 9728 Protected Resource Metadata
-async function handleProtectedResourceMetadata(request: Request, env: Env): Promise<Response> {
+function handleProtectedResourceMetadata(request: Request, env: Env): Response {
   const url = new URL(request.url);
   const baseUrl = url.origin;
 
-  // Extract the resource path from path-aware discovery URL
-  // e.g., /.well-known/oauth-protected-resource/sse → /sse
   const prefix = "/.well-known/oauth-protected-resource";
   const resourcePath = url.pathname.startsWith(prefix)
     ? url.pathname.slice(prefix.length)
     : "";
 
-  // For path-aware discovery, include the path in resource identifier
   const resource = resourcePath ? `${baseUrl}${resourcePath}` : baseUrl;
 
   return jsonResponse({
-    // The protected resource identifier (matches path-aware discovery per RFC 9728)
     resource,
-    // Authorization servers that can issue tokens for this resource
     authorization_servers: [baseUrl],
-    // Scopes supported by this protected resource
     scopes_supported: ["openid", "email", "profile", "groups", "offline_access"],
-    // How bearer tokens can be presented
     bearer_methods_supported: ["header"],
-    // JWKS for token validation
     jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
   });
 }
 
-function jsonResponse(data: unknown, status: number = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
-    },
-  });
-}
+/**
+ * Handle OAuth routes
+ * Returns Response if handled, null otherwise
+ */
+export async function handleOAuthRoute(
+  request: Request,
+  env: Env,
+  url: URL
+): Promise<Response | null> {
+  // Handle CORS preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
 
-export default CFAccessHandler;
+  switch (url.pathname) {
+    case "/authorize":
+      return handleAuthorize(request, env);
+    case "/callback":
+      return handleCallback(request, env);
+    case "/token":
+      return handleToken(request, env);
+    case "/register":
+      return handleClientRegistration(request, env);
+    case "/revoke":
+      return handleRevoke(request, env);
+  }
+
+  // Well-known endpoints
+  if (
+    url.pathname === "/.well-known/oauth-authorization-server" ||
+    url.pathname.startsWith("/.well-known/oauth-authorization-server/")
+  ) {
+    return handleOAuthMetadata(request, env);
+  }
+
+  if (
+    url.pathname === "/.well-known/oauth-protected-resource" ||
+    url.pathname.startsWith("/.well-known/oauth-protected-resource/")
+  ) {
+    return handleProtectedResourceMetadata(request, env);
+  }
+
+  return null;
+}

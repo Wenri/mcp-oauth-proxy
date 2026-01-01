@@ -7,14 +7,13 @@
 
 // Platform abstraction
 export {
-  PlatformContext,
-  SiyuanConfig,
   setPlatformContext,
   getPlatformContext,
   hasPlatformContext,
   createCloudflareContext,
   createBrowserContext,
 } from './platform';
+export type { PlatformContext, SiyuanConfig } from './platform';
 
 // API functions
 export * from './syapi';
@@ -24,7 +23,8 @@ export * from './syapi/custom';
 export * from './tools';
 
 // Server
-export { createSiyuanMCPServer, runStdioServer, SiyuanMCPConfig } from './server';
+export { createSiyuanMCPServer, runStdioServer } from './server';
+export type { SiyuanMCPConfig } from './server';
 
 // Utilities
 export { isValidStr, isValidNotebookId, isMobile, isMacOs } from './utils/commonCheck';
