@@ -15,6 +15,7 @@ export interface McpTool<T extends z.ZodRawShape> {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
     idempotentHint?: boolean;
+    openWorldHint?: boolean; // If true, tool interacts with external entities
   };
 }
 

@@ -5,13 +5,36 @@
 
 import { isValidStr } from './commonCheck';
 
+export interface BlockTypeFilter {
+  audioBlock: boolean;
+  blockquote: boolean;
+  codeBlock: boolean;
+  databaseBlock: boolean;
+  document: boolean;
+  embedBlock: boolean;
+  heading: boolean;
+  htmlBlock: boolean;
+  iframeBlock: boolean;
+  list: boolean;
+  listItem: boolean;
+  mathBlock: boolean;
+  paragraph: boolean;
+  superBlock: boolean;
+  table: boolean;
+  videoBlock: boolean;
+  widgetBlock: boolean;
+}
+
 export interface FullTextSearchQuery {
   query: string;
-  page?: number;
-  types?: any;
-  orderBy?: number;
   method?: number;
+  types?: BlockTypeFilter;
+  paths?: string[];
   groupBy?: number;
+  orderBy?: number;
+  page?: number;
+  reqId?: number;
+  pageSize?: number;
 }
 
 /**
