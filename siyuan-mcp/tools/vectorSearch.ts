@@ -46,7 +46,7 @@ function createRAGProvider(): RAGProvider | null {
         const msg = await resp.text();
         throw new Error(`RAG query failed: ${resp.status} - ${msg}`);
       }
-      const result = await resp.json();
+      const result = (await resp.json()) as { result: unknown };
       return result.result;
     },
 
@@ -105,7 +105,7 @@ export class DocVectorSearchProvider extends McpToolsProvider<any> {
 
 async function answerWithRAG(
   params: { question: string },
-  extra: any,
+  _extra: any,
   provider: RAGProvider
 ) {
   const { question } = params;

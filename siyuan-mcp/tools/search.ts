@@ -97,8 +97,8 @@ async function searchHandler(params: {
     method,
     groupBy,
   };
-  queryObj.types.codeBlock = includingCodeBlock;
-  queryObj.types.databaseBlock = includingDatabase;
+  queryObj.types!.codeBlock = includingCodeBlock;
+  queryObj.types!.databaseBlock = includingDatabase;
 
   const response = await fullTextSearchBlock(queryObj);
 

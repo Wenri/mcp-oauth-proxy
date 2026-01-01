@@ -3,7 +3,6 @@
  * Unchanged from upstream - no browser dependencies
  */
 
-import { z } from 'zod';
 import { createJsonResponse } from '../utils/mcpResponse';
 import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';

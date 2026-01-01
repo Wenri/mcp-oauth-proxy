@@ -5,7 +5,7 @@
 import { addRiffCards, queryAPI, removeRiffCards } from '../syapi';
 import { getBlockDBItem, isValidDeck, QUICK_DECK_ID } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { createNewDocWithParentId } from './sharedFunction';
 import { McpToolsProvider } from './baseToolProvider';
 import { z } from 'zod';
@@ -101,10 +101,9 @@ async function addFlashCardMarkdown(
     deckId?: string;
     markdownContent: string;
   },
-  extra: any
+  _extra: any
 ) {
   let { parentId, docTitle, type, deckId, markdownContent } = params;
-  const { sendNotification, _meta } = extra || {};
 
   if (await filterBlock(parentId, null)) {
     return createErrorResponse(
@@ -144,10 +143,9 @@ async function addFlashCardMarkdown(
 
 async function createFlashcardsHandler(
   params: { blockIds: string[]; deckId?: string },
-  extra: any
+  _extra: any
 ) {
   let { blockIds, deckId } = params;
-  const { sendNotification, _meta } = extra || {};
 
   if (!isValidStr(deckId)) {
     deckId = QUICK_DECK_ID;

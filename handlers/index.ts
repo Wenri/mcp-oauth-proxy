@@ -17,6 +17,7 @@ export type { Env } from '../siyuan-mcp';
  * SiYuan MCP Agent for Cloudflare Workers
  */
 export class SiyuanMCP extends McpAgent<Env> {
+  // @ts-expect-error - McpServer version mismatch between agents and @modelcontextprotocol/sdk
   server = new McpServer({
     name: 'siyuan-mcp',
     version: '1.0.0',
@@ -66,10 +67,8 @@ export default new OAuthProvider({
   // Use apiHandlers for multiple routes with different transports
   apiHandlers: {
     // SSE transport for /sse endpoint
-    // @ts-expect-error - McpAgent.serveSSE returns compatible handler
     '/sse': SiyuanMCP.serveSSE('/sse'),
     // Streamable HTTP transport for /mcp endpoint
-    // @ts-expect-error - McpAgent.mount returns compatible handler
     '/mcp': SiyuanMCP.mount('/mcp'),
   },
   // @ts-expect-error - Handler type mismatch

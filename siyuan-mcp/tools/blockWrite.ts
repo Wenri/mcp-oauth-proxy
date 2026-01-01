@@ -100,7 +100,11 @@ async function insertBlockHandler(params: {
   const { data, nextID, previousID, parentID } = params;
   debugPush('Insert block API called');
 
-  if (isValidNotebookId(nextID) || isValidNotebookId(previousID) || isValidNotebookId(parentID)) {
+  if (
+    (nextID && isValidNotebookId(nextID)) ||
+    (previousID && isValidNotebookId(previousID)) ||
+    (parentID && isValidNotebookId(parentID))
+  ) {
     return createErrorResponse('nextID, previousID, and parentID must be block IDs, not notebook IDs.');
   }
 

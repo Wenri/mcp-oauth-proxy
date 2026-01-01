@@ -7,7 +7,6 @@ import { initializeContext } from './context';
 import type { SiyuanMCPConfig } from './types/context';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
-import { lang } from './utils/lang';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -110,41 +109,27 @@ async function loadTools(
  * Load and register prompts with the MCP server
  */
 async function loadPrompts(server: McpServer): Promise<void> {
-  server.prompt(
-    'create_flashcards_system_cn',
-    {
-      title: lang('prompt_flashcards'),
-      description: 'Create flash cards',
-    },
-    () => ({
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: promptCreateCardsSystemCN,
-          },
+  server.prompt('create_flashcards_system_cn', 'Create flash cards for SiYuan', () => ({
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: promptCreateCardsSystemCN,
         },
-      ],
-    })
-  );
+      },
+    ],
+  }));
 
-  server.prompt(
-    'sql_query_prompt_cn',
-    {
-      title: lang('prompt_sql'),
-      description: 'SQL Query System Prompt',
-    },
-    () => ({
-      messages: [
-        {
-          role: 'assistant',
-          content: {
-            type: 'text',
-            text: promptQuerySystemCN,
-          },
+  server.prompt('sql_query_prompt_cn', 'SQL Query System Prompt for SiYuan', () => ({
+    messages: [
+      {
+        role: 'assistant',
+        content: {
+          type: 'text',
+          text: promptQuerySystemCN,
         },
-      ],
-    })
-  );
+      },
+    ],
+  }));
 }

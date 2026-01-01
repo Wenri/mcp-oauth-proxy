@@ -472,7 +472,7 @@ export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
   const contentType = response.headers.get('Content-Type') || '';
 
   if (contentType.includes('application/json')) {
-    const json = await response.json();
+    const json = (await response.json()) as { code?: number; [key: string]: unknown };
     if (json.code === 404) {
       return null;
     }
