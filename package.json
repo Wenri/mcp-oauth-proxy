@@ -1,7 +1,7 @@
 {
-  "name": "mcp-oauth-proxy",
+  "name": "siyuan-mcp",
   "version": "1.0.0",
-  "description": "OAuth authentication proxy for MCP servers using Cloudflare Access",
+  "description": "SiYuan Note MCP Server with OAuth authentication via Cloudflare Access",
   "type": "module",
   "overrides": {
     "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
@@ -35,14 +35,13 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "cloudflare",
-    "workers",
+    "siyuan",
+    "siyuan-note",
     "mcp",
     "model-context-protocol",
-    "cloudflare-access",
-    "oauth",
-    "proxy",
-    "authentication"
+    "cloudflare",
+    "workers",
+    "oauth"
   ],
   "license": "MIT"
 }
