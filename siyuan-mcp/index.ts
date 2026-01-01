@@ -26,6 +26,10 @@ export * from './tools';
 export { createSiyuanMCPServer, runStdioServer } from './server';
 export type { SiyuanMCPConfig } from './server';
 
+// Agent (for Cloudflare Workers)
+export { SiyuanMCP } from './agent';
+export type { SiyuanEnv } from './agent';
+
 // Utilities
 export { isValidStr, isValidNotebookId, isMobile, isMacOs } from './utils/commonCheck';
 export { createErrorResponse, createSuccessResponse, createJsonResponse } from './utils/mcpResponse';

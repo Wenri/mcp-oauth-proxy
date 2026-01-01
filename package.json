@@ -12,8 +12,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@cloudflare/workers-oauth-provider": "^0.1.0",
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@cloudflare/workers-oauth-provider": "^0.2.2",
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "agents": "^0.3.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
