@@ -53,12 +53,8 @@
     // Your Cloudflare Access team domain (e.g., "myteam.cloudflareaccess.com")
     "CF_ACCESS_TEAM_DOMAIN": "wenri.cloudflareaccess.com",
 
-    // Downstream MCP server URL - used when proxying to external MCP server
-    // Set to empty string to use built-in SiYuan MCP server
-    "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp"
-
-    // SiYuan kernel configuration (for built-in MCP server)
-    // "SIYUAN_KERNEL_URL": "https://siyuan.example.com",
+    // SiYuan kernel URL - the SiYuan Note server to connect to
+    "SIYUAN_KERNEL_URL": "https://sy.wenri.me"
 
     // RAG backend configuration (optional)
     // "RAG_BASE_URL": "http://127.0.0.1:26808",

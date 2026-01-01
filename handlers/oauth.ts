@@ -550,7 +550,7 @@ function handleOAuthMetadata(request: Request, env: Env): Response {
     scopes_supported: ["openid", "email", "profile", "groups", "offline_access"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
-    resource_server: env.DOWNSTREAM_MCP_URL,
+    resource_server: env.SIYUAN_KERNEL_URL,
     jwks_uri: `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/jwks`,
   });
 }

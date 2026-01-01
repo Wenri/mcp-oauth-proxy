@@ -10,7 +10,13 @@ CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
 # Cookie encryption key - generate with: openssl rand -hex 32
 COOKIE_ENCRYPTION_KEY=your-random-32-byte-hex-string
 
-# Downstream MCP server URL
-# This is the MCP server that will receive authenticated requests
-# Example: https://sy.wenri.me/mcp or http://localhost:3000/mcp for local development
-DOWNSTREAM_MCP_URL=https://sy.wenri.me/mcp
+# SiYuan kernel URL - the SiYuan Note server to connect to
+# Example: https://siyuan.example.com or http://localhost:6806 for local development
+SIYUAN_KERNEL_URL=http://localhost:6806
+
+# SiYuan API token (optional, only if authentication is enabled on kernel)
+# SIYUAN_KERNEL_TOKEN=your-siyuan-token
+
+# RAG backend configuration (optional, for vector search)
+# RAG_BASE_URL=http://127.0.0.1:26808
+# RAG_API_KEY=your-rag-api-key

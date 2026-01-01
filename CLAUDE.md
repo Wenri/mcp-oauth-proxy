@@ -4,21 +4,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Cloudflare Workers-based **OAuth authentication proxy** for MCP (Model Context Protocol) servers. It uses Cloudflare Access as the identity provider and forwards all authenticated MCP requests to a downstream MCP server.
+This is a **SiYuan Note MCP Server** with OAuth authentication via Cloudflare Access. It provides Model Context Protocol (MCP) tools for interacting with SiYuan Note, a privacy-first personal knowledge management system.
 
-**Architecture**: Pure OAuth proxy pattern where this worker handles authentication via Cloudflare Access, then transparently proxies all MCP traffic to a downstream server with user identity context.
+**Two deployment modes:**
+1. **Cloudflare Workers** - OAuth-protected MCP server accessible via HTTP/SSE
+2. **CLI (stdio)** - Standalone MCP server for local use with Claude Desktop
 
 ```
-MCP Client → OAuth Proxy (this worker) → Cloudflare Access → Downstream MCP Server
-                ↓ Adds authentication headers
-                - Authorization: Bearer {access_token}
-                - X-User-Email, X-User-Name, X-User-Sub, X-User-Groups
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Cloudflare Workers Mode                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  MCP Client → OAuth Flow → Cloudflare Access → SiYuan MCP Server       │
+│     │              │                                  │                 │
+│     │         /authorize                              │                 │
+│     │         /callback                        ┌──────┴──────┐         │
+│     │         /token                           │  SiYuan API  │         │
+│     │                                          └──────────────┘         │
+│     └─────────────────────────────────────────────────────────────────→ │
+│              /sse or /mcp (authenticated MCP requests)                  │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            CLI Mode (stdio)                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Claude Desktop ←──stdio──→ handlers/cli.ts ←──HTTP──→ SiYuan Kernel   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Development Commands
 
 ```bash
-# Local development (runs on http://localhost:8788)
+# Local development (Cloudflare Workers mode, http://localhost:8788)
 npm run dev
 
 # Deploy to Cloudflare Workers
@@ -35,144 +54,179 @@ npm test
 
 # Watch mode for tests
 npm test:watch
+
+# Run CLI mode for testing
+npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 ```
 
 ## Project Structure
 
-Minimal flat structure with two core files:
+```
+├── index.ts                    # Entry point - re-exports from handlers
+├── handlers/
+│   ├── index.ts               # OAuthProvider setup with SiyuanMCP agent
+│   ├── oauth.ts               # OAuth 2.1 + PKCE with Cloudflare Access
+│   └── cli.ts                 # CLI entry point for stdio transport
+├── siyuan-mcp/
+│   ├── index.ts               # Server initialization, context management
+│   ├── tools/                 # MCP tool implementations
+│   │   ├── index.ts           # Tool provider registry
+│   │   ├── baseToolProvider.ts
+│   │   ├── docRead.ts         # Document reading
+│   │   ├── docWrite.ts        # Document writing
+│   │   ├── blockWrite.ts      # Block-level editing
+│   │   ├── sql.ts             # SQL queries
+│   │   ├── search.ts          # Full-text search
+│   │   ├── attributes.ts      # Custom attributes
+│   │   ├── dailynote.ts       # Daily note creation
+│   │   ├── flashCard.ts       # Flashcard management
+│   │   ├── vectorSearch.ts    # RAG vector search
+│   │   ├── relation.ts        # Document relations
+│   │   └── time.ts            # Time-based queries
+│   ├── syapi/                 # SiYuan kernel API wrappers
+│   ├── utils/                 # Utility functions
+│   ├── logger/                # Logging utilities
+│   ├── types/                 # SiYuan-specific types
+│   └── static/                # Prompts and documentation
+├── types/
+│   └── index.ts               # Shared types (Env, SiyuanMCPConfig)
+├── wrangler.jsonc             # Cloudflare Workers configuration
+└── package.json
+```
 
-- **index.ts**: OAuth proxy implementation - forwards authenticated requests to downstream MCP server
-- **cf-access-handler.ts**: OAuth 2.1 flow implementation with PKCE (authorization, callback, token exchange)
-- **wrangler.jsonc**: Cloudflare Workers configuration (KV bindings, environment variables)
+## Key Architecture
 
-## Key Architecture: OAuth Proxy Pattern
+### handlers/index.ts - OAuthProvider Setup
 
-### Request Flow
-
-1. **OAuth Flow** (handled by this worker):
-   - MCP client → `/authorize` with PKCE parameters
-   - Worker redirects to Cloudflare Access
-   - User authenticates via IdP (Okta, Azure AD, etc.)
-   - Callback receives auth code, exchanges for CF Access tokens
-   - Worker issues MCP-specific tokens mapped to CF Access tokens
-
-2. **MCP Request Proxying** (all subsequent requests):
-   - Client sends MCP request with OAuth token to `/mcp` or `/sse`
-   - Worker validates token, extracts auth context
-   - Worker proxies request to downstream MCP server with added headers:
-     - `Authorization: Bearer {cloudflare_access_token}`
-     - `X-User-Email: {user_email}`
-     - `X-User-Name: {user_name}`
-     - `X-User-Sub: {user_id}`
-     - `X-User-Groups: {group1,group2,...}`
-   - Downstream response streamed back to client transparently
-
-### Token Storage in KV
-
-- `state:{random}` → OAuth state + PKCE verifier (10 min TTL)
-- `auth_code:{random}` → CF tokens + user claims (5 min TTL)
-- `token:{random}` → MCP access token mapping (1 hour TTL)
-- `refresh:{random}` → MCP refresh token data (30 days TTL)
-- `client:{clientId}` → Dynamic client registration (1 year TTL)
-
-### AuthContext Interface
-
-The worker extracts user identity from Cloudflare Access JWT and passes it to the downstream server:
+Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent:
 
 ```typescript
-{
-  claims: {
-    sub: string              // Unique user ID
-    email?: string
-    name?: string
-    groups?: string[]        // Access policy groups
-    [key: string]: unknown   // Additional JWT claims
-  },
-  accessToken: string        // CF Access token
-  refreshToken?: string
+export class SiyuanMCP extends McpAgent<Env> {
+  server = new McpServer({ name: 'siyuan-mcp', version: '1.0.0' });
+
+  async init() {
+    await initializeSiyuanMCPServer(this.server, this.env);
+  }
 }
+
+export default new OAuthProvider({
+  apiHandlers: {
+    '/sse': SiyuanMCP.serveSSE('/sse'),
+    '/mcp': SiyuanMCP.mount('/mcp'),
+  },
+  // OAuth endpoints: /authorize, /token, /register
+});
 ```
+
+### handlers/oauth.ts - OAuth Flow
+
+Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP:
+- `/authorize` - Initiates OAuth flow, redirects to CF Access
+- `/callback` - Handles CF Access callback, exchanges code for tokens
+- `/token` - Token endpoint for MCP clients
+- `/register` - Dynamic client registration
+- `/.well-known/oauth-authorization-server` - OAuth metadata
+
+### siyuan-mcp/index.ts - MCP Server Core
+
+Provides two factory functions:
+- `createSiyuanMCPServer()` - Creates new McpServer instance
+- `initializeSiyuanMCPServer(server, config)` - Initializes with tools and prompts
+
+Context management:
+- `initializeContext()` - Fetches SiYuan config from kernel
+- `kernelFetch()` - Authenticated fetch to SiYuan kernel
+- `getConfig()` - Returns current SiYuan configuration
+
+### Tool Providers
+
+Each tool provider implements `McpToolsProvider` interface:
+- `getTools()` - Returns array of tool definitions
+- Tools include `name`, `description`, `schema`, `handler`, `annotations`
+
+Available tool categories:
+- **Document Operations**: read, write, create, move, rename, delete
+- **Block Operations**: insert, update, delete blocks
+- **Search**: full-text search, SQL queries, vector search (RAG)
+- **Organization**: daily notes, flashcards, attributes, relations
+- **Utilities**: time queries, notebook listing
 
 ## Environment Configuration
 
 ### Required Secrets (set via `wrangler secret put`)
 
-- `CF_ACCESS_CLIENT_ID`: Cloudflare Access SaaS app client ID
-- `CF_ACCESS_CLIENT_SECRET`: Cloudflare Access SaaS app client secret
-- `COOKIE_ENCRYPTION_KEY`: Random 64-char hex string (generate: `openssl rand -hex 32`)
+```bash
+wrangler secret put CF_ACCESS_CLIENT_ID      # Cloudflare Access OIDC client ID
+wrangler secret put CF_ACCESS_CLIENT_SECRET  # Cloudflare Access OIDC client secret
+wrangler secret put COOKIE_ENCRYPTION_KEY    # openssl rand -hex 32
+wrangler secret put SIYUAN_KERNEL_TOKEN      # SiYuan API token (if auth enabled)
+```
 
 ### Environment Variables (wrangler.jsonc)
 
-- `CF_ACCESS_TEAM_DOMAIN`: Your team domain (e.g., "myteam.cloudflareaccess.com")
-- `DOWNSTREAM_MCP_URL`: URL of the downstream MCP server to proxy to (e.g., "https://sy.wenri.me/mcp")
+| Variable | Description |
+|----------|-------------|
+| `CF_ACCESS_TEAM_DOMAIN` | Your CF Access team domain (e.g., "myteam.cloudflareaccess.com") |
+| `SIYUAN_KERNEL_URL` | SiYuan kernel URL (e.g., "https://siyuan.example.com") |
+| `RAG_BASE_URL` | Optional RAG backend URL for vector search |
+| `RAG_API_KEY` | Optional RAG backend API key |
+| `FILTER_NOTEBOOKS` | Newline-separated notebook IDs to filter |
+| `FILTER_DOCUMENTS` | Newline-separated document IDs to filter |
+| `READ_ONLY_MODE` | `allow_all`, `allow_non_destructive`, or `deny_all` |
 
 ### KV Namespace
 
-Must create and configure in wrangler.jsonc:
 ```bash
 npx wrangler kv namespace create "OAUTH_KV"
 ```
 
-## Downstream MCP Server Requirements
+Used for OAuth state, tokens, and client registrations.
 
-The downstream MCP server at `DOWNSTREAM_MCP_URL` should:
+## CLI Mode Usage
 
-1. **Verify the Cloudflare Access token** (optional but recommended):
-   - Fetch JWKS from `https://{team}.cloudflareaccess.com/cdn-cgi/access/certs`
-   - Verify JWT signature (RS256)
-   - Validate `aud`, `iss`, and `exp` claims
+For local development or direct Claude Desktop integration:
 
-2. **Read user context from headers**:
-   - `Authorization: Bearer {token}` - CF Access token for verification
-   - `X-User-Email` - User's email address
-   - `X-User-Name` - User's display name
-   - `X-User-Sub` - Unique user identifier
-   - `X-User-Groups` - Comma-separated list of user groups
-
-3. **Implement MCP protocol**:
-   - Must be a valid MCP server responding to MCP JSON-RPC requests
-   - Can define any tools/resources based on user identity
-   - Should handle both SSE and HTTP POST transports
-
-## Security Considerations
-
-- **PKCE S256**: Mandatory for all OAuth flows to prevent code interception
-- **Token Expiry**: Access tokens 1 hour, refresh tokens 30 days, auth codes 5 minutes
-- **No Signature Verification**: JWT claims decoded without verification (trust CF Access as issuer)
-- **Transparent Proxying**: All MCP traffic forwarded with minimal inspection
-- **Streaming Support**: Request/response bodies streamed for SSE and large payloads
-
-## Local Development Setup
-
-1. Copy `.dev.vars.example` to `.dev.vars`
-2. Fill in CF Access credentials and team domain
-3. Set `DOWNSTREAM_MCP_URL` to your local or remote MCP server
-4. Run `npm run dev`
-5. Access at http://localhost:8788
-
-For OAuth callback testing with local development, you may need:
-- Tunneling service (ngrok, cloudflared) to get public HTTPS URL
-- Or deploy to a dev Cloudflare Worker environment
-
-## Testing the OAuth Proxy
-
-### Using MCP Inspector
 ```bash
-npx @modelcontextprotocol/inspector@latest
-# Navigate to http://localhost:5173
-# Connect to your worker URL (local or deployed)
-# Authenticate via OAuth flow
-# All tool calls proxied to downstream server
+# Run with required options
+npx tsx handlers/cli.ts --kernel-url http://localhost:6806 --token YOUR_TOKEN
+
+# Or use environment variables
+export SIYUAN_KERNEL_URL=http://localhost:6806
+export SIYUAN_KERNEL_TOKEN=YOUR_TOKEN
+npx tsx handlers/cli.ts
 ```
 
-### Using Claude Desktop
-Add to `claude_desktop_config.json`:
+### Claude Desktop Configuration
+
 ```json
 {
   "mcpServers": {
-    "my-proxied-server": {
+    "siyuan": {
       "command": "npx",
-      "args": ["mcp-remote", "https://your-worker.workers.dev/sse"]
+      "args": ["tsx", "/path/to/handlers/cli.ts", "--kernel-url", "http://localhost:6806"]
+    }
+  }
+}
+```
+
+## Testing
+
+### Using MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector@latest
+# Navigate to http://localhost:5173
+# Connect to http://localhost:8788 or deployed URL
+```
+
+### Using Claude Desktop (via mcp-remote)
+
+```json
+{
+  "mcpServers": {
+    "siyuan-cloud": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://sy.wenri.me/sse"]
     }
   }
 }
@@ -180,56 +234,59 @@ Add to `claude_desktop_config.json`:
 
 ## Transport Endpoints
 
-### OAuth Endpoints (handled by worker)
-- `/authorize` - OAuth authorization initiation
-- `/callback` - OAuth callback handler
-- `/token` - OAuth token endpoint (authorization_code and refresh_token grants)
-- `/register` - Dynamic client registration
-- `/.well-known/oauth-authorization-server` - OAuth metadata
+### OAuth Endpoints (handled by oauth.ts)
+- `GET /authorize` - OAuth authorization initiation
+- `GET /callback` - OAuth callback handler
+- `POST /token` - Token endpoint
+- `POST /register` - Dynamic client registration
+- `POST /revoke` - Token revocation
+- `GET /.well-known/oauth-authorization-server` - OAuth metadata
+- `GET /.well-known/oauth-protected-resource/*` - Protected resource metadata
 
-### MCP Proxy Endpoints (forwarded to downstream)
-- `/mcp` - JSON-RPC over HTTP POST transport
-- `/sse` - Server-Sent Events transport (for streaming clients like Claude Desktop)
+### MCP Endpoints (handled by SiyuanMCP agent)
+- `POST /mcp` - JSON-RPC over HTTP
+- `GET /sse` - Server-Sent Events transport
 
-## Code Structure
+## Token Storage (KV)
 
-### [index.ts](index.ts)
+- `state:{random}` - OAuth state + PKCE verifier (10 min TTL)
+- `auth_code:{random}` - CF tokens + user claims (5 min TTL)
+- `refresh:{random}` - Refresh token mapping (30 days TTL)
+- `client:{clientId}` - Dynamic client registration (1 year TTL)
 
-**`proxyToDownstream()`** - Core proxy logic:
-- Validates `DOWNSTREAM_MCP_URL` is configured
-- Clones incoming request
-- Adds authentication headers (Authorization + X-User-* headers)
-- Forwards to downstream server
-- Streams response back preserving all headers and status codes
+## Security Considerations
 
-**`McpApiHandler`** - Request handler called after OAuth validation:
-- Extracts auth context from `X-Auth-Context` header (set by OAuthProvider)
-- Calls `proxyToDownstream()` for all MCP requests
-
-### [cf-access-handler.ts](cf-access-handler.ts)
-
-Implements complete OAuth 2.1 flow with PKCE - see file for detailed implementation.
+- **PKCE S256**: Required for all OAuth flows
+- **Cloudflare Access**: Enterprise IdP integration (Okta, Azure AD, Google, etc.)
+- **Token Binding**: MCP tokens mapped to CF Access tokens
+- **Read-Only Mode**: Configurable tool restrictions for safety
+- **No JWT Verification**: Trusts CF Access as token issuer
 
 ## Common Issues
 
-**"DOWNSTREAM_MCP_URL not configured"**: Set the `DOWNSTREAM_MCP_URL` environment variable in wrangler.jsonc or .dev.vars.
+**"SIYUAN_KERNEL_URL not configured"**: Set in wrangler.jsonc vars or as secret.
 
-**"Unauthorized" on MCP requests**: OAuth flow not completed. Client must first authenticate via `/authorize` endpoint.
+**"Failed to get SiYuan config"**: Verify kernel URL is accessible and token is correct.
 
-**"Invalid or expired state"**: KV namespace not configured or state expired (10 min timeout). Verify KV binding in wrangler.jsonc.
+**"Invalid or expired state"**: OAuth state expired (10 min timeout) or KV not configured.
 
-**"Token exchange failed"**: Client credentials mismatch. Verify CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.
+**"Token exchange failed"**: Verify CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.
 
-**"Failed to connect to downstream MCP server"**: Downstream server unreachable or returned error. Check `DOWNSTREAM_MCP_URL` is correct and server is running.
-
-**Downstream server doesn't receive auth headers**: Check that downstream server is reading `Authorization` and `X-User-*` headers from the request.
+**Tool not found**: Check READ_ONLY_MODE setting - some tools may be filtered.
 
 ## Deployment Checklist
 
 1. Create KV namespace: `npx wrangler kv namespace create "OAUTH_KV"`
-2. Update KV namespace ID in [wrangler.jsonc](wrangler.jsonc)
-3. Configure Cloudflare Access SaaS application with redirect URL
+2. Update KV namespace ID in wrangler.jsonc
+3. Create Cloudflare Access SaaS application with redirect URL `/callback`
 4. Set secrets: `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`
-5. Set environment variables: `CF_ACCESS_TEAM_DOMAIN`, `DOWNSTREAM_MCP_URL`
+5. Set `SIYUAN_KERNEL_URL` and optionally `SIYUAN_KERNEL_TOKEN`
 6. Deploy: `npm run deploy`
-7. Test OAuth flow with MCP Inspector or Claude Desktop
+7. Test OAuth flow with MCP Inspector
+
+## Adding New Tools
+
+1. Create new file in `siyuan-mcp/tools/` extending `McpToolsProvider`
+2. Implement `getTools()` returning tool definitions
+3. Add provider to `getAllToolProviders()` in `siyuan-mcp/tools/index.ts`
+4. Tools are automatically registered on server initialization
