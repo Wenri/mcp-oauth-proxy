@@ -14,16 +14,12 @@ import {
   getNotebookConf,
   queryAPI,
   removeBlockAPI,
-  exportMdContent,
-  getFileAPIv2,
   getNodebookList,
 } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { McpToolsProvider, McpTool } from './baseToolProvider';
-import { debugPush, logPush, warnPush, errorPush } from '../logger';
-import { getBlockAssets } from '../syapi/custom';
-import { blobToBase64Object } from '../utils/common';
+import { debugPush, warnPush } from '../logger';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/filterCheck';
 import { getPlatformContext } from '../platform';
@@ -65,55 +61,6 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
       },
     ];
   }
-}
-
-function isSupportedImageOrAudio(path: string): 'image' | 'audio' | false {
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico'];
-  const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'];
-
-  const extMatch = path.match(/\.([a-zA-Z0-9]+)$/);
-  if (!extMatch) return false;
-
-  const ext = extMatch[1].toLowerCase();
-
-  if (imageExtensions.includes(ext)) {
-    return 'image';
-  } else if (audioExtensions.includes(ext)) {
-    return 'audio';
-  } else {
-    return false;
-  }
-}
-
-async function getAssets(id: string) {
-  const assetsInfo = await getBlockAssets(id);
-  const assetsPathList = assetsInfo.map((item) => item.path);
-  const assetsPromise: Promise<Blob>[] = [];
-
-  assetsPathList.forEach((pathItem) => {
-    if (isSupportedImageOrAudio(pathItem)) {
-      assetsPromise.push(getFileAPIv2('/data/' + pathItem));
-    }
-  });
-
-  const assetsBlobResult = await Promise.all(assetsPromise);
-  const base64ObjPromise: Promise<any>[] = [];
-  let mediaLengthSum = 0;
-
-  for (const blob of assetsBlobResult) {
-    logPush('type', typeof blob, blob);
-    if (blob.size / 1024 / 1024 > 2) {
-      logPush('File too large, not returning', blob.size);
-    } else if (mediaLengthSum / 1024 / 1024 > 5) {
-      logPush('Total media size too large, not returning more content', mediaLengthSum);
-      break;
-    } else {
-      mediaLengthSum += blob.size;
-      base64ObjPromise.push(blobToBase64Object(blob));
-    }
-  }
-
-  return await Promise.all(base64ObjPromise);
 }
 
 async function appendToDailynoteHandler(params: { notebookId: string; markdownContent: string }) {
