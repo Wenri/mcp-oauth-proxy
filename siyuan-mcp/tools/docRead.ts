@@ -1,8 +1,5 @@
 /**
  * Document reading tools
- * Adapted from upstream to use platform abstraction
- *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().config instead of window.siyuan.config
  */
 
 import { z } from 'zod';
@@ -10,7 +7,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2 } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
-import { getPlatformContext } from '../platform';
+import { getConfig } from '../context';
 import { getBlockDBItem, getBlockAssets } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
 import { blobToBase64Object } from '../utils/common';
@@ -77,9 +74,8 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
 
   const markdown = await exportMdContent({ id, refMode: 4, embedMode: 1, yfm: false });
 
-  // PLATFORM CHANGE: Use getPlatformContext() instead of window.siyuan.config
-  const ctx = getPlatformContext();
-  if (dbItem.type !== 'd' && isValidStr(markdown['content']) && ctx.config.export?.addTitle) {
+  const config = getConfig();
+  if (dbItem.type !== 'd' && isValidStr(markdown['content']) && config.export?.addTitle) {
     // Strip title from non-document blocks if addTitle is enabled
     markdown['content'] = markdown['content'].replace(/^#{1,6}\s+.*\n?/, '');
   }

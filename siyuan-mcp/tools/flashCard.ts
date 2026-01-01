@@ -1,8 +1,5 @@
 /**
  * Flashcard tools
- * Adapted from upstream to use platform abstraction
- *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().config instead of window.siyuan.config
  */
 
 import { addRiffCards, queryAPI, removeRiffCards } from '../syapi';
@@ -14,7 +11,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { z } from 'zod';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterBlock } from '../utils/filterCheck';
-import { getPlatformContext } from '../platform';
+import { getConfig } from '../context';
 
 const TYPE_VALID_LIST = ['h1', 'h2', 'h3', 'h4', 'h5', 'highlight', 'superBlock'] as const;
 
@@ -124,9 +121,8 @@ async function addFlashCardMarkdown(
     );
   }
 
-  // PLATFORM CHANGE: Use getPlatformContext() instead of window.siyuan.config
-  const ctx = getPlatformContext();
-  if (type === 'highlight' && !ctx.config.editor?.markdown?.inlineMath) {
+  const config = getConfig();
+  if (type === 'highlight' && !config.editor?.markdown?.inlineMath) {
     return createErrorResponse(
       'Card creation failed: Highlight flashcards require Markdown inline syntax to be enabled. Please remind user to enable this feature (Settings - Editor - Markdown inline syntax)'
     );

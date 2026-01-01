@@ -2,18 +2,12 @@
  * SiYuan MCP - Main entry point
  *
  * This module provides a Model Context Protocol (MCP) server for SiYuan Note
- * that can run in both browser and Cloudflare Workers environments.
+ * running on Cloudflare Workers.
  */
 
-// Platform abstraction
-export {
-  setPlatformContext,
-  getPlatformContext,
-  hasPlatformContext,
-  createCloudflareContext,
-  createBrowserContext,
-} from './platform';
-export type { PlatformContext, SiyuanConfig } from './platform';
+// Context
+export { initializeContext, getConfig, hasContext, kernelFetch, generateNodeID, getAppId } from './context';
+export type { SiyuanConfig, ContextOptions } from './types/context';
 
 // API functions
 export * from './syapi';

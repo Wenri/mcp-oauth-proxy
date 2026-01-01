@@ -5,7 +5,7 @@
  * It can be triggered by CF Cron or called manually to index documents.
  */
 
-import { setPlatformContext, createCloudflareContext } from '../platform';
+import { initializeContext } from '../context';
 import { queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
@@ -133,12 +133,11 @@ export async function processIndexQueue(config: IndexerConfig, kv: KVNamespace):
   processed: number;
   errors: number;
 }> {
-  // Initialize platform context
-  const ctx = await createCloudflareContext({
+  // Initialize context
+  await initializeContext({
     kernelBaseUrl: config.kernelBaseUrl,
     kernelToken: config.kernelToken,
   });
-  setPlatformContext(ctx);
 
   const provider = createRAGProvider(config);
   const queue = new IndexQueue(kv);
@@ -196,12 +195,11 @@ export async function queueRecentDocuments(
   kv: KVNamespace,
   sinceMinutes: number = 60
 ): Promise<number> {
-  // Initialize platform context
-  const ctx = await createCloudflareContext({
+  // Initialize context
+  await initializeContext({
     kernelBaseUrl: config.kernelBaseUrl,
     kernelToken: config.kernelToken,
   });
-  setPlatformContext(ctx);
 
   // Calculate timestamp for query
   const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
@@ -236,12 +234,11 @@ export async function queueAllDocuments(
   kv: KVNamespace,
   maxDocuments: number = 1000
 ): Promise<number> {
-  // Initialize platform context
-  const ctx = await createCloudflareContext({
+  // Initialize context
+  await initializeContext({
     kernelBaseUrl: config.kernelBaseUrl,
     kernelToken: config.kernelToken,
   });
-  setPlatformContext(ctx);
 
   // Query for all documents
   const sql = `SELECT id FROM blocks WHERE type = 'd' LIMIT ${maxDocuments}`;

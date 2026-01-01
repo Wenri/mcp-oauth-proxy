@@ -1,12 +1,9 @@
 /**
  * SiYuan MCP Server for Cloudflare Workers
- *
- * Aligned with upstream server implementation using McpServer and
- * proper transport handling.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { setPlatformContext, createCloudflareContext } from './platform';
+import { initializeContext } from './context';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { lang } from './utils/lang';
@@ -34,8 +31,8 @@ export async function initializeSiyuanMCPServer(
   server: McpServer,
   config: SiyuanMCPConfig
 ): Promise<void> {
-  // Initialize platform context
-  const ctx = await createCloudflareContext({
+  // Initialize context
+  await initializeContext({
     kernelBaseUrl: config.kernelBaseUrl,
     kernelToken: config.kernelToken,
     ragConfig: config.ragBaseUrl
@@ -48,7 +45,6 @@ export async function initializeSiyuanMCPServer(
     filterDocuments: config.filterDocuments,
     appId: config.appId,
   });
-  setPlatformContext(ctx);
 
   // Load tools and prompts
   await loadTools(server, config.readOnlyMode || 'allow_all');
@@ -79,7 +75,7 @@ export function createSiyuanMCPServer(): McpServer {
 /**
  * Load and register all tools with the MCP server
  */
-export async function loadTools(
+async function loadTools(
   server: McpServer,
   readOnlyMode: 'allow_all' | 'allow_non_destructive' | 'deny_all'
 ): Promise<void> {
@@ -104,7 +100,6 @@ export async function loadTools(
       logPush('Registering tool:', tool.name, tool.title);
 
       // Register tool using the correct API format
-      // The schema from tools is already a Zod schema shape object
       server.tool(
         tool.name,
         tool.description,
@@ -133,7 +128,7 @@ export async function loadTools(
 /**
  * Load and register prompts with the MCP server
  */
-export async function loadPrompts(server: McpServer): Promise<void> {
+async function loadPrompts(server: McpServer): Promise<void> {
   server.prompt(
     'create_flashcards_system_cn',
     {
@@ -172,4 +167,3 @@ export async function loadPrompts(server: McpServer): Promise<void> {
     })
   );
 }
-

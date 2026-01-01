@@ -1,8 +1,5 @@
 /**
  * Vector search / RAG tools
- * Adapted from upstream - removed browser-only exports
- *
- * CHANGE FROM UPSTREAM: Removed window["OpaqueGlassAPI"] browser export
  */
 
 import { z } from 'zod';
@@ -10,7 +7,7 @@ import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
-import { getPlatformContext } from '../platform';
+import { getConfig } from '../context';
 
 // RAG provider interface
 interface RAGProvider {
@@ -20,8 +17,8 @@ interface RAGProvider {
 
 // Create RAG provider from config
 function createRAGProvider(): RAGProvider | null {
-  const ctx = getPlatformContext();
-  const ragConfig = ctx.config.rag;
+  const config = getConfig();
+  const ragConfig = config.rag;
 
   if (!ragConfig?.baseUrl) {
     return null;

@@ -1,11 +1,8 @@
 /**
  * Shared functions for tools
- * Adapted from upstream to use platform abstraction
- *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().generateNodeID instead of window.Lute
  */
 
-import { getPlatformContext } from '../platform';
+import { generateNodeID } from '../context';
 import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { checkIdValid, getDocDBitem } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';
@@ -16,11 +13,7 @@ export async function createNewDoc(
   title: string,
   content: string
 ): Promise<string | null> {
-  const ctx = getPlatformContext();
-  const newDocId = ctx.generateNodeID();
   const hpath = `/${parentDocId}/${title}`;
-
-  // Try to create document with markdown content
   const docId = await createDocWithMdAPI(notebookId, hpath, content);
   return docId;
 }
@@ -32,12 +25,8 @@ export async function createNewDocWithParentId(
 ): Promise<{ result: boolean; newDocId: string }> {
   checkIdValid(parentId);
 
-  // Check if it's a notebook ID
   const notebookIdFlag = isValidNotebookId(parentId);
-
-  // PLATFORM CHANGE: Use getPlatformContext().generateNodeID() instead of window.Lute.NewNodeID()
-  const ctx = getPlatformContext();
-  const newDocId = ctx.generateNodeID();
+  const newDocId = generateNodeID();
 
   const createParams: {
     notebook: string;
@@ -58,7 +47,6 @@ export async function createNewDocWithParentId(
   }
 
   if (!notebookIdFlag) {
-    // Check if it's a document ID
     const docInfo = await getDocDBitem(parentId);
     if (docInfo == null) {
       throw new Error(
@@ -69,7 +57,6 @@ export async function createNewDocWithParentId(
     createParams.notebook = docInfo['box'];
   }
 
-  // Create document
   const result = await createDocWithPath(
     createParams.notebook,
     createParams.path,

@@ -1,9 +1,8 @@
 /**
  * Common validation utilities
- * Adapted from upstream to use platform abstraction
  */
 
-import { getPlatformContext, hasPlatformContext } from '../platform';
+import { getConfig, hasContext } from '../context';
 
 export function isValidStr(s: any): boolean {
   if (s == undefined || s == null || s === '') {
@@ -19,13 +18,11 @@ export function isBlankStr(s: any): boolean {
 }
 
 export function isValidNotebookId(id: string): boolean {
-  // In CF Worker, we check against config notebooks if available
-  // Otherwise just validate string format
   if (!isValidStr(id)) return false;
 
-  if (hasPlatformContext()) {
-    const ctx = getPlatformContext();
-    const notebooks = ctx.config.notebooks;
+  if (hasContext()) {
+    const config = getConfig();
+    const notebooks = config.notebooks;
     if (notebooks && Array.isArray(notebooks)) {
       return notebooks.some((nb: any) => nb.id === id);
     }
@@ -37,20 +34,13 @@ export function isValidNotebookId(id: string): boolean {
 
 export function isMobile(): boolean {
   // CF Worker is never mobile
-  if (hasPlatformContext() && getPlatformContext().platform === 'cloudflare') {
-    return false;
-  }
-  // Browser check
-  if (typeof window !== 'undefined' && window.document) {
-    return !!window.document.getElementById('sidebar');
-  }
   return false;
 }
 
 export function isMacOs(): boolean {
-  if (hasPlatformContext()) {
-    const ctx = getPlatformContext();
-    const os = ctx.config.system?.os?.toUpperCase() || '';
+  if (hasContext()) {
+    const config = getConfig();
+    const os = config.system?.os?.toUpperCase() || '';
     return (
       os.includes('DARWIN') ||
       os.includes('MAC') ||
@@ -124,10 +114,10 @@ const parseVersion = (version: string): number[] => {
 };
 
 export function isCurrentVersionLessThan(version: string): boolean {
-  if (!hasPlatformContext()) return false;
+  if (!hasContext()) return false;
 
-  const ctx = getPlatformContext();
-  const currentVersion = ctx.config.system?.kernelVersion || '0.0.0';
+  const config = getConfig();
+  const currentVersion = config.system?.kernelVersion || '0.0.0';
 
   const parsedInputVersion = parseVersion(version);
   const parsedCurrentVersion = parseVersion(currentVersion);

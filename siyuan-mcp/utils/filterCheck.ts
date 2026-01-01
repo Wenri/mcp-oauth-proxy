@@ -1,21 +1,16 @@
 /**
  * Filter check utilities
- * Adapted from upstream to use platform abstraction
- *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().config instead of plugin settings
- * In CF Worker, filter settings come from platform config
  */
 
 import { getBlockDBItem } from '../syapi/custom';
-import { getPlatformContext } from '../platform';
+import { getConfig } from '../context';
 import { logPush } from '../logger';
 
 function getFilterSettings() {
-  const ctx = getPlatformContext();
-  // Filter settings can be stored in platform config
+  const config = getConfig();
   return {
-    filterNotebooks: ctx.config.filterNotebooks || '',
-    filterDocuments: ctx.config.filterDocuments || '',
+    filterNotebooks: config.filterNotebooks || '',
+    filterDocuments: config.filterDocuments || '',
   };
 }
 

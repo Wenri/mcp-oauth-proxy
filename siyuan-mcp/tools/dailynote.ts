@@ -1,8 +1,5 @@
 /**
  * Daily note tools
- * Adapted from upstream to use platform abstraction
- *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().config.notebooks instead of window.siyuan.notebooks
  */
 
 import { z } from 'zod';
@@ -22,7 +19,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, warnPush } from '../logger';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/filterCheck';
-import { getPlatformContext } from '../platform';
+import { getAppId } from '../context';
 
 export class DailyNoteToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -72,8 +69,7 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
   }
 
   // Create or get daily note
-  const ctx = getPlatformContext();
-  const appId = ctx.config.appId || 'mcp-worker';
+  const appId = getAppId();
   const id = await createDailyNote(notebookId, appId);
 
   let newBlockId = '';

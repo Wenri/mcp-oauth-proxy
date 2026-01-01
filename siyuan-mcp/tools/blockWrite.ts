@@ -1,6 +1,5 @@
 /**
  * Block write tools
- * Adapted from upstream - removed plugin instance dependencies
  */
 
 import { z } from 'zod';
@@ -14,7 +13,7 @@ import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, i
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
 import { filterBlock } from '../utils/filterCheck';
-import { getPlatformContext } from '../platform';
+import { getConfig } from '../context';
 
 export class BlockWriteToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -231,8 +230,8 @@ async function updateBlockHandler(params: { data: string; id: string }) {
   }
 
   // In CF Worker, we auto-approve changes (no plugin UI for review)
-  const ctx = getPlatformContext();
-  const autoApprove = ctx.platform === 'cloudflare' || ctx.config.autoApproveLocalChange !== false;
+  const config = getConfig();
+  const autoApprove = config.autoApproveLocalChange !== false;
 
   if (autoApprove) {
     const response = await updateBlockAPI(data, id);

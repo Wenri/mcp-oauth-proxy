@@ -1,11 +1,10 @@
 /**
  * SiYuan Kernel API wrapper
- * Adapted from upstream to use platform abstraction
  *
- * CHANGE FROM UPSTREAM: Uses getPlatformContext().kernelFetch instead of global fetch
+ * Uses kernelFetch from context for authenticated API calls.
  */
 
-import { getPlatformContext } from '../platform';
+import { kernelFetch } from '../context';
 
 /**
  * Send POST request to SiYuan kernel API
@@ -13,8 +12,7 @@ import { getPlatformContext } from '../platform';
  * @param url API endpoint (e.g., /api/query/sql)
  */
 export async function postRequest(data: any, url: string): Promise<any> {
-  const ctx = getPlatformContext();
-  const response = await ctx.kernelFetch(url, {
+  const response = await kernelFetch(url, {
     body: JSON.stringify(data),
     method: 'POST',
   });
@@ -464,10 +462,9 @@ export async function createDocWithPath(
 
 /** Get file from workspace (returns blob for binary files) */
 export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
-  const ctx = getPlatformContext();
   const url = '/api/file/getFile';
 
-  const response = await ctx.kernelFetch(url, {
+  const response = await kernelFetch(url, {
     method: 'POST',
     body: JSON.stringify({ path }),
   });
@@ -498,7 +495,6 @@ export async function getJSONFile(path: string): Promise<any> {
 
 /** Put JSON file to workspace */
 export async function putJSONFile(path: string, object: any, format = false): Promise<any> {
-  const ctx = getPlatformContext();
   const url = '/api/file/putFile';
   const pathSplited = path.split('/');
   const fileContent = format ? JSON.stringify(object, null, 4) : JSON.stringify(object);
@@ -510,8 +506,8 @@ export async function putJSONFile(path: string, object: any, format = false): Pr
   formData.append('modTime', Date.now().toString());
   formData.append('file', file, pathSplited[pathSplited.length - 1]);
 
-  // Use kernelFetch but with FormData (no Content-Type header - let browser set it)
-  const response = await ctx.kernelFetch(url, {
+  // Use kernelFetch with FormData (no Content-Type header - let browser set it)
+  const response = await kernelFetch(url, {
     method: 'POST',
     body: formData,
     headers: {}, // Clear Content-Type to let FormData set boundary
