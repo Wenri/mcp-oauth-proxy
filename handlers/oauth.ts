@@ -18,9 +18,9 @@ import type { Env } from '../types';
 import type { OAuthHelpers, AuthRequest } from '@cloudflare/workers-oauth-provider';
 
 // Extend Env to include OAUTH_PROVIDER helpers injected by OAuthProvider
-interface EnvWithOAuth extends Env {
+export type EnvWithOAuth = Env & {
   OAUTH_PROVIDER: OAuthHelpers;
-}
+};
 
 // Session cookie name for OAuth state binding
 const STATE_COOKIE_NAME = '__Host-oauth_state';
