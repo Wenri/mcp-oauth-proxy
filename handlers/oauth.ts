@@ -12,6 +12,7 @@
  */
 
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import type { Env } from '../types';
 import type { OAuthHelpers, AuthRequest } from '@cloudflare/workers-oauth-provider';
@@ -102,6 +103,17 @@ function buildCFAccessAuthUrl(
 
 // Create Hono app for OAuth routes
 const oauth = new Hono<{ Bindings: EnvWithOAuth }>();
+
+// CORS middleware for cross-origin MCP clients
+oauth.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version'],
+    maxAge: 86400,
+  })
+);
 
 /**
  * GET /authorize - Parse OAuth request and redirect to Cloudflare Access

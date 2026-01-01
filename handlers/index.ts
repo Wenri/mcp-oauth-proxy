@@ -1,11 +1,9 @@
 /**
- * Handlers - Cloudflare Workers integration with Hono
+ * Handlers - Cloudflare Workers integration
  *
  * Provides OAuthProvider configuration with SiyuanMCP agent.
  */
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
@@ -36,47 +34,11 @@ export class SiyuanMCP extends McpAgent<Env> {
 }
 
 /**
- * Hono app for default handler routes
- */
-const app = new Hono<{ Bindings: Env }>();
-
-// CORS middleware
-app.use(
-  '*',
-  cors({
-    origin: '*',
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version'],
-    maxAge: 86400,
-  })
-);
-
-// Mount OAuth routes
-app.route('/', oauth);
-
-// Root endpoint - server info
-app.get('/', (c) =>
-  c.json({
-    name: 'siyuan-mcp',
-    version: '1.0.0',
-    endpoints: {
-      sse: '/sse',
-      mcp: '/mcp',
-      authorize: '/authorize',
-      token: '/token',
-    },
-  })
-);
-
-// Fallback - 404
-app.notFound((c) => c.text('Not found', 404));
-
-/**
  * OAuthProvider with SiyuanMCP agent
  *
  * OAuth flow:
- * 1. /authorize - handled by Hono app → oauth.ts → redirects to CF Access
- * 2. /callback - handled by Hono app → oauth.ts → calls completeAuthorization()
+ * 1. /authorize - handled by oauth.ts → redirects to CF Access
+ * 2. /callback - handled by oauth.ts → calls completeAuthorization()
  * 3. /token - handled by OAuthProvider (automatic token exchange)
  * 4. /register - handled by OAuthProvider (dynamic client registration)
  */
@@ -86,9 +48,9 @@ export default new OAuthProvider({
     '/sse': SiyuanMCP.serveSSE('/sse'),
     '/mcp': SiyuanMCP.mount('/mcp'),
   },
-  // Hono app as default handler
+  // OAuth routes handler (includes CORS middleware)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  defaultHandler: app as any,
+  defaultHandler: oauth as any,
   // OAuth endpoints - OAuthProvider handles /token and /register
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
