@@ -11,15 +11,10 @@ import { handleOAuthRoute } from './oauth';
 import {
   setPlatformContext,
   createCloudflareContext,
-  getAllToolProviders,
+  loadTools,
+  loadPrompts,
   logPush,
-  debugPush,
-  lang,
 } from '../siyuan-mcp';
-
-// Import prompts
-import promptCreateCardsSystemCN from '../siyuan-mcp/static/prompt_create_cards_system_CN.md';
-import promptQuerySystemCN from '../siyuan-mcp/static/prompt_dynamic_query_system_CN.md';
 
 // Environment interface
 export interface Env {
@@ -55,6 +50,7 @@ export class SiyuanMCP extends McpAgent<Env> {
       return;
     }
 
+    // Initialize platform context
     const ctx = await createCloudflareContext({
       kernelBaseUrl: env.SIYUAN_KERNEL_URL,
       kernelToken: env.SIYUAN_KERNEL_TOKEN,
@@ -66,65 +62,11 @@ export class SiyuanMCP extends McpAgent<Env> {
     });
     setPlatformContext(ctx);
 
-    await this.loadTools(env.READ_ONLY_MODE || 'allow_all');
-    await this.loadPrompts();
+    // Use shared functions from siyuan-mcp/server.ts
+    await loadTools(this.server, env.READ_ONLY_MODE || 'allow_all');
+    await loadPrompts(this.server);
 
     logPush('SiYuan MCP agent initialized');
-  }
-
-  private async loadTools(
-    readOnlyMode: 'allow_all' | 'allow_non_destructive' | 'deny_all'
-  ): Promise<void> {
-    const providers = getAllToolProviders();
-
-    for (const provider of providers) {
-      const tools = await provider.getTools();
-      for (const tool of tools) {
-        if (
-          readOnlyMode === 'deny_all' &&
-          (tool.annotations?.readOnlyHint === false || tool.annotations?.destructiveHint === true)
-        ) {
-          continue;
-        }
-        if (readOnlyMode === 'allow_non_destructive' && tool.annotations?.destructiveHint === true) {
-          continue;
-        }
-
-        this.server.tool(tool.name, tool.schema || {}, async (params: any) => {
-          debugPush(`Tool ${tool.name} called`, params);
-          try {
-            return await tool.handler(params, {});
-          } catch (error: any) {
-            return {
-              content: [{ type: 'text', text: `Error: ${error.message}` }],
-              isError: true,
-            };
-          }
-        });
-      }
-    }
-  }
-
-  private async loadPrompts(): Promise<void> {
-    this.server.prompt(
-      'create_flashcards_system_cn',
-      { title: lang('prompt_flashcards'), description: 'Create flash cards' },
-      () => ({
-        messages: [
-          { role: 'user', content: { type: 'text', text: promptCreateCardsSystemCN } },
-        ],
-      })
-    );
-
-    this.server.prompt(
-      'sql_query_prompt_cn',
-      { title: lang('prompt_sql'), description: 'SQL Query System Prompt' },
-      () => ({
-        messages: [
-          { role: 'assistant', content: { type: 'text', text: promptQuerySystemCN } },
-        ],
-      })
-    );
   }
 }
 

@@ -73,7 +73,7 @@ export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<Mc
 /**
  * Load and register all tools with the MCP server
  */
-async function loadTools(
+export async function loadTools(
   server: McpServer,
   readOnlyMode: 'allow_all' | 'allow_non_destructive' | 'deny_all'
 ): Promise<void> {
@@ -127,7 +127,7 @@ async function loadTools(
 /**
  * Load and register prompts with the MCP server
  */
-async function loadPrompts(server: McpServer): Promise<void> {
+export async function loadPrompts(server: McpServer): Promise<void> {
   server.prompt(
     'create_flashcards_system_cn',
     {
