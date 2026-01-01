@@ -5,3 +5,7 @@ interface Env {
 	CF_ACCESS_TEAM_DOMAIN: "wenri.cloudflareaccess.com";
 	DOWNSTREAM_MCP_URL: "https://sy.wenri.me/mcp";
 }
+declare module "*.md" {
+	const value: string;
+	export default value;
+}

@@ -29,9 +29,13 @@ export interface SiyuanMCPConfig {
 }
 
 /**
- * Create and configure the SiYuan MCP server
+ * Initialize an existing MCP server with SiYuan tools and prompts
+ * Use this when you already have a server instance (e.g., from McpAgent)
  */
-export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<McpServer> {
+export async function initializeSiyuanMCPServer(
+  server: McpServer,
+  config: SiyuanMCPConfig
+): Promise<void> {
   // Initialize platform context
   const ctx = await createCloudflareContext({
     kernelBaseUrl: config.kernelBaseUrl,
@@ -48,7 +52,18 @@ export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<Mc
   });
   setPlatformContext(ctx);
 
-  // Create MCP server with capabilities
+  // Load tools and prompts
+  await loadTools(server, config.readOnlyMode || 'allow_all');
+  await loadPrompts(server);
+
+  logPush('SiYuan MCP server initialized with tools');
+}
+
+/**
+ * Create and configure a new SiYuan MCP server
+ * Use this for CLI/stdio usage where you need a new server instance
+ */
+export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<McpServer> {
   const server = new McpServer(
     {
       name: 'siyuan-mcp',
@@ -62,11 +77,7 @@ export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<Mc
     }
   );
 
-  // Load tools and prompts
-  await loadTools(server, config.readOnlyMode || 'allow_all');
-  await loadPrompts(server);
-
-  logPush('SiYuan MCP server initialized with tools');
+  await initializeSiyuanMCPServer(server, config);
   return server;
 }
 

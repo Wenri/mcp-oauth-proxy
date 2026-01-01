@@ -8,13 +8,7 @@ import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { handleOAuthRoute } from './oauth';
-import {
-  setPlatformContext,
-  createCloudflareContext,
-  loadTools,
-  loadPrompts,
-  logPush,
-} from '../siyuan-mcp';
+import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
 
 // Environment interface
 export interface Env {
@@ -50,23 +44,15 @@ export class SiyuanMCP extends McpAgent<Env> {
       return;
     }
 
-    // Initialize platform context
-    const ctx = await createCloudflareContext({
+    await initializeSiyuanMCPServer(this.server, {
       kernelBaseUrl: env.SIYUAN_KERNEL_URL,
       kernelToken: env.SIYUAN_KERNEL_TOKEN,
-      ragConfig: env.RAG_BASE_URL
-        ? { baseUrl: env.RAG_BASE_URL, apiKey: env.RAG_API_KEY }
-        : undefined,
+      ragBaseUrl: env.RAG_BASE_URL,
+      ragApiKey: env.RAG_API_KEY,
       filterNotebooks: env.FILTER_NOTEBOOKS,
       filterDocuments: env.FILTER_DOCUMENTS,
+      readOnlyMode: env.READ_ONLY_MODE,
     });
-    setPlatformContext(ctx);
-
-    // Use shared functions from siyuan-mcp/server.ts
-    await loadTools(this.server, env.READ_ONLY_MODE || 'allow_all');
-    await loadPrompts(this.server);
-
-    logPush('SiYuan MCP agent initialized');
   }
 }
 
