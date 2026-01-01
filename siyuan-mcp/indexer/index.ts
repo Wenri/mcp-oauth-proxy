@@ -6,15 +6,12 @@
  */
 
 import { initializeContext } from '../context';
+import type { SiyuanMCPConfig } from '../types/context';
 import { queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
-export interface IndexerConfig {
-  kernelBaseUrl: string;
-  kernelToken?: string;
-  ragBaseUrl: string;
-  ragApiKey?: string;
+export interface IndexerConfig extends Pick<SiyuanMCPConfig, 'kernelBaseUrl' | 'kernelToken' | 'ragBaseUrl' | 'ragApiKey'> {
   batchSize?: number;
   maxDocuments?: number;
 }

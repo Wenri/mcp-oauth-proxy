@@ -4,6 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { initializeContext } from './context';
+import type { SiyuanMCPConfig } from './types/context';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { lang } from './utils/lang';
@@ -12,16 +13,8 @@ import { lang } from './utils/lang';
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
 import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
 
-export interface SiyuanMCPConfig {
-  kernelBaseUrl: string;
-  kernelToken?: string;
-  ragBaseUrl?: string;
-  ragApiKey?: string;
-  filterNotebooks?: string;
-  filterDocuments?: string;
-  appId?: string;
-  readOnlyMode?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
-}
+// Re-export config type for convenience
+export type { SiyuanMCPConfig } from './types/context';
 
 /**
  * Initialize an existing MCP server with SiYuan tools and prompts
@@ -32,19 +25,7 @@ export async function initializeSiyuanMCPServer(
   config: SiyuanMCPConfig
 ): Promise<void> {
   // Initialize context
-  await initializeContext({
-    kernelBaseUrl: config.kernelBaseUrl,
-    kernelToken: config.kernelToken,
-    ragConfig: config.ragBaseUrl
-      ? {
-          baseUrl: config.ragBaseUrl,
-          apiKey: config.ragApiKey,
-        }
-      : undefined,
-    filterNotebooks: config.filterNotebooks,
-    filterDocuments: config.filterDocuments,
-    appId: config.appId,
-  });
+  await initializeContext(config);
 
   // Load tools and prompts
   await loadTools(server, config.readOnlyMode || 'allow_all');

@@ -7,7 +7,7 @@
 
 // Context
 export { initializeContext, getConfig, hasContext, kernelFetch, generateNodeID, getAppId } from './context';
-export type { SiyuanConfig, ContextOptions } from './types/context';
+export type { SiyuanConfig, SiyuanMCPConfig } from './types/context';
 
 // API functions
 export * from './syapi';
@@ -18,7 +18,6 @@ export * from './tools';
 
 // Server
 export { initializeSiyuanMCPServer, createSiyuanMCPServer } from './server';
-export type { SiyuanMCPConfig } from './server';
 
 // Utilities
 export { isValidStr, isValidNotebookId, isMobile, isMacOs } from './utils/commonCheck';

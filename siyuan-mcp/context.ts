@@ -5,7 +5,7 @@
  * Call initializeContext() before using any API functions.
  */
 
-import type { SiyuanConfig, ContextOptions } from './types/context';
+import type { SiyuanConfig, SiyuanMCPConfig } from './types/context';
 
 // Module-level state
 let config: SiyuanConfig | null = null;
@@ -16,8 +16,8 @@ let authToken: string | undefined;
  * Initialize the SiYuan context
  * Fetches config from kernel API on initialization
  */
-export async function initializeContext(options: ContextOptions): Promise<void> {
-  const { kernelBaseUrl, kernelToken, ragConfig, filterNotebooks, filterDocuments, appId, autoApproveLocalChange } = options;
+export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
+  const { kernelBaseUrl, kernelToken, ragBaseUrl, ragApiKey, filterNotebooks, filterDocuments, appId, autoApproveLocalChange } = options;
 
   // Normalize kernel URL (remove trailing slash)
   baseUrl = kernelBaseUrl.replace(/\/$/, '');
@@ -48,8 +48,8 @@ export async function initializeContext(options: ContextOptions): Promise<void> 
   config.filterDocuments = filterDocuments;
   config.appId = appId;
   config.autoApproveLocalChange = autoApproveLocalChange;
-  if (ragConfig) {
-    config.rag = ragConfig;
+  if (ragBaseUrl) {
+    config.rag = { baseUrl: ragBaseUrl, apiKey: ragApiKey };
   }
 }
 
