@@ -159,9 +159,15 @@ const defaultHandler = {
  * OAuthProvider with SiyuanMCP agent
  */
 export default new OAuthProvider({
-  apiRoute: ['/sse', '/mcp'],
-  // @ts-expect-error - McpAgent.mount returns compatible handler
-  apiHandler: SiyuanMCP.mount('/sse'),
+  // Use apiHandlers for multiple routes with different transports
+  apiHandlers: {
+    // SSE transport for /sse endpoint
+    // @ts-expect-error - McpAgent.serveSSE returns compatible handler
+    '/sse': SiyuanMCP.serveSSE('/sse'),
+    // Streamable HTTP transport for /mcp endpoint
+    // @ts-expect-error - McpAgent.mount returns compatible handler
+    '/mcp': SiyuanMCP.mount('/mcp'),
+  },
   // @ts-expect-error - Handler type mismatch
   defaultHandler: defaultHandler,
   authorizeEndpoint: '/authorize',
