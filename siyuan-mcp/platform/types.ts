@@ -23,6 +23,16 @@ export interface SiyuanConfig {
   fileTree: {
     sort: number;
   };
+  // Extended config fields for platform abstraction
+  notebooks?: any[];
+  filterNotebooks?: string;
+  filterDocuments?: string;
+  appId?: string;
+  autoApproveLocalChange?: boolean;
+  rag?: {
+    baseUrl: string;
+    apiKey?: string;
+  };
 }
 
 export interface PlatformContext {

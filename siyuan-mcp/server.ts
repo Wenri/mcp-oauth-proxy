@@ -9,7 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { setPlatformContext, createCloudflareContext } from './platform';
-import { getAllToolProviders, McpTool } from './tools';
+import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 
 export interface SiyuanMCPConfig {

@@ -28,9 +28,22 @@ function generateNodeID(): string {
 
 export interface CloudflareContextOptions {
   /** SiYuan kernel URL (e.g., https://siyuan.example.com) */
-  kernelUrl: string;
+  kernelBaseUrl: string;
   /** SiYuan API token for authentication */
-  kernelToken: string;
+  kernelToken?: string;
+  /** RAG server config */
+  ragConfig?: {
+    baseUrl: string;
+    apiKey?: string;
+  };
+  /** Newline-separated notebook IDs to exclude */
+  filterNotebooks?: string;
+  /** Newline-separated document IDs to exclude */
+  filterDocuments?: string;
+  /** App ID for dailynote creation */
+  appId?: string;
+  /** Auto-approve local changes */
+  autoApproveLocalChange?: boolean;
 }
 
 /**
@@ -40,21 +53,24 @@ export interface CloudflareContextOptions {
 export async function createCloudflareContext(
   options: CloudflareContextOptions
 ): Promise<PlatformContext> {
-  const { kernelUrl, kernelToken } = options;
+  const { kernelBaseUrl, kernelToken, ragConfig, filterNotebooks, filterDocuments, appId, autoApproveLocalChange } = options;
 
   // Normalize kernel URL (remove trailing slash)
-  const baseUrl = kernelUrl.replace(/\/$/, '');
+  const baseUrl = kernelBaseUrl.replace(/\/$/, '');
 
   // Create authenticated fetch function
   const kernelFetch = async (url: string, init?: RequestInit): Promise<Response> => {
     const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+    const headers: Record<string, string> = {
+      ...init?.headers as Record<string, string>,
+      'Content-Type': 'application/json',
+    };
+    if (kernelToken) {
+      headers['Authorization'] = `Token ${kernelToken}`;
+    }
     return fetch(fullUrl, {
       ...init,
-      headers: {
-        ...init?.headers,
-        'Authorization': `Token ${kernelToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
   };
 
@@ -77,6 +93,15 @@ export async function createCloudflareContext(
       flashcard: { deck: true },
       fileTree: { sort: 0 },
     };
+  }
+
+  // Merge extended config from options
+  config.filterNotebooks = filterNotebooks;
+  config.filterDocuments = filterDocuments;
+  config.appId = appId;
+  config.autoApproveLocalChange = autoApproveLocalChange;
+  if (ragConfig) {
+    config.rag = ragConfig;
   }
 
   return {
