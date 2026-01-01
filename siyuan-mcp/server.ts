@@ -1,16 +1,21 @@
 /**
  * SiYuan MCP Server for Cloudflare Workers
  *
- * This server integrates directly with SiYuan kernel APIs and provides
- * MCP tools for note-taking, document management, and search.
+ * Aligned with upstream server implementation using McpServer and
+ * proper transport handling.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { setPlatformContext, createCloudflareContext } from './platform';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
+import { lang } from './utils/lang';
+
+// Import prompts
+import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
+import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
 
 export interface SiyuanMCPConfig {
   kernelBaseUrl: string;
@@ -20,6 +25,7 @@ export interface SiyuanMCPConfig {
   filterNotebooks?: string;
   filterDocuments?: string;
   appId?: string;
+  readOnlyMode?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
 }
 
 /**
@@ -42,155 +48,123 @@ export async function createSiyuanMCPServer(config: SiyuanMCPConfig): Promise<Mc
   });
   setPlatformContext(ctx);
 
-  // Create MCP server
-  const server = new McpServer({
-    name: 'siyuan-mcp',
-    version: '1.0.0',
-  });
-
-  // Get all tool providers and register their tools
-  const providers = getAllToolProviders();
-  for (const provider of providers) {
-    const tools = await provider.getTools();
-    for (const tool of tools) {
-      await registerTool(server, tool);
+  // Create MCP server with capabilities
+  const server = new McpServer(
+    {
+      name: 'siyuan-mcp',
+      version: '1.0.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+        prompts: {},
+      },
     }
-  }
+  );
+
+  // Load tools and prompts
+  await loadTools(server, config.readOnlyMode || 'allow_all');
+  await loadPrompts(server);
 
   logPush('SiYuan MCP server initialized with tools');
   return server;
 }
 
 /**
- * Register a single tool with the MCP server
+ * Load and register all tools with the MCP server
  */
-async function registerTool(server: McpServer, tool: McpTool<any>): Promise<void> {
-  // Convert Zod schema to JSON Schema for MCP
-  const inputSchema = tool.schema
-    ? convertZodToJsonSchema(tool.schema)
-    : { type: 'object', properties: {} };
+async function loadTools(
+  server: McpServer,
+  readOnlyMode: 'allow_all' | 'allow_non_destructive' | 'deny_all'
+): Promise<void> {
+  const providers = getAllToolProviders();
 
-  server.tool(
-    tool.name,
-    tool.description,
-    inputSchema,
-    async (params) => {
-      debugPush(`Tool ${tool.name} called with params:`, params);
-      try {
-        const result = await tool.handler(params, {});
-        return result;
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${error.message || 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+  for (const provider of providers) {
+    const tools = await provider.getTools();
+    for (const tool of tools) {
+      // Skip tools based on read-only mode
+      if (
+        readOnlyMode === 'deny_all' &&
+        (tool.annotations?.readOnlyHint === false || tool.annotations?.destructiveHint === true)
+      ) {
+        logPush(`Skipping tool in read-only mode (deny_all): ${tool.name}`);
+        continue;
       }
+      if (readOnlyMode === 'allow_non_destructive' && tool.annotations?.destructiveHint === true) {
+        logPush(`Skipping destructive tool in non-destructive mode: ${tool.name}`);
+        continue;
+      }
+
+      logPush('Registering tool:', tool.name, tool.title);
+
+      // Register tool using the correct API format
+      // The schema from tools is already a Zod schema shape object
+      server.tool(
+        tool.name,
+        tool.description,
+        tool.schema || {},
+        async (params: any) => {
+          debugPush(`Tool ${tool.name} called with params:`, params);
+          try {
+            return await tool.handler(params, {});
+          } catch (error: any) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Error: ${error.message || 'Unknown error'}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
     }
+  }
+}
+
+/**
+ * Load and register prompts with the MCP server
+ */
+async function loadPrompts(server: McpServer): Promise<void> {
+  server.prompt(
+    'create_flashcards_system_cn',
+    {
+      title: lang('prompt_flashcards'),
+      description: 'Create flash cards',
+    },
+    () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: promptCreateCardsSystemCN,
+          },
+        },
+      ],
+    })
   );
-}
 
-/**
- * Convert Zod schema object to JSON Schema format
- */
-function convertZodToJsonSchema(schema: Record<string, z.ZodType>): {
-  type: string;
-  properties: Record<string, any>;
-  required?: string[];
-} {
-  const properties: Record<string, any> = {};
-  const required: string[] = [];
-
-  for (const [key, zodType] of Object.entries(schema)) {
-    const propSchema = zodTypeToJsonSchema(zodType);
-    properties[key] = propSchema;
-
-    // Check if field is required (not optional)
-    if (!zodType.isOptional()) {
-      required.push(key);
-    }
-  }
-
-  return {
-    type: 'object',
-    properties,
-    ...(required.length > 0 ? { required } : {}),
-  };
-}
-
-/**
- * Convert a Zod type to JSON Schema
- */
-function zodTypeToJsonSchema(zodType: z.ZodType): any {
-  const typeName = zodType._def.typeName;
-
-  switch (typeName) {
-    case 'ZodString':
-      return {
-        type: 'string',
-        description: zodType.description,
-      };
-    case 'ZodNumber':
-      return {
-        type: 'number',
-        description: zodType.description,
-      };
-    case 'ZodBoolean':
-      return {
-        type: 'boolean',
-        description: zodType.description,
-      };
-    case 'ZodArray':
-      const arrayDef = zodType._def as any;
-      return {
-        type: 'array',
-        items: zodTypeToJsonSchema(arrayDef.type),
-        description: zodType.description,
-      };
-    case 'ZodObject':
-      const objectDef = zodType._def as any;
-      const shape = objectDef.shape();
-      const objProperties: Record<string, any> = {};
-      for (const [key, value] of Object.entries(shape)) {
-        objProperties[key] = zodTypeToJsonSchema(value as z.ZodType);
-      }
-      return {
-        type: 'object',
-        properties: objProperties,
-        description: zodType.description,
-      };
-    case 'ZodOptional':
-      const optionalDef = zodType._def as any;
-      return zodTypeToJsonSchema(optionalDef.innerType);
-    case 'ZodDefault':
-      const defaultDef = zodType._def as any;
-      const defaultSchema = zodTypeToJsonSchema(defaultDef.innerType);
-      defaultSchema.default = defaultDef.defaultValue();
-      return defaultSchema;
-    case 'ZodEnum':
-      const enumDef = zodType._def as any;
-      return {
-        type: 'string',
-        enum: enumDef.values,
-        description: zodType.description,
-      };
-    case 'ZodRecord':
-      return {
-        type: 'object',
-        additionalProperties: true,
-        description: zodType.description,
-      };
-    default:
-      // Fallback for unknown types
-      return {
-        type: 'string',
-        description: zodType.description,
-      };
-  }
+  server.prompt(
+    'sql_query_prompt_cn',
+    {
+      title: lang('prompt_sql'),
+      description: 'SQL Query System Prompt',
+    },
+    () => ({
+      messages: [
+        {
+          role: 'assistant',
+          content: {
+            type: 'text',
+            text: promptQuerySystemCN,
+          },
+        },
+      ],
+    })
+  );
 }
 
 /**
@@ -201,3 +175,6 @@ export async function runStdioServer(config: SiyuanMCPConfig): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
+
+// Re-export SSEServerTransport for handlers
+export { SSEServerTransport };
