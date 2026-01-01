@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "OAuth authentication proxy for MCP servers using Cloudflare Access",
   "type": "module",
+  "overrides": {
+    "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -13,7 +16,7 @@
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.2.2",
-    "@modelcontextprotocol/sdk": "^1.23.0",
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "agents": "^0.3.3",
     "zod": "^3.23.0"
   },
