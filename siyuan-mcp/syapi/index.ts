@@ -55,19 +55,29 @@ export async function listDocsByPathT({
   path,
   maxListCount = undefined,
   sort = undefined,
+  ignore = true,
+  showHidden = null,
 }: {
   notebook: string;
   path: string;
   maxListCount?: number;
   sort?: number;
+  ignore?: boolean;
+  showHidden?: boolean | null;
 }): Promise<any[]> {
   const url = '/api/filetree/listDocsByPath';
   const body: any = { notebook, path };
   if (maxListCount !== undefined && maxListCount >= 0) {
     body.maxListCount = maxListCount;
   }
-  if (sort !== undefined) {
+  if (sort !== undefined && sort !== DOC_SORT_TYPES.FOLLOW_DOC_TREE) {
     body.sort = sort;
+  }
+  if (ignore !== undefined) {
+    body.ignoreMaxListHint = ignore;
+  }
+  if (showHidden !== null) {
+    body.showHidden = showHidden;
   }
   const response = await postRequest(body, url);
   if (response.code !== 0 || response.data == null) {
@@ -427,6 +437,55 @@ export async function getDocInfo(id: string): Promise<any> {
   return getResponseData(postRequest({ id }, '/api/block/getDocInfo'));
 }
 
+/** Get tree statistics */
+export async function getTreeStat(id: string): Promise<any> {
+  return getResponseData(postRequest({ id }, '/api/block/getTreeStat'));
+}
+
+/** Create document with path */
+export async function createDocWithPath(
+  notebookid: string,
+  path: string,
+  title = 'Untitled',
+  contentMd = '',
+  listDocTree = false
+): Promise<boolean> {
+  const url = '/api/filetree/createDoc';
+  const response = await postRequest(
+    { notebook: notebookid, path, md: contentMd, title, listDocTree },
+    url
+  );
+  if (response.code === 0) {
+    return true;
+  }
+  console.error('createDocWithPath error:', response);
+  throw new Error(response.msg);
+}
+
+/** Get file from workspace (returns blob for binary files) */
+export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
+  const ctx = getPlatformContext();
+  const url = '/api/file/getFile';
+
+  const response = await ctx.kernelFetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+
+  const contentType = response.headers.get('Content-Type') || '';
+
+  if (contentType.includes('application/json')) {
+    const json = await response.json();
+    if (json.code === 404) {
+      return null;
+    }
+    return json;
+  } else {
+    // Binary file - return as blob
+    return response.blob();
+  }
+}
+
 /** Get JSON file from workspace */
 export async function getJSONFile(path: string): Promise<any> {
   const url = '/api/file/getFile';
@@ -477,8 +536,16 @@ export const DOC_SORT_TYPES = {
   CREATED_TIME_DESC: 10,
   MODIFIED_TIME_ASC: 2,
   MODIFIED_TIME_DESC: 3,
+  REF_COUNT_ASC: 7,
+  REF_COUNT_DESC: 8,
+  DOC_SIZE_ASC: 11,
+  DOC_SIZE_DESC: 12,
+  SUB_DOC_COUNT_ASC: 13,
+  SUB_DOC_COUNT_DESC: 14,
   CUSTOM_SORT: 6,
   FOLLOW_DOC_TREE: 255,
+  FOLLOW_DOC_TREE_ORI: 15,
+  UNASSIGNED: 256,
 };
 
 // Default block type filter for search
