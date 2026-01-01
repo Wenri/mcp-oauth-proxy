@@ -96,11 +96,14 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 
 ## Key Architecture
 
-### handlers/index.ts - OAuthProvider Setup
+### handlers/index.ts - OAuthProvider Setup with Hono
 
-Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent:
+Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent and Hono as default handler:
 
 ```typescript
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+
 export class SiyuanMCP extends McpAgent<Env> {
   server = new McpServer({ name: 'siyuan-mcp', version: '1.0.0' });
 
@@ -109,22 +112,52 @@ export class SiyuanMCP extends McpAgent<Env> {
   }
 }
 
+const app = new Hono<{ Bindings: Env }>();
+app.use('*', cors({ origin: '*', ... }));
+app.route('/', oauth);  // Mount OAuth routes
+
 export default new OAuthProvider({
   apiHandlers: {
     '/sse': SiyuanMCP.serveSSE('/sse'),
     '/mcp': SiyuanMCP.mount('/mcp'),
   },
-  // OAuth endpoints: /authorize, /token, /register
+  defaultHandler: app,  // Hono handles non-MCP routes
 });
 ```
 
-### handlers/oauth.ts - OAuth Flow
+### handlers/oauth.ts - OAuth Flow with Hono
 
-Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP:
+Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Uses Hono for routing and cookie management.
+
+**Defense-in-depth OAuth state validation:**
+- KV storage proves the server issued the state token
+- `__Host-oauth_state` cookie proves the same browser initiated the flow
+
+```typescript
+import { Hono } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+
+const oauth = new Hono<{ Bindings: EnvWithOAuth }>();
+
+oauth.get('/authorize', async (c) => {
+  // Store state in KV + set session cookie
+  await env.OAUTH_KV.put(`cf_state:${state}`, ...);
+  setCookie(c, '__Host-oauth_state', state, { secure: true, httpOnly: true });
+  return c.redirect(cfAuthUrl);
+});
+
+oauth.get('/callback', async (c) => {
+  // Validate both cookie AND KV state
+  if (getCookie(c, '__Host-oauth_state') !== state) return error;
+  // Exchange tokens and complete authorization
+});
+```
+
+Endpoints:
 - `/authorize` - Initiates OAuth flow, redirects to CF Access
-- `/callback` - Handles CF Access callback, exchanges code for tokens
-- `/token` - Token endpoint for MCP clients
-- `/register` - Dynamic client registration
+- `/callback` - Handles CF Access callback, validates state, exchanges tokens
+- `/token` - Token endpoint (handled by OAuthProvider)
+- `/register` - Dynamic client registration (handled by OAuthProvider)
 - `/.well-known/oauth-authorization-server` - OAuth metadata
 
 ### siyuan-mcp/index.ts - MCP Server Core
@@ -247,16 +280,20 @@ npx @modelcontextprotocol/inspector@latest
 - `POST /mcp` - JSON-RPC over HTTP
 - `GET /sse` - Server-Sent Events transport
 
-## Token Storage (KV)
+## Token Storage (KV) and Session Cookies
 
-- `state:{random}` - OAuth state + PKCE verifier (10 min TTL)
-- `auth_code:{random}` - CF tokens + user claims (5 min TTL)
-- `refresh:{random}` - Refresh token mapping (30 days TTL)
-- `client:{clientId}` - Dynamic client registration (1 year TTL)
+**KV Storage:**
+- `cf_state:{random}` - OAuth state + PKCE verifier (10 min TTL)
+- Token grants and client registrations managed by OAuthProvider
+
+**Session Cookie (defense-in-depth):**
+- `__Host-oauth_state` - Binds OAuth flow to browser session (10 min TTL)
+- Uses `__Host-` prefix for enhanced security (requires HTTPS, no domain/path override)
 
 ## Security Considerations
 
 - **PKCE S256**: Required for all OAuth flows
+- **Defense-in-Depth**: OAuth state validated via both KV storage AND session cookie
 - **Cloudflare Access**: Enterprise IdP integration (Okta, Azure AD, Google, etc.)
 - **Token Binding**: MCP tokens mapped to CF Access tokens
 - **Read-Only Mode**: Configurable tool restrictions for safety

@@ -1,11 +1,18 @@
 /**
- * Cloudflare Access OAuth Handler
+ * Cloudflare Access OAuth Handler (Hono)
  *
  * Integrates Cloudflare Access as the identity provider with OAuthProvider.
  * Handles /authorize (redirect to CF Access) and /callback (complete authorization).
  * Token exchange is handled automatically by OAuthProvider.
+ *
+ * Security: Uses both KV storage AND session cookies for OAuth state validation
+ * following Cloudflare's recommended defense-in-depth pattern:
+ * - KV proves the server issued the state token
+ * - Cookie proves this specific browser initiated the flow
  */
 
+import { Hono } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import type { Env } from '../types';
 import type { OAuthHelpers, AuthRequest } from '@cloudflare/workers-oauth-provider';
 
@@ -13,6 +20,10 @@ import type { OAuthHelpers, AuthRequest } from '@cloudflare/workers-oauth-provid
 interface EnvWithOAuth extends Env {
   OAUTH_PROVIDER: OAuthHelpers;
 }
+
+// Session cookie name for OAuth state binding
+const STATE_COOKIE_NAME = '__Host-oauth_state';
+const STATE_TTL = 600; // 10 minutes
 
 interface StoredState {
   authRequest: AuthRequest;
@@ -84,38 +95,42 @@ function buildCFAccessAuthUrl(
     state: state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    // CF Access requires openid scope
     scope: scope.includes('openid') ? scope.join(' ') : ['openid', ...scope].join(' '),
   });
   return `https://${teamDomain}/cdn-cgi/access/sso/oidc/${clientId}/authorization?${params.toString()}`;
 }
 
+// Create Hono app for OAuth routes
+const oauth = new Hono<{ Bindings: EnvWithOAuth }>();
+
 /**
- * Handle /authorize - Parse OAuth request and redirect to Cloudflare Access
+ * GET /authorize - Parse OAuth request and redirect to Cloudflare Access
  */
-async function handleAuthorize(request: Request, env: EnvWithOAuth): Promise<Response> {
+oauth.get('/authorize', async (c) => {
+  const env = c.env;
+
   // Parse the OAuth authorization request using OAuthProvider helper
-  const authRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
+  const authRequest = await env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
 
   // Generate state and PKCE for CF Access
   const cfState = generateRandomString(32);
   const cfCodeVerifier = generateRandomString(64);
   const cfCodeChallenge = await generateCodeChallenge(cfCodeVerifier);
 
-  // Store the original auth request with our CF Access state
+  // Store the original auth request with our CF Access state in KV
   const storedState: StoredState = {
     authRequest,
     cfCodeVerifier,
   };
   await env.OAUTH_KV.put(`cf_state:${cfState}`, JSON.stringify(storedState), {
-    expirationTtl: 600, // 10 minutes
+    expirationTtl: STATE_TTL,
   });
 
   // Build callback URL
-  const baseUrl = new URL(request.url).origin;
+  const baseUrl = new URL(c.req.url).origin;
   const callbackUrl = `${baseUrl}/callback`;
 
-  // Redirect to Cloudflare Access
+  // Build CF Access auth URL
   const cfAuthUrl = buildCFAccessAuthUrl(
     env.CF_ACCESS_TEAM_DOMAIN,
     env.CF_ACCESS_CLIENT_ID,
@@ -125,31 +140,53 @@ async function handleAuthorize(request: Request, env: EnvWithOAuth): Promise<Res
     authRequest.scope
   );
 
-  return Response.redirect(cfAuthUrl, 302);
-}
+  // Set state cookie for session binding and redirect
+  setCookie(c, STATE_COOKIE_NAME, cfState, {
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'Lax',
+    maxAge: STATE_TTL,
+  });
+
+  return c.redirect(cfAuthUrl, 302);
+});
 
 /**
- * Handle /callback - Exchange CF Access code for tokens, then complete OAuth flow
+ * GET /callback - Exchange CF Access code for tokens, then complete OAuth flow
  */
-async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Response> {
-  const url = new URL(request.url);
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
-  const error = url.searchParams.get('error');
-  const errorDescription = url.searchParams.get('error_description');
+oauth.get('/callback', async (c) => {
+  const env = c.env;
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const error = c.req.query('error');
+  const errorDescription = c.req.query('error_description');
+
+  // Helper to clear cookie and return error
+  const errorResponse = (message: string, status: 400 | 500 = 400) => {
+    deleteCookie(c, STATE_COOKIE_NAME, { path: '/' });
+    return c.text(message, status);
+  };
 
   if (error) {
-    return new Response(`OAuth error: ${error} - ${errorDescription}`, { status: 400 });
+    return errorResponse(`OAuth error: ${error} - ${errorDescription}`);
   }
 
   if (!code || !state) {
-    return new Response('Missing code or state parameter', { status: 400 });
+    return errorResponse('Missing code or state parameter');
   }
 
-  // Retrieve stored state
+  // Validate session cookie matches the state parameter (defense-in-depth)
+  const cookieState = getCookie(c, STATE_COOKIE_NAME);
+  if (cookieState !== state) {
+    console.warn('OAuth state mismatch: cookie does not match state parameter');
+    return errorResponse('Invalid OAuth state: session mismatch');
+  }
+
+  // Retrieve stored state from KV
   const storedStateJson = await env.OAUTH_KV.get(`cf_state:${state}`);
   if (!storedStateJson) {
-    return new Response('Invalid or expired state', { status: 400 });
+    return errorResponse('Invalid or expired state');
   }
 
   const storedState = JSON.parse(storedStateJson) as StoredState;
@@ -157,7 +194,7 @@ async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Resp
 
   // Exchange code for tokens with Cloudflare Access
   const tokenUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/sso/oidc/${env.CF_ACCESS_CLIENT_ID}/token`;
-  const baseUrl = new URL(request.url).origin;
+  const baseUrl = new URL(c.req.url).origin;
 
   const tokenResponse = await fetch(tokenUrl, {
     method: 'POST',
@@ -175,7 +212,7 @@ async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Resp
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text();
     console.error('CF Access token exchange failed:', errorText);
-    return new Response(`Token exchange failed: ${errorText}`, { status: 500 });
+    return errorResponse(`Token exchange failed: ${errorText}`, 500);
   }
 
   const tokens = (await tokenResponse.json()) as TokenResponse;
@@ -184,12 +221,11 @@ async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Resp
   let claims: JWTClaims;
   try {
     claims = decodeJWTClaims(tokens.id_token || tokens.access_token);
-  } catch (err) {
-    return new Response('Failed to decode token claims', { status: 500 });
+  } catch {
+    return errorResponse('Failed to decode token claims', 500);
   }
 
   // Complete the OAuth authorization using OAuthProvider
-  // This generates the authorization code that OAuthProvider will handle at /token
   const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
     request: storedState.authRequest,
     userId: claims.sub,
@@ -201,7 +237,6 @@ async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Resp
     },
     scope: storedState.authRequest.scope,
     props: {
-      // These props are passed to MCP handlers via ctx.props
       sub: claims.sub,
       email: claims.email,
       name: claims.name,
@@ -211,42 +246,9 @@ async function handleCallback(request: Request, env: EnvWithOAuth): Promise<Resp
     },
   });
 
-  return Response.redirect(redirectTo, 302);
-}
+  // Clear cookie and redirect to client
+  deleteCookie(c, STATE_COOKIE_NAME, { path: '/' });
+  return c.redirect(redirectTo, 302);
+});
 
-/**
- * Handle OAuth-related routes
- * Returns Response if handled, null otherwise
- *
- * Note: env.OAUTH_PROVIDER is injected at runtime by OAuthProvider
- */
-export async function handleOAuthRoute(
-  request: Request,
-  env: Env,
-  url: URL
-): Promise<Response | null> {
-  // Cast to EnvWithOAuth since OAUTH_PROVIDER is injected by OAuthProvider at runtime
-  const envWithOAuth = env as EnvWithOAuth;
-  // Handle CORS preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, MCP-Protocol-Version',
-        'Access-Control-Max-Age': '86400',
-      },
-    });
-  }
-
-  switch (url.pathname) {
-    case '/authorize':
-      return handleAuthorize(request, envWithOAuth);
-    case '/callback':
-      return handleCallback(request, envWithOAuth);
-  }
-
-  // /token, /register, /.well-known/* are handled by OAuthProvider
-  return null;
-}
+export { oauth };

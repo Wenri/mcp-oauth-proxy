@@ -33,6 +33,24 @@
     }
   ],
 
+  // Durable Objects for MCP agent state
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "SiyuanMCP"
+      }
+    ]
+  },
+
+  // Migrations for Durable Objects (SQLite-backed for free plan)
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SiyuanMCP"]
+    }
+  ],
+
   // Cron trigger for RAG indexing (runs every hour)
   // Uncomment to enable automatic document indexing
   // "triggers": {

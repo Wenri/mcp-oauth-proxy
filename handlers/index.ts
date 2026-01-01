@@ -1,13 +1,15 @@
 /**
- * Handlers - Cloudflare Workers integration
+ * Handlers - Cloudflare Workers integration with Hono
  *
  * Provides OAuthProvider configuration with SiyuanMCP agent.
  */
 
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
-import { handleOAuthRoute } from './oauth';
+import { oauth } from './oauth';
 import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
 import type { Env } from '../types';
 
@@ -34,38 +36,47 @@ export class SiyuanMCP extends McpAgent<Env> {
 }
 
 /**
- * Default handler for non-API requests
+ * Hono app for default handler routes
  */
-const defaultHandler = {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+const app = new Hono<{ Bindings: Env }>();
 
-    const oauthResponse = await handleOAuthRoute(request, env, url);
-    if (oauthResponse) {
-      return oauthResponse;
-    }
+// CORS middleware
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version'],
+    maxAge: 86400,
+  })
+);
 
-    if (url.pathname === '/') {
-      return new Response(
-        JSON.stringify({
-          name: 'siyuan-mcp',
-          version: '1.0.0',
-          endpoints: { sse: '/sse', mcp: '/mcp', authorize: '/authorize', token: '/token' },
-        }),
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+// Mount OAuth routes
+app.route('/', oauth);
 
-    return new Response('Not found', { status: 404 });
-  },
-};
+// Root endpoint - server info
+app.get('/', (c) =>
+  c.json({
+    name: 'siyuan-mcp',
+    version: '1.0.0',
+    endpoints: {
+      sse: '/sse',
+      mcp: '/mcp',
+      authorize: '/authorize',
+      token: '/token',
+    },
+  })
+);
+
+// Fallback - 404
+app.notFound((c) => c.text('Not found', 404));
 
 /**
  * OAuthProvider with SiyuanMCP agent
  *
  * OAuth flow:
- * 1. /authorize - handled by defaultHandler → oauth.ts → redirects to CF Access
- * 2. /callback - handled by defaultHandler → oauth.ts → calls completeAuthorization()
+ * 1. /authorize - handled by Hono app → oauth.ts → redirects to CF Access
+ * 2. /callback - handled by Hono app → oauth.ts → calls completeAuthorization()
  * 3. /token - handled by OAuthProvider (automatic token exchange)
  * 4. /register - handled by OAuthProvider (dynamic client registration)
  */
@@ -75,10 +86,10 @@ export default new OAuthProvider({
     '/sse': SiyuanMCP.serveSSE('/sse'),
     '/mcp': SiyuanMCP.mount('/mcp'),
   },
-  // @ts-expect-error - Handler type mismatch
-  defaultHandler: defaultHandler,
+  // Hono app as default handler
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  defaultHandler: app as any,
   // OAuth endpoints - OAuthProvider handles /token and /register
-  // /authorize is routed to defaultHandler which redirects to CF Access
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
   clientRegistrationEndpoint: '/register',
