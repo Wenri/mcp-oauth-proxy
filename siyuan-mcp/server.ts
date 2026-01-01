@@ -4,7 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { initializeContext } from './context';
-import type { SiyuanMCPConfig } from './types/context';
+import type { SiyuanMCPConfig, SiyuanEnvConfig } from './types/context';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { lang } from './utils/lang';
@@ -13,17 +13,44 @@ import { lang } from './utils/lang';
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
 import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
 
-// Re-export config type for convenience
-export type { SiyuanMCPConfig } from './types/context';
+// Re-export config types for convenience
+export type { SiyuanMCPConfig, SiyuanEnvConfig } from './types/context';
+
+/**
+ * Check if config is env-style (SCREAMING_SNAKE_CASE)
+ */
+function isEnvConfig(config: SiyuanEnvConfig | SiyuanMCPConfig): config is SiyuanEnvConfig {
+  return 'SIYUAN_KERNEL_URL' in config;
+}
+
+/**
+ * Convert env-style config to internal config
+ */
+function envToConfig(env: SiyuanEnvConfig): SiyuanMCPConfig {
+  return {
+    kernelBaseUrl: env.SIYUAN_KERNEL_URL,
+    kernelToken: env.SIYUAN_KERNEL_TOKEN,
+    ragBaseUrl: env.RAG_BASE_URL,
+    ragApiKey: env.RAG_API_KEY,
+    filterNotebooks: env.FILTER_NOTEBOOKS,
+    filterDocuments: env.FILTER_DOCUMENTS,
+    readOnlyMode: env.READ_ONLY_MODE,
+  };
+}
 
 /**
  * Initialize an existing MCP server with SiYuan tools and prompts
  * Use this when you already have a server instance (e.g., from McpAgent)
+ *
+ * @param server - MCP server instance
+ * @param configOrEnv - Config object (camelCase) or env object (SCREAMING_SNAKE_CASE)
  */
 export async function initializeSiyuanMCPServer(
   server: McpServer,
-  config: SiyuanMCPConfig
+  configOrEnv: SiyuanEnvConfig | SiyuanMCPConfig
 ): Promise<void> {
+  const config = isEnvConfig(configOrEnv) ? envToConfig(configOrEnv) : configOrEnv;
+
   // Initialize context
   await initializeContext(config);
 

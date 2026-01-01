@@ -37,22 +37,12 @@ export class SiyuanMCP extends McpAgent<Env> {
   });
 
   async init() {
-    const env = this.env;
-
-    if (!env.SIYUAN_KERNEL_URL) {
+    if (!this.env.SIYUAN_KERNEL_URL) {
       logPush('Warning: SIYUAN_KERNEL_URL not configured');
       return;
     }
 
-    await initializeSiyuanMCPServer(this.server, {
-      kernelBaseUrl: env.SIYUAN_KERNEL_URL,
-      kernelToken: env.SIYUAN_KERNEL_TOKEN,
-      ragBaseUrl: env.RAG_BASE_URL,
-      ragApiKey: env.RAG_API_KEY,
-      filterNotebooks: env.FILTER_NOTEBOOKS,
-      filterDocuments: env.FILTER_DOCUMENTS,
-      readOnlyMode: env.READ_ONLY_MODE,
-    });
+    await initializeSiyuanMCPServer(this.server, this.env);
   }
 }
 

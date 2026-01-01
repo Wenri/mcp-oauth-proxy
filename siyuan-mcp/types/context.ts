@@ -3,8 +3,22 @@
  */
 
 /**
- * User-provided configuration options
- * Used for initializeContext() and initializeSiyuanMCPServer()
+ * Environment-style config (SCREAMING_SNAKE_CASE)
+ * Can pass Cloudflare Workers env directly to initializeSiyuanMCPServer()
+ */
+export interface SiyuanEnvConfig {
+  SIYUAN_KERNEL_URL: string;
+  SIYUAN_KERNEL_TOKEN?: string;
+  RAG_BASE_URL?: string;
+  RAG_API_KEY?: string;
+  FILTER_NOTEBOOKS?: string;
+  FILTER_DOCUMENTS?: string;
+  READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
+}
+
+/**
+ * Internal configuration options (camelCase)
+ * Used by initializeContext() and internal functions
  */
 export interface SiyuanMCPConfig {
   /** SiYuan kernel URL (e.g., https://siyuan.example.com) */
