@@ -8,24 +8,10 @@ import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { handleOAuthRoute } from './oauth';
-import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer, logPush, type Env } from '../siyuan-mcp';
 
-// Environment interface
-export interface Env {
-  OAUTH_KV: KVNamespace;
-  CF_ACCESS_CLIENT_ID: string;
-  CF_ACCESS_CLIENT_SECRET: string;
-  CF_ACCESS_TEAM_DOMAIN: string;
-  COOKIE_ENCRYPTION_KEY: string;
-  DOWNSTREAM_MCP_URL: string;
-  SIYUAN_KERNEL_URL: string;
-  SIYUAN_KERNEL_TOKEN?: string;
-  RAG_BASE_URL?: string;
-  RAG_API_KEY?: string;
-  FILTER_NOTEBOOKS?: string;
-  FILTER_DOCUMENTS?: string;
-  READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
-}
+// Re-export Env for convenience
+export type { Env } from '../siyuan-mcp';
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers
