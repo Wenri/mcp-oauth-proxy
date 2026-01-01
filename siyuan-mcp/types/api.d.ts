@@ -43,7 +43,7 @@ interface SqlResult {
 
 type SqlBlockType = "d" | "p" | "h" | "l" | "i" | "b" | "html" | "widget" | "tb" | "c" | "s" | "t" | "iframe" | "av" | "m" | "query_embed" | "video" | "audio";
 
-type SqlBlockSubType = "o" | "u" | "t" | "" |"h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+type SqlBlockSubType = "o" | "u" | "t" | "" |"h1" | "h2" | "h3" | "h4" | "h5" | "h6" 
 
 
 interface BlockTypeFilter {
@@ -94,7 +94,7 @@ interface ExportMdContentBody {
     // Markdown 导出时是否添加 YAML Front Matter
 }
 
-interface NotebookConf {
+export interface NotebookConf {
     box: string;
     conf: {
         name: string;

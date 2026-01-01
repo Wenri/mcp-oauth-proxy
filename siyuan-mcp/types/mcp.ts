@@ -63,7 +63,7 @@ declare global {
          * The handler function for the tool
          */
         handler: (args: T, extra: any) => Promise<McpResponse>;
-
+        
         title?: string;      // Human-readable title for the tool
 
         /**

@@ -19,7 +19,7 @@ type Notebook = {
     closed: boolean;
 }
 
-type NotebookConfType = {
+type NotebookConf = {
     name: string;
     closed: boolean;
     refCreateSavePath: string;
@@ -54,4 +54,26 @@ type Block = {
     sort: number;
     created: string;
     updated: string;
+}
+
+/**
+ * By OpaqueGlass. Copy from https://github.com/siyuan-note/siyuan/blob/master/app/src/types/index.d.ts
+ */
+interface IFile {
+    icon: string;
+    name1: string;
+    alias: string;
+    memo: string;
+    bookmark: string;
+    path: string;
+    name: string;
+    hMtime: string;
+    hCtime: string;
+    hSize: string;
+    dueFlashcardCount?: string;
+    newFlashcardCount?: string;
+    flashcardCount?: string;
+    id: string;
+    count: number;
+    subFileCount: number;
 }

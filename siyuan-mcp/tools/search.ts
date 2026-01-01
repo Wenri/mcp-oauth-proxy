@@ -10,53 +10,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { formatSearchResult } from '../utils/resultFilter';
 import { debugPush, errorPush } from '../logger';
 import { lang } from '../utils/lang';
-
-// Query syntax documentation
-const searchSyntax = `# SiYuan Search Query Syntax
-
-## Boolean Operators
-
-- **AND**: Both terms must be present
-  - Example: \`apple AND banana\` - finds blocks containing both "apple" and "banana"
-
-- **OR**: Either term must be present
-  - Example: \`apple OR banana\` - finds blocks containing "apple" or "banana" or both
-
-- **NOT**: Exclude term
-  - Example: \`apple NOT banana\` - finds blocks containing "apple" but not "banana"
-
-## Grouping
-
-Use parentheses to group terms:
-- \`(apple OR banana) AND fruit\`
-- \`apple AND (banana OR orange)\`
-
-## Phrase Search
-
-Use double quotes for exact phrase matching:
-- \`"exact phrase"\`
-- \`"hello world"\`
-
-## Wildcard
-
-Use \`*\` for wildcard matching:
-- \`app*\` - matches "apple", "application", etc.
-- \`*tion\` - matches "action", "motion", etc.
-
-## Examples
-
-1. Find blocks about programming languages:
-   \`programming AND (python OR javascript OR go)\`
-
-2. Find blocks about food but not desserts:
-   \`food NOT dessert\`
-
-3. Find exact quote:
-   \`"to be or not to be"\`
-
-4. Find variations:
-   \`develop* AND (web OR mobile)\`
-`;
+import searchSyntax from '../static/query_syntax.md';
 
 export class SearchToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
