@@ -131,6 +131,11 @@ const CFAccessHandler = {
       return handleClientRegistration(request, env);
     }
 
+    // Handle token revocation (RFC 7009)
+    if (url.pathname === "/revoke") {
+      return handleRevoke(request, env);
+    }
+
     // Handle well-known OAuth metadata (supports path-aware discovery per RFC 8414)
     // SDK may try /.well-known/oauth-authorization-server or /.well-known/oauth-authorization-server/path
     if (url.pathname === "/.well-known/oauth-authorization-server" ||
@@ -552,6 +557,49 @@ async function handleClientRegistration(request: Request, env: Env): Promise<Res
   );
 }
 
+// RFC 7009 Token Revocation
+async function handleRevoke(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  const contentType = request.headers.get("Content-Type") || "";
+  let params: URLSearchParams;
+
+  if (contentType.includes("application/json")) {
+    const body = await request.json();
+    params = new URLSearchParams(body as Record<string, string>);
+  } else {
+    const body = await request.text();
+    params = new URLSearchParams(body);
+  }
+
+  const token = params.get("token");
+  const tokenTypeHint = params.get("token_type_hint");
+
+  if (!token) {
+    return jsonResponse(
+      { error: "invalid_request", error_description: "Missing token parameter" },
+      400
+    );
+  }
+
+  // Revoke based on token type hint or try both
+  if (tokenTypeHint === "refresh_token" || !tokenTypeHint) {
+    await env.OAUTH_KV.delete(`refresh:${token}`);
+  }
+
+  // RFC 7009: Always return 200, even if token was invalid/already revoked
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
 async function handleOAuthMetadata(request: Request, env: Env): Promise<Response> {
   const baseUrl = new URL(request.url).origin;
 
@@ -560,6 +608,7 @@ async function handleOAuthMetadata(request: Request, env: Env): Promise<Response
     authorization_endpoint: `${baseUrl}/authorize`,
     token_endpoint: `${baseUrl}/token`,
     registration_endpoint: `${baseUrl}/register`,
+    revocation_endpoint: `${baseUrl}/revoke`,
     response_types_supported: ["code"],
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],

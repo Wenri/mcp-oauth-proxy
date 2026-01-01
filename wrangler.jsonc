@@ -12,6 +12,7 @@
     { "pattern": "sy.wenri.me/callback*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/token*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/register*", "zone_name": "wenri.me" },
+    { "pattern": "sy.wenri.me/revoke*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" }
   ],
 
