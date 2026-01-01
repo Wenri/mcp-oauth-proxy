@@ -5,26 +5,11 @@
  * running on Cloudflare Workers.
  */
 
-// Context
-export { initializeContext, getConfig, hasContext, kernelFetch, generateNodeID, getAppId } from './context';
-export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
-
-// API functions
-export * from './syapi';
-export * from './syapi/custom';
-
-// Tools
-export * from './tools';
-
-// Server
+// Server initialization (main public API)
 export { initializeSiyuanMCPServer, createSiyuanMCPServer } from './server';
 
-// Utilities
-export { isValidStr, isValidNotebookId, isMobile, isMacOs } from './utils/commonCheck';
-export { createErrorResponse, createSuccessResponse, createJsonResponse } from './utils/mcpResponse';
-export { filterBlock, filterNotebook } from './utils/filterCheck';
-export { sleep, generateUUID, blobToBase64Object } from './utils/common';
-export { lang } from './utils/lang';
+// Logger (used by handlers)
+export { logPush } from './logger';
 
-// Logger
-export { debugPush, logPush, warnPush, errorPush } from './logger';
+// Re-export types for convenience (canonical source is ../types)
+export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
