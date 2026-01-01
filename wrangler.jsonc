@@ -55,7 +55,7 @@
 
     // Downstream MCP server URL - used when proxying to external MCP server
     // Set to empty string to use built-in SiYuan MCP server
-    "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp",
+    "DOWNSTREAM_MCP_URL": "https://sy.wenri.me/mcp"
 
     // SiYuan kernel configuration (for built-in MCP server)
     // "SIYUAN_KERNEL_URL": "https://siyuan.example.com",
