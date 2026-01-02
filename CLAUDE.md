@@ -65,7 +65,8 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 ├── index.ts                    # Entry point - re-exports from handlers
 ├── handlers/
 │   ├── index.ts               # OAuthProvider setup with SiyuanMCP agent
-│   ├── oauth.ts               # OAuth 2.1 + PKCE with Cloudflare Access
+│   ├── access-handler.ts      # CF Access OAuth flow (authorize, callback)
+│   ├── workers-oauth-utils.ts # OAuth utilities (PKCE, state, cookies)
 │   └── cli.ts                 # CLI entry point for stdio transport
 ├── siyuan-mcp/
 │   ├── index.ts               # Server initialization, context management
@@ -96,69 +97,54 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 
 ## Key Architecture
 
-### handlers/index.ts - OAuthProvider Setup with Hono
+### handlers/index.ts - OAuthProvider Setup
 
-Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent and Hono as default handler:
+Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent:
 
 ```typescript
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-
-export class SiyuanMCP extends McpAgent<Env> {
+export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   server = new McpServer({ name: 'siyuan-mcp', version: '1.0.0' });
 
   async init() {
     await initializeSiyuanMCPServer(this.server, this.env);
+    if (this.props?.email) {
+      logPush(`Authenticated user: ${this.props.email}`);
+    }
   }
 }
 
-const app = new Hono<{ Bindings: Env }>();
-app.use('*', cors({ origin: '*', ... }));
-app.route('/', oauth);  // Mount OAuth routes
-
 export default new OAuthProvider({
-  apiHandlers: {
-    '/sse': SiyuanMCP.serveSSE('/sse'),
-    '/mcp': SiyuanMCP.mount('/mcp'),
-  },
-  defaultHandler: app,  // Hono handles non-MCP routes
+  apiHandler: { fetch: handleMcpRequest },
+  apiRoute: ['/sse', '/mcp'],
+  authorizeEndpoint: '/authorize',
+  tokenEndpoint: '/token',
+  clientRegistrationEndpoint: '/register',
+  defaultHandler: { fetch: handleAccessRequest },
 });
 ```
 
-### handlers/oauth.ts - OAuth Flow with Hono
+### handlers/access-handler.ts - CF Access OAuth Flow
 
-Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Uses Hono for routing and cookie management.
+Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Based on [Cloudflare's official MCP demo](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access).
 
-**Defense-in-depth OAuth state validation:**
-- KV storage proves the server issued the state token
-- `__Host-oauth_state` cookie proves the same browser initiated the flow
+**Flow:**
+1. `/authorize` - Shows approval dialog, then redirects to CF Access with PKCE challenge
+2. `/callback` - Validates state, exchanges code for tokens, verifies JWT, completes authorization
 
-```typescript
-import { Hono } from 'hono';
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+**Security features:**
+- PKCE (S256) for authorization code protection
+- Client approval cookies (remember approved clients for 30 days)
+- CSRF protection for approval form
+- JWT verification using CF Access JWKS endpoint
 
-const oauth = new Hono<{ Bindings: EnvWithOAuth }>();
+### handlers/workers-oauth-utils.ts - OAuth Utilities
 
-oauth.get('/authorize', async (c) => {
-  // Store state in KV + set session cookie
-  await env.OAUTH_KV.put(`cf_state:${state}`, ...);
-  setCookie(c, '__Host-oauth_state', state, { secure: true, httpOnly: true });
-  return c.redirect(cfAuthUrl);
-});
-
-oauth.get('/callback', async (c) => {
-  // Validate both cookie AND KV state
-  if (getCookie(c, '__Host-oauth_state') !== state) return error;
-  // Exchange tokens and complete authorization
-});
-```
-
-Endpoints:
-- `/authorize` - Initiates OAuth flow, redirects to CF Access
-- `/callback` - Handles CF Access callback, validates state, exchanges tokens
-- `/token` - Token endpoint (handled by OAuthProvider)
-- `/register` - Dynamic client registration (handled by OAuthProvider)
-- `/.well-known/oauth-authorization-server` - OAuth metadata
+Provides OAuth helper functions:
+- `generateCodeVerifier()` / `generateCodeChallenge()` - PKCE support
+- `createOAuthState()` / `validateOAuthState()` - State management with KV
+- `isClientApproved()` / `addApprovedClient()` - Client approval cookies
+- `renderApprovalDialog()` - OAuth approval UI
+- `fetchUpstreamAuthToken()` - Token exchange with CF Access
 
 ### siyuan-mcp/index.ts - MCP Server Core
 
@@ -188,18 +174,22 @@ Available tool categories:
 
 ### Required Secrets (set via `wrangler secret put`)
 
+From your CF Access SaaS app dashboard, copy the OIDC endpoints:
+
 ```bash
-wrangler secret put CF_ACCESS_CLIENT_ID      # Cloudflare Access OIDC client ID
-wrangler secret put CF_ACCESS_CLIENT_SECRET  # Cloudflare Access OIDC client secret
-wrangler secret put COOKIE_ENCRYPTION_KEY    # openssl rand -hex 32
-wrangler secret put SIYUAN_KERNEL_TOKEN      # SiYuan API token (if auth enabled)
+wrangler secret put ACCESS_CLIENT_ID          # Client ID from dashboard
+wrangler secret put ACCESS_CLIENT_SECRET      # Client secret from dashboard
+wrangler secret put ACCESS_TOKEN_URL          # Token endpoint URL
+wrangler secret put ACCESS_AUTHORIZATION_URL  # Authorization endpoint URL
+wrangler secret put ACCESS_JWKS_URL           # Key endpoint (JWKS) URL
+wrangler secret put COOKIE_ENCRYPTION_KEY     # openssl rand -hex 32
+wrangler secret put SIYUAN_KERNEL_TOKEN       # SiYuan API token (if auth enabled)
 ```
 
 ### Environment Variables (wrangler.jsonc)
 
 | Variable | Description |
 |----------|-------------|
-| `CF_ACCESS_TEAM_DOMAIN` | Your CF Access team domain (e.g., "myteam.cloudflareaccess.com") |
 | `SIYUAN_KERNEL_URL` | SiYuan kernel URL (e.g., "https://siyuan.example.com") |
 | `RAG_BASE_URL` | Optional RAG backend URL for vector search |
 | `RAG_API_KEY` | Optional RAG backend API key |
@@ -267,37 +257,37 @@ npx @modelcontextprotocol/inspector@latest
 
 ## Transport Endpoints
 
-### OAuth Endpoints (handled by oauth.ts)
-- `GET /authorize` - OAuth authorization initiation
-- `GET /callback` - OAuth callback handler
-- `POST /token` - Token endpoint
-- `POST /register` - Dynamic client registration
-- `POST /revoke` - Token revocation
+### OAuth Endpoints
+- `GET /authorize` - Shows approval dialog, redirects to CF Access
+- `POST /authorize` - Handles approval form submission
+- `GET /callback` - CF Access callback, token exchange, JWT verification
+- `POST /token` - Token endpoint (handled by OAuthProvider)
+- `POST /register` - Dynamic client registration (handled by OAuthProvider)
 - `GET /.well-known/oauth-authorization-server` - OAuth metadata
-- `GET /.well-known/oauth-protected-resource/*` - Protected resource metadata
 
 ### MCP Endpoints (handled by SiyuanMCP agent)
 - `POST /mcp` - JSON-RPC over HTTP
 - `GET /sse` - Server-Sent Events transport
 
-## Token Storage (KV) and Session Cookies
+## Token Storage (KV) and Cookies
 
 **KV Storage:**
-- `cf_state:{random}` - OAuth state + PKCE verifier (10 min TTL)
+- `oauth:state:{uuid}` - OAuth state + PKCE verifier (10 min TTL)
 - Token grants and client registrations managed by OAuthProvider
 
-**Session Cookie (defense-in-depth):**
-- `__Host-oauth_state` - Binds OAuth flow to browser session (10 min TTL)
+**Cookies:**
+- `__Host-csrf` - CSRF protection for approval form
+- `__Host-approved-clients` - Encrypted list of approved client IDs (30 days)
 - Uses `__Host-` prefix for enhanced security (requires HTTPS, no domain/path override)
 
 ## Security Considerations
 
-- **PKCE S256**: Required for all OAuth flows
-- **Defense-in-Depth**: OAuth state validated via both KV storage AND session cookie
+- **PKCE S256**: Required for all OAuth flows to CF Access
+- **JWT Verification**: ID tokens verified using CF Access JWKS endpoint
+- **CSRF Protection**: Approval form protected against cross-site request forgery
+- **Client Approval**: Users approve MCP clients before authentication
 - **Cloudflare Access**: Enterprise IdP integration (Okta, Azure AD, Google, etc.)
-- **Token Binding**: MCP tokens mapped to CF Access tokens
 - **Read-Only Mode**: Configurable tool restrictions for safety
-- **No JWT Verification**: Trusts CF Access as token issuer
 
 ## Common Issues
 
@@ -307,7 +297,9 @@ npx @modelcontextprotocol/inspector@latest
 
 **"Invalid or expired state"**: OAuth state expired (10 min timeout) or KV not configured.
 
-**"Token exchange failed"**: Verify CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.
+**"Token exchange failed"**: Verify ACCESS_CLIENT_ID and ACCESS_CLIENT_SECRET match CF dashboard.
+
+**"Key with kid not found"**: ACCESS_JWKS_URL is pointing to wrong endpoint. Use the app-specific Key endpoint from CF Access dashboard (includes app ID in URL).
 
 **Tool not found**: Check READ_ONLY_MODE setting - some tools may be filtered.
 
@@ -315,8 +307,14 @@ npx @modelcontextprotocol/inspector@latest
 
 1. Create KV namespace: `npx wrangler kv namespace create "OAUTH_KV"`
 2. Update KV namespace ID in wrangler.jsonc
-3. Create Cloudflare Access SaaS application with redirect URL `/callback`
-4. Set secrets: `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`
+3. Create Cloudflare Access SaaS OIDC application:
+   - Set redirect URL to `https://your-domain/callback`
+   - Enable PKCE
+   - Note all OIDC endpoints from dashboard
+4. Set secrets from CF Access dashboard:
+   - `ACCESS_CLIENT_ID`, `ACCESS_CLIENT_SECRET`
+   - `ACCESS_TOKEN_URL`, `ACCESS_AUTHORIZATION_URL`, `ACCESS_JWKS_URL`
+   - `COOKIE_ENCRYPTION_KEY` (generate with `openssl rand -hex 32`)
 5. Set `SIYUAN_KERNEL_URL` and optionally `SIYUAN_KERNEL_TOKEN`
 6. Deploy: `npm run deploy`
 7. Test OAuth flow with MCP Inspector

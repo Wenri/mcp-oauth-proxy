@@ -19,19 +19,23 @@ export interface SiyuanMCPConfig {
 }
 
 /**
- * Secrets that must be set via wrangler secret put
+ * Cloudflare Access OAuth configuration
+ * Based on: https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access
  */
-interface EnvSecrets {
-  CF_ACCESS_CLIENT_ID: string;
-  CF_ACCESS_CLIENT_SECRET: string;
+interface AccessOAuthConfig {
+  ACCESS_CLIENT_ID: string;
+  ACCESS_CLIENT_SECRET: string;
+  ACCESS_TOKEN_URL: string;
+  ACCESS_AUTHORIZATION_URL: string;
+  ACCESS_JWKS_URL: string;
   COOKIE_ENCRYPTION_KEY: string;
 }
 
 /**
  * Cloudflare Workers environment bindings
- * Combines Cloudflare.Env (KV, vars), SiyuanMCPConfig (SiYuan settings), and secrets
+ * Combines Cloudflare.Env (KV, vars), SiyuanMCPConfig, and Access OAuth config
  */
-export type Env = Cloudflare.Env & SiyuanMCPConfig & EnvSecrets;
+export type Env = Cloudflare.Env & SiyuanMCPConfig & AccessOAuthConfig;
 
 /**
  * Runtime config fetched from SiYuan kernel + merged user options
