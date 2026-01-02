@@ -461,6 +461,21 @@ SELECT root_id FROM blocks WHERE type = 'h' AND subtype = 'h1';
 
 ## Hierarchy Traversal
 
+### Child Documents (Subdocs)
+
+```sql
+-- Get all subdocuments of a document
+SELECT id, hpath as title, updated FROM blocks
+WHERE path LIKE '%/DOC_ID/%' AND type = 'd'
+ORDER BY hpath;
+
+-- Get direct child documents only (one level deep)
+SELECT id, hpath as title, updated FROM blocks
+WHERE path LIKE '/DOC_ID/%.sy'
+AND path NOT LIKE '/DOC_ID/%/%.sy'
+AND type = 'd';
+```
+
 ### Parent-Child
 
 ```sql
@@ -600,6 +615,30 @@ SELECT b.* FROM blocks b
 JOIN attributes a ON a.block_id = b.id
 WHERE a.name = 'custom-dailynote-20260102'
 AND b.type = 'd';
+```
+
+### Daily Notes in Date Range
+
+```sql
+-- Daily notes between two dates
+SELECT
+    b.id,
+    b.hpath as title,
+    a.value as date,
+    b.updated
+FROM blocks b
+JOIN attributes a ON a.block_id = b.id
+WHERE a.name LIKE 'custom-dailynote-%'
+AND a.value >= '20251201'
+AND a.value <= '20251231'
+ORDER BY a.value DESC;
+
+-- Daily notes from a specific month
+SELECT b.id, b.hpath, a.value as date
+FROM blocks b
+JOIN attributes a ON a.block_id = b.id
+WHERE a.name LIKE 'custom-dailynote-202512%'
+ORDER BY a.value DESC;
 ```
 
 ---
