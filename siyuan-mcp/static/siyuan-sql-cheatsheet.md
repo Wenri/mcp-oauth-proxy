@@ -50,10 +50,9 @@ ORDER BY count DESC;
 
 ## Full-Text Search (FTS5)
 
-### Basic Search
-
 ```sql
 -- Case-insensitive search with relevance ranking (lower score = more relevant)
+-- Syntax: 'word1 word2' (AND), 'a OR b', 'a NOT b', '"exact phrase"', 'prefix*', 'col:term'
 SELECT id, hpath, substr(content, 1, 100), bm25(blocks_fts_case_insensitive) as score
 FROM blocks_fts_case_insensitive
 WHERE blocks_fts_case_insensitive MATCH 'search terms'
@@ -61,37 +60,7 @@ ORDER BY score LIMIT 20;
 
 -- Case-sensitive search (use blocks_fts instead)
 SELECT id, content FROM blocks_fts WHERE blocks_fts MATCH 'API';
-```
 
-### Advanced FTS5 Syntax
-
-```sql
--- AND (implicit)
-... MATCH 'machine learning'       -- Both words required
-
--- OR
-... MATCH 'neural OR network'      -- Either word
-
--- NOT
-... MATCH 'python NOT javascript'  -- Exclude term
-
--- Phrase (exact)
-... MATCH '"machine learning"'     -- Exact phrase
-
--- Prefix
-... MATCH 'neuro*'                 -- Words starting with neuro
-
--- Column-specific
-... MATCH 'content:training'       -- Search only content column
-... MATCH 'tag:research'           -- Search only tags
-
--- Complex boolean
-... MATCH '(neural OR deep) AND (learning OR training) NOT pytorch'
-```
-
-### FTS5 Functions
-
-```sql
 -- Snippet: extract matching text with context (column 11 = content)
 SELECT id, snippet(blocks_fts_case_insensitive, 11, '<mark>', '</mark>', '...', 32) as snippet
 FROM blocks_fts_case_insensitive
