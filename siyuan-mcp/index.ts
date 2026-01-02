@@ -97,7 +97,7 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   // Add CF Access token for linked app authentication
   // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
   if (cfAccessToken) {
-    headers['Cf-Access-Jwt-Assertion'] = cfAccessToken;
+    headers['cf-access-token'] = cfAccessToken;
   }
   // Add CF Access Service Token for API authentication
   // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/

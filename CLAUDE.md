@@ -305,7 +305,7 @@ npx @modelcontextprotocol/inspector@latest
 - **Client Approval**: Users approve MCP clients before authentication
 - **Cloudflare Access**: Enterprise IdP integration (Okta, Azure AD, Google, etc.)
 - **Service Token Auth**: Worker-to-kernel requests authenticated via CF Access Service Tokens
-- **Linked App Token**: User's CF Access token forwarded to kernel via `Cf-Access-Jwt-Assertion` header
+- **Linked App Token**: User's CF Access token forwarded to kernel via `cf-access-token` header
 - **Read-Only Mode**: Configurable tool restrictions for safety
 
 ## Common Issues
