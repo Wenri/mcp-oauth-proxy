@@ -177,14 +177,31 @@ Available tool categories:
 From your CF Access SaaS app dashboard, copy the OIDC endpoints:
 
 ```bash
+# OAuth configuration (from CF Access SaaS app dashboard)
 wrangler secret put ACCESS_CLIENT_ID          # Client ID from dashboard
 wrangler secret put ACCESS_CLIENT_SECRET      # Client secret from dashboard
 wrangler secret put ACCESS_TOKEN_URL          # Token endpoint URL
 wrangler secret put ACCESS_AUTHORIZATION_URL  # Authorization endpoint URL
 wrangler secret put ACCESS_JWKS_URL           # Key endpoint (JWKS) URL
 wrangler secret put COOKIE_ENCRYPTION_KEY     # openssl rand -hex 32
+
+# SiYuan kernel authentication
 wrangler secret put SIYUAN_KERNEL_TOKEN       # SiYuan API token (if auth enabled)
+
+# CF Access Service Token (if SiYuan kernel is behind CF Access)
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_ID      # Service token Client ID
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_SECRET  # Service token Client Secret
 ```
+
+### CF Access Service Token
+
+If your SiYuan kernel is protected by Cloudflare Access, create a [Service Token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) to allow the MCP worker to authenticate:
+
+1. Go to CF Zero Trust Dashboard → Access → Service Auth → Service Tokens
+2. Create a new service token
+3. Copy the Client ID and Client Secret
+4. Set as secrets (see above)
+5. Add a Service Auth policy to your SiYuan Access application
 
 ### Environment Variables (wrangler.jsonc)
 
@@ -287,13 +304,17 @@ npx @modelcontextprotocol/inspector@latest
 - **CSRF Protection**: Approval form protected against cross-site request forgery
 - **Client Approval**: Users approve MCP clients before authentication
 - **Cloudflare Access**: Enterprise IdP integration (Okta, Azure AD, Google, etc.)
+- **Service Token Auth**: Worker-to-kernel requests authenticated via CF Access Service Tokens
+- **Linked App Token**: User's CF Access token forwarded to kernel via `Cf-Access-Jwt-Assertion` header
 - **Read-Only Mode**: Configurable tool restrictions for safety
 
 ## Common Issues
 
 **"SIYUAN_KERNEL_URL not configured"**: Set in wrangler.jsonc vars or as secret.
 
-**"Failed to get SiYuan config"**: Verify kernel URL is accessible and token is correct.
+**"Failed to get SiYuan config"**: Verify kernel URL is accessible and token is correct. If kernel is behind CF Access, configure Service Token secrets.
+
+**"Unexpected token '<', "<!DOCTYPE"..."**: The kernel is returning HTML (likely CF Access login page). Set `CF_ACCESS_SERVICE_CLIENT_ID` and `CF_ACCESS_SERVICE_CLIENT_SECRET` secrets.
 
 **"Invalid or expired state"**: OAuth state expired (10 min timeout) or KV not configured.
 
@@ -316,8 +337,12 @@ npx @modelcontextprotocol/inspector@latest
    - `ACCESS_TOKEN_URL`, `ACCESS_AUTHORIZATION_URL`, `ACCESS_JWKS_URL`
    - `COOKIE_ENCRYPTION_KEY` (generate with `openssl rand -hex 32`)
 5. Set `SIYUAN_KERNEL_URL` and optionally `SIYUAN_KERNEL_TOKEN`
-6. Deploy: `npm run deploy`
-7. Test OAuth flow with MCP Inspector
+6. If SiYuan kernel is behind CF Access:
+   - Create a Service Token in CF Zero Trust dashboard
+   - Set `CF_ACCESS_SERVICE_CLIENT_ID` and `CF_ACCESS_SERVICE_CLIENT_SECRET`
+   - Add Service Auth policy to your SiYuan Access application
+7. Deploy: `npm run deploy`
+8. Test OAuth flow with MCP Inspector
 
 ## Adding New Tools
 
