@@ -5,6 +5,7 @@
  */
 
 import { kernelFetch } from '..';
+import { warnPush, errorPush } from '../logger';
 
 /**
  * Send POST request to SiYuan kernel API
@@ -79,7 +80,7 @@ export async function listDocsByPathT({
   }
   const response = await postRequest(body, url);
   if (response.code !== 0 || response.data == null) {
-    console.warn('listDocsByPath error:', response.msg);
+    warnPush('listDocsByPath error:', response.msg);
     return [];
   }
   return response.data.files;
@@ -102,6 +103,16 @@ export async function addblockAttrAPI(attrs: Record<string, string>, blockid: st
   return checkResponse(result);
 }
 
+/** Batch set block attributes */
+export async function batchSetBlockAttrs(blockAttrs: string): Promise<any> {
+  const url = '/api/attr/batchSetBlockAttrs';
+  const response = await postRequest({ blockAttrs }, url);
+  if (response.code === 0 && response.data != null) {
+    return response.data;
+  }
+  return null;
+}
+
 /** Update block content */
 export async function updateBlockAPI(
   text: string,
@@ -115,12 +126,12 @@ export async function updateBlockAPI(
       return response.data[0].doOperations[0];
     }
     if (response.code === -1) {
-      console.warn('Update block failed:', response.msg);
+      warnPush('Update block failed:', response.msg);
       return null;
     }
   } catch (err) {
-    console.error(err);
-    console.warn(response.msg);
+    errorPush(err);
+    warnPush(response.msg);
   }
   return null;
 }
@@ -157,11 +168,11 @@ export async function insertBlockAPI(
       return response.data[0].doOperations[0];
     }
     if (response.code === -1) {
-      console.warn('Insert block failed:', response.msg);
+      warnPush('Insert block failed:', response.msg);
       return null;
     }
   } catch (err) {
-    console.error(err);
+    errorPush(err);
   }
   return null;
 }
@@ -201,7 +212,7 @@ export async function prependBlockAPI(
       return response.data[0].doOperations[0];
     }
   } catch (err) {
-    console.error(err);
+    errorPush(err);
   }
   return null;
 }
@@ -219,7 +230,7 @@ export async function appendBlockAPI(
       return response.data[0].doOperations[0];
     }
   } catch (err) {
-    console.error(err);
+    errorPush(err);
   }
   return null;
 }
@@ -231,7 +242,7 @@ export async function removeBlockAPI(blockid: string): Promise<boolean> {
   if (response.code === 0) {
     return true;
   }
-  console.warn('Delete block failed:', response);
+  warnPush('Delete block failed:', response);
   return false;
 }
 
@@ -246,7 +257,7 @@ export async function moveBlockAPI(
   if (response.code === 0) {
     return true;
   }
-  console.warn('Move block failed:', response);
+  warnPush('Move block failed:', response);
   return false;
 }
 
@@ -257,7 +268,7 @@ export async function foldBlockAPI(id: string): Promise<boolean> {
   if (response.code === 0) {
     return true;
   }
-  console.warn('Fold block failed:', response);
+  warnPush('Fold block failed:', response);
   return false;
 }
 
@@ -268,7 +279,7 @@ export async function unfoldBlockAPI(id: string): Promise<boolean> {
   if (response.code === 0) {
     return true;
   }
-  console.warn('Unfold block failed:', response);
+  warnPush('Unfold block failed:', response);
   return false;
 }
 
@@ -313,6 +324,53 @@ export async function getChildBlocks(id: string): Promise<any[]> {
     return response.data;
   }
   throw new Error(`getChildBlocks Failed: ${response.msg}`);
+}
+
+/** Get document content (HTML/DOM) */
+export async function getDoc(blockid: string, size: number = 5, mode: number = 0): Promise<any> {
+  const url = '/api/filetree/getDoc';
+  const response = await postRequest({ id: blockid, mode, size }, url);
+  if (response.code === 0 && response.data != null) {
+    return response.data;
+  }
+  return undefined;
+}
+
+/** Get document outline */
+export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
+  const url = '/api/outline/getDocOutline';
+  const response = await postRequest({ id: docid }, url);
+  if (response.code === 0) {
+    return response.data;
+  }
+  return null;
+}
+
+/** Get document preview (exported HTML) */
+export async function getDocPreview(docid: string): Promise<string> {
+  const url = '/api/export/preview';
+  const response = await postRequest({ id: docid }, url);
+  if (response.code === 0 && response.data != null) {
+    return response.data.html;
+  }
+  return '';
+}
+
+/** Push notification message to SiYuan UI */
+export async function pushMsgAPI(msgText: string, timeout: number = 7000): Promise<number> {
+  const url = '/api/notification/pushMsg';
+  const response = await postRequest({ msg: msgText, timeout }, url);
+  if (response.code !== 0 || response.data == null || !response.data.id) {
+    return -1;
+  }
+  return 0;
+}
+
+/** Reindex document tree */
+export async function reindexDoc(docpath: string): Promise<number> {
+  const url = '/api/filetree/reindexTree';
+  await postRequest({ path: docpath }, url);
+  return 0;
 }
 
 /** Export markdown content */
@@ -429,7 +487,7 @@ export async function renameDocAPI(
   if (response.code === 0) {
     return true;
   }
-  console.warn('Rename doc failed:', response);
+  warnPush('Rename doc failed:', response);
   return false;
 }
 
@@ -443,7 +501,7 @@ export async function removeDocAPI(
   if (response.code === 0) {
     return true;
   }
-  console.warn('Remove doc failed:', response);
+  warnPush('Remove doc failed:', response);
   return false;
 }
 
@@ -458,7 +516,7 @@ export async function moveDocsAPI(
   if (response.code === 0) {
     return true;
   }
-  console.warn('Move docs failed:', response);
+  warnPush('Move docs failed:', response);
   return false;
 }
 
@@ -486,7 +544,7 @@ export async function addRiffCards(
     }
     return response.data.size - oldCardsNum;
   }
-  console.warn('Add flashcard error:', response);
+  warnPush('Add flashcard error:', response);
   return null;
 }
 
@@ -507,7 +565,7 @@ export async function removeRiffCards(
   if (response.code === 0) {
     return ids.length;
   }
-  console.warn('Remove flashcard error:', response);
+  warnPush('Remove flashcard error:', response);
   return null;
 }
 
@@ -547,7 +605,7 @@ export async function createDocWithPath(
   if (response.code === 0) {
     return true;
   }
-  console.error('createDocWithPath error:', response);
+  errorPush('createDocWithPath error:', response);
   throw new Error(response.msg);
 }
 
@@ -686,7 +744,7 @@ export async function uploadAPI(
   if (result.code === 0 && result.data) {
     return result.data;
   }
-  console.warn('Upload failed:', result);
+  warnPush('Upload failed:', result);
   return null;
 }
 
