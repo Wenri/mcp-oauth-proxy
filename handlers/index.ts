@@ -40,29 +40,16 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
 }
 
 /**
- * Handle MCP requests (SSE and HTTP)
- */
-async function handleMcpRequest(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  const { pathname } = new URL(req.url);
-  if (pathname === '/sse' || pathname === '/sse/message') {
-    return SiyuanMCP.serveSSE('/sse').fetch(req, env, ctx);
-  }
-  if (pathname === '/mcp') {
-    return SiyuanMCP.serve('/mcp').fetch(req, env, ctx);
-  }
-  return new Response('Not found', { status: 404 });
-}
-
-/**
  * OAuthProvider configuration
  *
  * Acts as OAuth Provider to MCP clients, and as OAuth Client to CF Access.
  */
 export default new OAuthProvider({
-  // MCP transport handler (require valid access token)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  apiHandler: { fetch: handleMcpRequest as any },
-  apiRoute: ['/sse', '/mcp'],
+  // MCP transport handlers (require valid access token)
+  apiHandlers: {
+    '/sse': SiyuanMCP.serveSSE('/sse'),
+    '/mcp': SiyuanMCP.serve('/mcp'),
+  },
   // OAuth endpoints
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
