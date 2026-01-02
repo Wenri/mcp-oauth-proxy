@@ -27,6 +27,7 @@ export { logPush } from './logger';
 let config: SiyuanConfig | null = null;
 let baseUrl: string = '';
 let authToken: string | undefined;
+let cfAccessToken: string | undefined;
 
 /**
  * Initialize the SiYuan context
@@ -89,6 +90,11 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   if (authToken) {
     headers['Authorization'] = `Token ${authToken}`;
   }
+  // Add CF Access token for linked app authentication
+  // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
+  if (cfAccessToken) {
+    headers['Cf-Access-Jwt-Assertion'] = cfAccessToken;
+  }
   return fetch(fullUrl, { ...init, headers });
 }
 
@@ -124,8 +130,17 @@ export function getAppId(): string {
 /**
  * Initialize an existing MCP server with SiYuan tools and prompts
  * Use this when you already have a server instance (e.g., from McpAgent)
+ *
+ * @param server - The MCP server instance to configure
+ * @param mcpConfig - SiYuan configuration (kernel URL, tokens, etc.)
+ * @param accessToken - Optional CF Access token for linked app authentication
  */
-export async function initializeSiyuanMCPServer(server: McpServer, mcpConfig: SiyuanMCPConfig): Promise<void> {
+export async function initializeSiyuanMCPServer(
+  server: McpServer,
+  mcpConfig: SiyuanMCPConfig,
+  accessToken?: string
+): Promise<void> {
+  cfAccessToken = accessToken;
   await initializeContext(mcpConfig);
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);

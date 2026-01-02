@@ -29,7 +29,8 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
       return;
     }
 
-    await initializeSiyuanMCPServer(this.server, this.env);
+    // Pass CF Access token for linked app authentication to SiYuan kernel
+    await initializeSiyuanMCPServer(this.server, this.env, this.props?.accessToken);
 
     // Log authenticated user info
     if (this.props?.email) {
