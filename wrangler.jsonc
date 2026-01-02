@@ -72,8 +72,8 @@
   // - RAG_API_KEY: RAG backend API key
 
   "vars": {
-    // SiYuan kernel URL - the SiYuan Note server to connect to
-    "SIYUAN_KERNEL_URL": "https://sy.wenri.me"
+    // SiYuan kernel URL (optional - defaults to request origin)
+    // "SIYUAN_KERNEL_URL": "https://siyuan.example.com",
 
     // RAG backend configuration (optional)
     // "RAG_BASE_URL": "http://127.0.0.1:26808",
