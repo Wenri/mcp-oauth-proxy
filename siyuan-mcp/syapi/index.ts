@@ -235,6 +235,43 @@ export async function removeBlockAPI(blockid: string): Promise<boolean> {
   return false;
 }
 
+/** Move block to new position */
+export async function moveBlockAPI(
+  id: string,
+  parentID?: string,
+  previousID?: string
+): Promise<boolean> {
+  const url = '/api/block/moveBlock';
+  const response = await postRequest({ id, parentID, previousID }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Move block failed:', response);
+  return false;
+}
+
+/** Fold block */
+export async function foldBlockAPI(id: string): Promise<boolean> {
+  const url = '/api/block/foldBlock';
+  const response = await postRequest({ id }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Fold block failed:', response);
+  return false;
+}
+
+/** Unfold block */
+export async function unfoldBlockAPI(id: string): Promise<boolean> {
+  const url = '/api/block/unfoldBlock';
+  const response = await postRequest({ id }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Unfold block failed:', response);
+  return false;
+}
+
 /** Get block Kramdown source */
 export async function getKramdown(blockid: string, throwError = false): Promise<string | null> {
   const url = '/api/block/getBlockKramdown';
@@ -377,6 +414,60 @@ export async function createDocWithMdAPI(
   const response = await postRequest({ notebook: notebookid, path: hpath, markdown: md }, url);
   if (response.code === 0 && response.data?.id) {
     return response.data.id;
+  }
+  return null;
+}
+
+/** Rename document */
+export async function renameDocAPI(
+  notebook: string,
+  path: string,
+  title: string
+): Promise<boolean> {
+  const url = '/api/filetree/renameDoc';
+  const response = await postRequest({ notebook, path, title }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Rename doc failed:', response);
+  return false;
+}
+
+/** Remove document */
+export async function removeDocAPI(
+  notebook: string,
+  path: string
+): Promise<boolean> {
+  const url = '/api/filetree/removeDoc';
+  const response = await postRequest({ notebook, path }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Remove doc failed:', response);
+  return false;
+}
+
+/** Move documents to new location */
+export async function moveDocsAPI(
+  fromPaths: string[],
+  toNotebook: string,
+  toPath: string
+): Promise<boolean> {
+  const url = '/api/filetree/moveDocs';
+  const response = await postRequest({ fromPaths, toNotebook, toPath }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  console.warn('Move docs failed:', response);
+  return false;
+}
+
+/** Get human-readable path by ID */
+export async function getHPathByIDAPI(id: string): Promise<string | null> {
+  const url = '/api/filetree/getHPathByID';
+  const response = await postRequest({ id }, url);
+  if (response.code === 0 && response.data) {
+    return response.data;
   }
   return null;
 }

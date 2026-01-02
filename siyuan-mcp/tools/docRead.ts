@@ -4,11 +4,11 @@
 
 import { z } from 'zod';
 import { McpToolsProvider } from './baseToolProvider';
-import { exportMdContent, getKramdown, getFileAPIv2 } from '../syapi';
+import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
 import { getConfig } from '..';
-import { getBlockDBItem, getBlockAssets } from '../syapi/custom';
+import { getBlockDBItem, getBlockAssets, checkIdValid } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
 import { blobToBase64Object } from '../utils/common';
 import { debugPush, errorPush, logPush } from '../logger';
@@ -44,6 +44,17 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         },
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
+        annotations: { readOnlyHint: true },
+      },
+      {
+        name: 'siyuan_get_hpath',
+        description:
+          'Get the human-readable path (hpath) for a document or block by its ID. Returns the path like "/Notebook/Parent Doc/Child Doc".',
+        schema: {
+          id: z.string().describe('The unique identifier of the document or block'),
+        },
+        handler: getHPathHandler,
+        title: lang('tool_title_get_hpath'),
         annotations: { readOnlyHint: true },
       },
     ];
@@ -175,4 +186,25 @@ function isSupportedImageOrAudio(path: string): 'image' | 'audio' | false {
   } else {
     return false;
   }
+}
+
+async function getHPathHandler(params: { id: string }) {
+  const { id } = params;
+  debugPush('Get hpath API called');
+
+  checkIdValid(id);
+  const dbItem = await getBlockDBItem(id);
+  if (dbItem == null) {
+    return createErrorResponse('Invalid document or block ID. Please check if the ID exists and is correct.');
+  }
+  if (await filterBlock(id, dbItem)) {
+    return createErrorResponse('The specified document or block is excluded by the user settings.');
+  }
+
+  const hpath = await getHPathByIDAPI(id);
+  if (hpath == null) {
+    return createErrorResponse('Failed to get the human-readable path.');
+  }
+
+  return createJsonResponse({ id, hpath });
 }

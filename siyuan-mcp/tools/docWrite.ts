@@ -5,8 +5,8 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
-import { appendBlockAPI } from '../syapi';
-import { checkIdValid, isADocId } from '../syapi/custom';
+import { appendBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
+import { checkIdValid, isADocId, getDocDBitem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { createNewDocWithParentId } from './sharedFunction';
@@ -57,6 +57,51 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
           idempotentHint: false,
         },
       },
+      {
+        name: 'siyuan_rename_doc',
+        description: 'Rename a document by its ID.',
+        schema: {
+          id: z.string().describe('The unique identifier of the document to rename'),
+          title: z.string().describe('The new title for the document'),
+        },
+        handler: renameDocHandler,
+        title: lang('tool_title_rename_doc'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      {
+        name: 'siyuan_remove_doc',
+        description: 'Delete a document by its ID. This action moves the document to trash and is irreversible.',
+        schema: {
+          id: z.string().describe('The unique identifier of the document to delete'),
+        },
+        handler: removeDocHandler,
+        title: lang('tool_title_remove_doc'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+        },
+      },
+      {
+        name: 'siyuan_move_docs',
+        description: 'Move one or more documents to a new location (notebook and path).',
+        schema: {
+          docIds: z.array(z.string()).describe('Array of document IDs to move'),
+          toNotebook: z.string().describe('Target notebook ID'),
+          toPath: z.string().describe('Target path within the notebook (e.g., "/" for root, or "/Parent Doc" for subdoc)'),
+        },
+        handler: moveDocsHandler,
+        title: lang('tool_title_move_docs'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
     ];
   }
 }
@@ -103,4 +148,90 @@ async function createNewNoteUnder(params: { parentId: string; title: string; mar
   return result
     ? createSuccessResponse(`Successfully created document, document ID is: ${newDocId}`)
     : createErrorResponse('An Error Occurred');
+}
+
+async function renameDocHandler(params: { id: string; title: string }) {
+  const { id, title } = params;
+  debugPush('Rename document API called');
+
+  checkIdValid(id);
+  if (!(await isADocId(id))) {
+    return createErrorResponse('The provided ID is not a document ID.');
+  }
+  if (await filterBlock(id, null)) {
+    return createErrorResponse('The specified document is excluded by the user settings.');
+  }
+
+  const docInfo = await getDocDBitem(id);
+  if (!docInfo) {
+    return createErrorResponse('Document not found.');
+  }
+
+  const result = await renameDocAPI(docInfo.box, docInfo.path, title);
+  if (!result) {
+    return createErrorResponse('Failed to rename the document');
+  }
+
+  return createSuccessResponse(`Document renamed to "${title}" successfully.`);
+}
+
+async function removeDocHandler(params: { id: string }) {
+  const { id } = params;
+  debugPush('Remove document API called');
+
+  checkIdValid(id);
+  if (!(await isADocId(id))) {
+    return createErrorResponse('The provided ID is not a document ID.');
+  }
+  if (await filterBlock(id, null)) {
+    return createErrorResponse('The specified document is excluded by the user settings.');
+  }
+
+  const docInfo = await getDocDBitem(id);
+  if (!docInfo) {
+    return createErrorResponse('Document not found.');
+  }
+
+  const result = await removeDocAPI(docInfo.box, docInfo.path);
+  if (!result) {
+    return createErrorResponse('Failed to remove the document');
+  }
+
+  taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
+  return createSuccessResponse('Document removed successfully.');
+}
+
+async function moveDocsHandler(params: { docIds: string[]; toNotebook: string; toPath: string }) {
+  const { docIds, toNotebook, toPath } = params;
+  debugPush('Move documents API called');
+
+  if (!docIds || docIds.length === 0) {
+    return createErrorResponse('Please provide at least one document ID to move.');
+  }
+
+  // Validate all doc IDs and get their paths
+  const fromPaths: string[] = [];
+  for (const docId of docIds) {
+    checkIdValid(docId);
+    if (!(await isADocId(docId))) {
+      return createErrorResponse(`The ID "${docId}" is not a document ID.`);
+    }
+    if (await filterBlock(docId, null)) {
+      return createErrorResponse(`The document "${docId}" is excluded by the user settings.`);
+    }
+
+    const docInfo = await getDocDBitem(docId);
+    if (!docInfo) {
+      return createErrorResponse(`Document "${docId}" not found.`);
+    }
+    // Full path format: notebook/path
+    fromPaths.push(`${docInfo.box}${docInfo.path}`);
+  }
+
+  const result = await moveDocsAPI(fromPaths, toNotebook, toPath);
+  if (!result) {
+    return createErrorResponse('Failed to move the documents');
+  }
+
+  return createSuccessResponse(`Successfully moved ${docIds.length} document(s).`);
 }
