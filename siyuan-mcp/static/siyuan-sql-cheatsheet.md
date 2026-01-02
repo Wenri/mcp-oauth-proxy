@@ -526,6 +526,146 @@ SELECT sqlite_version();
 
 ---
 
+## References & Backlinks
+
+### Find Backlinks to a Block
+
+```sql
+-- All blocks that reference a specific block
+SELECT b.* FROM blocks b
+WHERE b.id IN (
+    SELECT block_id FROM refs WHERE def_block_id = 'TARGET_BLOCK_ID'
+);
+
+-- Backlinks with context
+SELECT
+    r.block_id as source_block,
+    r.content as anchor_text,
+    b.hpath as source_doc,
+    b.type as source_type
+FROM refs r
+JOIN blocks b ON b.id = r.block_id
+WHERE r.def_block_id = 'TARGET_BLOCK_ID';
+```
+
+### Unreferenced Documents (Orphans)
+
+```sql
+-- Documents that no one links to
+SELECT id, hpath as title, updated FROM blocks
+WHERE type = 'd'
+AND id NOT IN (SELECT def_block_root_id FROM refs)
+ORDER BY updated DESC;
+```
+
+### Most Referenced Blocks
+
+```sql
+SELECT
+    def_block_id,
+    COUNT(*) as ref_count,
+    MAX(b.hpath) as in_doc
+FROM refs r
+JOIN blocks b ON b.id = r.def_block_id
+GROUP BY def_block_id
+ORDER BY ref_count DESC
+LIMIT 20;
+```
+
+---
+
+## Daily Notes
+
+### Recent Daily Notes
+
+```sql
+-- Daily notes from attributes table
+SELECT
+    b.id,
+    b.hpath as title,
+    a.value as date,
+    b.updated
+FROM blocks b
+JOIN attributes a ON a.block_id = b.id
+WHERE a.name LIKE 'custom-dailynote-%'
+ORDER BY a.value DESC
+LIMIT 30;
+```
+
+### Today's Daily Note
+
+```sql
+-- Find today's daily note (replace YYYYMMDD with actual date)
+SELECT b.* FROM blocks b
+JOIN attributes a ON a.block_id = b.id
+WHERE a.name = 'custom-dailynote-20260102'
+AND b.type = 'd';
+```
+
+---
+
+## Task Lists
+
+### Incomplete Tasks
+
+```sql
+-- All unchecked task items
+SELECT id, root_id, substr(markdown, 1, 100) as task
+FROM blocks
+WHERE type = 'i' AND subtype = 't'
+AND markdown LIKE '%[ ]%'
+ORDER BY updated DESC;
+```
+
+### Incomplete Tasks (Last 7 Days)
+
+```sql
+-- Recent incomplete tasks
+SELECT
+    b.id,
+    b.root_id,
+    substr(b.markdown, 1, 100) as task,
+    d.hpath as document
+FROM blocks b
+JOIN blocks d ON d.id = b.root_id
+WHERE b.type = 'i' AND b.subtype = 't'
+AND b.markdown LIKE '%[ ]%'
+AND b.updated >= '20251226000000'
+ORDER BY b.updated DESC;
+```
+
+### Completed Tasks
+
+```sql
+-- All checked task items
+SELECT id, root_id, substr(markdown, 1, 100) as task
+FROM blocks
+WHERE type = 'i' AND subtype = 't'
+AND markdown LIKE '%[x]%'
+ORDER BY updated DESC;
+```
+
+---
+
+## Random Selection
+
+```sql
+-- Random document
+SELECT * FROM blocks WHERE type = 'd' ORDER BY random() LIMIT 1;
+
+-- Random heading from a specific document
+SELECT * FROM blocks
+WHERE root_id = 'DOC_ID' AND type = 'h'
+ORDER BY random() LIMIT 1;
+
+-- Random paragraph with content
+SELECT * FROM blocks
+WHERE type = 'p' AND length > 100
+ORDER BY random() LIMIT 1;
+```
+
+---
+
 ## Useful Patterns
 
 ### Content Analysis
