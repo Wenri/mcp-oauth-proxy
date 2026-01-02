@@ -154,61 +154,16 @@ ORDER BY month DESC;
 
 ## Window Functions
 
-### Row Numbering
-
 ```sql
-SELECT 
-    ROW_NUMBER() OVER (ORDER BY updated DESC) as row_num,
-    id, type, substr(content, 1, 50)
-FROM blocks
-LIMIT 20;
-```
-
-### Ranking Within Groups
-
-```sql
-SELECT 
-    box,
-    id,
-    length,
-    ROW_NUMBER() OVER (PARTITION BY box ORDER BY length DESC) as rank_in_notebook
-FROM blocks
-WHERE type = 'p';
-```
-
-### Running Totals
-
-```sql
-SELECT 
-    id,
-    length,
-    SUM(length) OVER (ORDER BY created) as running_total
-FROM blocks
-WHERE type = 'd';
-```
-
-### Lag/Lead (Previous/Next Values)
-
-```sql
-SELECT 
-    id,
-    updated,
-    LAG(updated) OVER (ORDER BY updated) as prev_update,
-    LEAD(updated) OVER (ORDER BY updated) as next_update
-FROM blocks
-WHERE type = 'd';
-```
-
-### Percentiles
-
-```sql
-SELECT 
-    id,
-    length,
-    NTILE(4) OVER (ORDER BY length) as quartile,
-    PERCENT_RANK() OVER (ORDER BY length) as percentile
-FROM blocks
-WHERE type = 'p' AND length > 0;
+-- Numbering, ranking, running totals, lag/lead, percentiles
+SELECT
+    ROW_NUMBER() OVER (ORDER BY updated DESC) as row_num,          -- Sequential numbering
+    ROW_NUMBER() OVER (PARTITION BY box ORDER BY length DESC) as rank_in_box,  -- Rank within group
+    SUM(length) OVER (ORDER BY created) as running_total,          -- Cumulative sum
+    LAG(updated) OVER (ORDER BY updated) as prev_update,           -- Previous row value
+    LEAD(updated) OVER (ORDER BY updated) as next_update,          -- Next row value
+    NTILE(4) OVER (ORDER BY length) as quartile                    -- Divide into N buckets
+FROM blocks WHERE type = 'p' LIMIT 20;
 ```
 
 ---
@@ -276,45 +231,18 @@ SELECT TOTAL(length) FROM blocks WHERE type = 'nonexistent';
 
 ## Subqueries
 
-### In WHERE Clause
-
 ```sql
--- Blocks in documents with "research" in title
-SELECT * FROM blocks
-WHERE root_id IN (
-    SELECT id FROM blocks 
-    WHERE type = 'd' AND hpath LIKE '%research%'
+-- Blocks in documents with "research" in title (IN subquery)
+SELECT * FROM blocks WHERE root_id IN (
+    SELECT id FROM blocks WHERE type = 'd' AND hpath LIKE '%research%'
 );
 
--- Largest blocks per type
-SELECT * FROM blocks b1
-WHERE length = (
-    SELECT MAX(length) FROM blocks b2 WHERE b2.type = b1.type
-);
-```
+-- Documents that contain code blocks (EXISTS subquery)
+SELECT * FROM blocks d WHERE type = 'd'
+AND EXISTS (SELECT 1 FROM blocks c WHERE c.root_id = d.id AND c.type = 'c');
 
-### In FROM Clause (Derived Tables)
-
-```sql
-SELECT type, avg_len
-FROM (
-    SELECT type, AVG(length) as avg_len
-    FROM blocks
-    GROUP BY type
-) subq
-WHERE avg_len > 100;
-```
-
-### EXISTS
-
-```sql
--- Documents that have code blocks
-SELECT * FROM blocks d
-WHERE type = 'd'
-AND EXISTS (
-    SELECT 1 FROM blocks c 
-    WHERE c.root_id = d.id AND c.type = 'c'
-);
+-- Derived table in FROM clause
+SELECT type, avg_len FROM (SELECT type, AVG(length) as avg_len FROM blocks GROUP BY type) WHERE avg_len > 100;
 ```
 
 ---
@@ -322,25 +250,12 @@ AND EXISTS (
 ## Set Operations
 
 ```sql
--- UNION (combine, deduplicate)
-SELECT id, 'heading' as source FROM blocks WHERE type = 'h'
-UNION
-SELECT id, 'paragraph' as source FROM blocks WHERE type = 'p' AND length > 500;
+-- UNION: combine headings and long paragraphs (deduplicated; UNION ALL keeps dupes)
+SELECT id, 'h' as src FROM blocks WHERE type = 'h'
+UNION SELECT id, 'p' as src FROM blocks WHERE type = 'p' AND length > 500;
 
--- UNION ALL (combine, keep duplicates)
-SELECT id FROM blocks WHERE type = 'h'
-UNION ALL
-SELECT id FROM blocks WHERE type = 'p';
-
--- EXCEPT (difference)
-SELECT id FROM blocks WHERE type = 'p'
-EXCEPT
-SELECT id FROM blocks WHERE length < 100;
-
--- INTERSECT (common)
-SELECT root_id FROM blocks WHERE type = 'c'
-INTERSECT
-SELECT root_id FROM blocks WHERE type = 'h' AND subtype = 'h1';
+-- EXCEPT: paragraphs excluding short ones; INTERSECT: docs with both code and h1
+SELECT id FROM blocks WHERE type = 'p' EXCEPT SELECT id FROM blocks WHERE length < 100;
 ```
 
 ---
@@ -461,97 +376,36 @@ LIMIT 20;
 
 ## Daily Notes
 
-### Recent Daily Notes
-
 ```sql
--- Daily notes from attributes table
-SELECT
-    b.id,
-    b.hpath as title,
-    a.value as date,
-    b.updated
-FROM blocks b
-JOIN attributes a ON a.block_id = b.id
+-- Daily notes use custom-dailynote-YYYYMMDD attribute
+-- Recent daily notes
+SELECT b.id, b.hpath as title, a.value as date, b.updated
+FROM blocks b JOIN attributes a ON a.block_id = b.id
 WHERE a.name LIKE 'custom-dailynote-%'
-ORDER BY a.value DESC
-LIMIT 30;
-```
+ORDER BY a.value DESC LIMIT 30;
 
-### Today's Daily Note
+-- Today's daily note (replace YYYYMMDD with actual date)
+SELECT b.* FROM blocks b JOIN attributes a ON a.block_id = b.id
+WHERE a.name = 'custom-dailynote-20260102' AND b.type = 'd';
 
-```sql
--- Find today's daily note (replace YYYYMMDD with actual date)
-SELECT b.* FROM blocks b
-JOIN attributes a ON a.block_id = b.id
-WHERE a.name = 'custom-dailynote-20260102'
-AND b.type = 'd';
-```
-
-### Daily Notes in Date Range
-
-```sql
--- Daily notes between two dates
-SELECT
-    b.id,
-    b.hpath as title,
-    a.value as date,
-    b.updated
-FROM blocks b
-JOIN attributes a ON a.block_id = b.id
-WHERE a.name LIKE 'custom-dailynote-%'
-AND a.value >= '20251201'
-AND a.value <= '20251231'
-ORDER BY a.value DESC;
-
--- Daily notes from a specific month
-SELECT b.id, b.hpath, a.value as date
-FROM blocks b
-JOIN attributes a ON a.block_id = b.id
-WHERE a.name LIKE 'custom-dailynote-202512%'
-ORDER BY a.value DESC;
+-- Date range filter: a.value >= '20251201' AND a.value <= '20251231'
+-- Month filter: a.name LIKE 'custom-dailynote-202512%'
 ```
 
 ---
 
 ## Task Lists
 
-### Incomplete Tasks
-
 ```sql
--- All unchecked task items
-SELECT id, root_id, substr(markdown, 1, 100) as task
-FROM blocks
-WHERE type = 'i' AND subtype = 't'
-AND markdown LIKE '%[ ]%'
+-- Task items: type='i' subtype='t', incomplete='[ ]', completed='[x]'
+-- Incomplete tasks
+SELECT id, root_id, substr(markdown, 1, 100) as task FROM blocks
+WHERE type = 'i' AND subtype = 't' AND markdown LIKE '%[ ]%'
 ORDER BY updated DESC;
-```
 
-### Incomplete Tasks (Last 7 Days)
-
-```sql
--- Recent incomplete tasks
-SELECT
-    b.id,
-    b.root_id,
-    substr(b.markdown, 1, 100) as task,
-    d.hpath as document
-FROM blocks b
-JOIN blocks d ON d.id = b.root_id
-WHERE b.type = 'i' AND b.subtype = 't'
-AND b.markdown LIKE '%[ ]%'
-AND b.updated >= '20251226000000'
-ORDER BY b.updated DESC;
-```
-
-### Completed Tasks
-
-```sql
--- All checked task items
-SELECT id, root_id, substr(markdown, 1, 100) as task
-FROM blocks
-WHERE type = 'i' AND subtype = 't'
-AND markdown LIKE '%[x]%'
-ORDER BY updated DESC;
+-- Completed tasks (change [ ] to [x])
+-- Add time filter: AND updated >= '20251226000000'
+-- Join for doc path: JOIN blocks d ON d.id = b.root_id → d.hpath as document
 ```
 
 ---
