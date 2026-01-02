@@ -13,9 +13,9 @@ export { DailyNoteToolProvider } from './dailynote';
 export { FlashcardToolProvider } from './flashCard';
 export { DocVectorSearchProvider } from './vectorSearch';
 export { RelationToolProvider } from './relation';
-export { TimeToolProvider } from './time';
 export { AssetToolProvider } from './assets';
 export { FileSystemToolProvider } from './filesystem';
+export { UtilityToolProvider } from './utility';
 
 // Re-export shared functions
 export { createNewDoc, createNewDocWithParentId } from './sharedFunction';
@@ -31,9 +31,9 @@ import { DailyNoteToolProvider } from './dailynote';
 import { FlashcardToolProvider } from './flashCard';
 import { DocVectorSearchProvider } from './vectorSearch';
 import { RelationToolProvider } from './relation';
-import { TimeToolProvider } from './time';
 import { AssetToolProvider } from './assets';
 import { FileSystemToolProvider } from './filesystem';
+import { UtilityToolProvider } from './utility';
 
 /**
  * Get all tool providers
@@ -50,8 +50,8 @@ export function getAllToolProviders(): McpToolsProvider<any>[] {
     new FlashcardToolProvider(),
     new DocVectorSearchProvider(),
     new RelationToolProvider(),
-    new TimeToolProvider(),
     new AssetToolProvider(),
     new FileSystemToolProvider(),
+    new UtilityToolProvider(),
   ];
 }

@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
-import { addblockAttrAPI, getblockAttr } from '../syapi';
+import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
 import { isValidStr } from '../utils/commonCheck';
@@ -45,6 +45,28 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
         title: lang('tool_title_get_block_attributes'),
         annotations: {
           readOnlyHint: true,
+        },
+      },
+      {
+        name: 'siyuan_batch_set_attributes',
+        description:
+          'Set attributes on multiple blocks at once. More efficient than calling set_block_attributes multiple times.',
+        schema: {
+          blocks: z
+            .array(
+              z.object({
+                id: z.string().describe('The block ID'),
+                attrs: z.record(z.string()).describe('Attributes to set on this block'),
+              })
+            )
+            .describe('Array of blocks with their attributes to set'),
+        },
+        handler: batchSetAttributesHandler,
+        title: lang('tool_title_batch_set_attributes'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
         },
       },
     ];
@@ -122,6 +144,43 @@ async function getBlockAttributesHandler(params: { blockId: string }) {
   try {
     const attributes = await getblockAttr(blockId);
     return createJsonResponse(attributes ?? {});
+  } catch (error: any) {
+    return createErrorResponse(`An error occurred: ${error.message}`);
+  }
+}
+
+async function batchSetAttributesHandler(params: { blocks: { id: string; attrs: Record<string, string> }[] }) {
+  const { blocks } = params;
+
+  if (!blocks || blocks.length === 0) {
+    return createErrorResponse('blocks array cannot be empty.');
+  }
+
+  // Validate all blocks first
+  for (const block of blocks) {
+    if (!isValidStr(block.id)) {
+      return createErrorResponse('Each block must have a valid id.');
+    }
+    const dbItem = await getBlockDBItem(block.id);
+    if (dbItem == null) {
+      return createErrorResponse(`Block "${block.id}" does not exist.`);
+    }
+    if (await filterBlock(block.id, dbItem)) {
+      return createErrorResponse(`Block "${block.id}" is excluded by user settings.`);
+    }
+  }
+
+  // Format for batchSetBlockAttrs API: JSON string of array
+  // Each item: { id: string, attrs: Record<string, string> }
+  const blockAttrs = JSON.stringify(blocks);
+
+  try {
+    const result = await batchSetBlockAttrs(blockAttrs);
+    if (result !== null) {
+      return createSuccessResponse(`Successfully updated attributes for ${blocks.length} block(s).`);
+    } else {
+      return createErrorResponse('Failed to batch update attributes.');
+    }
   } catch (error: any) {
     return createErrorResponse(`An error occurred: ${error.message}`);
   }

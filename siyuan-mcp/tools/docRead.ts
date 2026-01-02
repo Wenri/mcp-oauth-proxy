@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { McpToolsProvider } from './baseToolProvider';
-import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI } from '../syapi';
+import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
 import { getConfig } from '..';
@@ -49,12 +49,35 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_get_hpath',
         description:
-          'Get the human-readable path (hpath) for a document or block by its ID. Returns the path like "/Notebook/Parent Doc/Child Doc".',
+          'Get the human-readable path (hpath) for a document or block by its ID. Optionally includes document outline for context.',
         schema: {
           id: z.string().describe('The unique identifier of the document or block'),
+          includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
         },
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
+        annotations: { readOnlyHint: true },
+      },
+      {
+        name: 'siyuan_get_doc_outline',
+        description:
+          'Get the outline (table of contents) of a document. Returns headings hierarchy which helps understand document structure.',
+        schema: {
+          id: z.string().describe('The unique identifier of the document'),
+        },
+        handler: getDocOutlineHandler,
+        title: lang('tool_title_get_doc_outline'),
+        annotations: { readOnlyHint: true },
+      },
+      {
+        name: 'siyuan_export_html',
+        description:
+          'Export a document as HTML. Useful for getting a rendered preview of the document content.',
+        schema: {
+          id: z.string().describe('The unique identifier of the document'),
+        },
+        handler: exportHtmlHandler,
+        title: lang('tool_title_export_html'),
         annotations: { readOnlyHint: true },
       },
     ];
@@ -188,8 +211,8 @@ function isSupportedImageOrAudio(path: string): 'image' | 'audio' | false {
   }
 }
 
-async function getHPathHandler(params: { id: string }) {
-  const { id } = params;
+async function getHPathHandler(params: { id: string; includeOutline?: boolean }) {
+  const { id, includeOutline = false } = params;
   debugPush('Get hpath API called');
 
   checkIdValid(id);
@@ -206,5 +229,72 @@ async function getHPathHandler(params: { id: string }) {
     return createErrorResponse('Failed to get the human-readable path.');
   }
 
-  return createJsonResponse({ id, hpath });
+  const result: any = { id, hpath };
+
+  if (includeOutline) {
+    // Get the root document ID for outline
+    const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+    if (docId) {
+      const outline = await getDocOutlineAPI(docId);
+      if (outline) {
+        result.outline = outline;
+      }
+    }
+  }
+
+  return createJsonResponse(result);
+}
+
+async function getDocOutlineHandler(params: { id: string }) {
+  const { id } = params;
+  debugPush('Get doc outline API called');
+
+  checkIdValid(id);
+  const dbItem = await getBlockDBItem(id);
+  if (dbItem == null) {
+    return createErrorResponse('Invalid document ID. Please check if the ID exists and is correct.');
+  }
+  if (await filterBlock(id, dbItem)) {
+    return createErrorResponse('The specified document is excluded by the user settings.');
+  }
+
+  // Get the root document ID if a block ID was provided
+  const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+  if (!docId) {
+    return createErrorResponse('Could not determine the document ID.');
+  }
+
+  const outline = await getDocOutlineAPI(docId);
+  if (outline == null) {
+    return createErrorResponse('Failed to get document outline.');
+  }
+
+  return createJsonResponse({ id: docId, outline });
+}
+
+async function exportHtmlHandler(params: { id: string }) {
+  const { id } = params;
+  debugPush('Export HTML API called');
+
+  checkIdValid(id);
+  const dbItem = await getBlockDBItem(id);
+  if (dbItem == null) {
+    return createErrorResponse('Invalid document ID. Please check if the ID exists and is correct.');
+  }
+  if (await filterBlock(id, dbItem)) {
+    return createErrorResponse('The specified document is excluded by the user settings.');
+  }
+
+  // Get the root document ID if a block ID was provided
+  const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+  if (!docId) {
+    return createErrorResponse('Could not determine the document ID.');
+  }
+
+  const html = await getDocPreview(docId);
+  if (!html) {
+    return createErrorResponse('Failed to export document as HTML.');
+  }
+
+  return createJsonResponse({ id: docId, html });
 }

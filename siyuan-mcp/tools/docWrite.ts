@@ -88,9 +88,12 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
       },
       {
         name: 'siyuan_move_docs',
-        description: 'Move one or more documents to a new location (notebook and path).',
+        description:
+          'Move one or more documents to a new location. Accepts either document IDs or full paths (notebook/path format).',
         schema: {
-          docIds: z.array(z.string()).describe('Array of document IDs to move'),
+          fromDocs: z
+            .array(z.string())
+            .describe('Array of document IDs or full paths (e.g., "20210808180117-abc" or "notebook123/path/to/doc.sy")'),
           toNotebook: z.string().describe('Target notebook ID'),
           toPath: z.string().describe('Target path within the notebook (e.g., "/" for root, or "/Parent Doc" for subdoc)'),
         },
@@ -201,31 +204,38 @@ async function removeDocHandler(params: { id: string }) {
   return createSuccessResponse('Document removed successfully.');
 }
 
-async function moveDocsHandler(params: { docIds: string[]; toNotebook: string; toPath: string }) {
-  const { docIds, toNotebook, toPath } = params;
+async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string; toPath: string }) {
+  const { fromDocs, toNotebook, toPath } = params;
   debugPush('Move documents API called');
 
-  if (!docIds || docIds.length === 0) {
-    return createErrorResponse('Please provide at least one document ID to move.');
+  if (!fromDocs || fromDocs.length === 0) {
+    return createErrorResponse('Please provide at least one document ID or path to move.');
   }
 
-  // Validate all doc IDs and get their paths
+  // Process each entry - could be an ID or a full path
   const fromPaths: string[] = [];
-  for (const docId of docIds) {
-    checkIdValid(docId);
-    if (!(await isADocId(docId))) {
-      return createErrorResponse(`The ID "${docId}" is not a document ID.`);
-    }
-    if (await filterBlock(docId, null)) {
-      return createErrorResponse(`The document "${docId}" is excluded by the user settings.`);
-    }
+  for (const doc of fromDocs) {
+    // Check if it looks like a full path (contains /) or an ID
+    if (doc.includes('/')) {
+      // It's already a full path (notebook/path format)
+      fromPaths.push(doc);
+    } else {
+      // It's a document ID - look up the path
+      checkIdValid(doc);
+      if (!(await isADocId(doc))) {
+        return createErrorResponse(`"${doc}" is not a valid document ID.`);
+      }
+      if (await filterBlock(doc, null)) {
+        return createErrorResponse(`The document "${doc}" is excluded by the user settings.`);
+      }
 
-    const docInfo = await getDocDBitem(docId);
-    if (!docInfo) {
-      return createErrorResponse(`Document "${docId}" not found.`);
+      const docInfo = await getDocDBitem(doc);
+      if (!docInfo) {
+        return createErrorResponse(`Document "${doc}" not found.`);
+      }
+      // Full path format: notebook/path
+      fromPaths.push(`${docInfo.box}${docInfo.path}`);
     }
-    // Full path format: notebook/path
-    fromPaths.push(`${docInfo.box}${docInfo.path}`);
   }
 
   const result = await moveDocsAPI(fromPaths, toNotebook, toPath);
@@ -233,5 +243,5 @@ async function moveDocsHandler(params: { docIds: string[]; toNotebook: string; t
     return createErrorResponse('Failed to move the documents');
   }
 
-  return createSuccessResponse(`Successfully moved ${docIds.length} document(s).`);
+  return createSuccessResponse(`Successfully moved ${fromDocs.length} document(s).`);
 }

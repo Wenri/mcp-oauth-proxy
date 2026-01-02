@@ -4,7 +4,9 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
-import { uploadAPI } from '../syapi';
+import { uploadAPI, insertBlockAPI } from '../syapi';
+import { getBlockDBItem, checkIdValid } from '../syapi/custom';
+import { filterBlock } from '../utils/filterCheck';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -15,7 +17,7 @@ export class AssetToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_upload_asset',
         description:
-          'Upload a file (image, document, etc.) to SiYuan assets. The file content should be base64 encoded. Returns the asset path that can be used in documents.',
+          'Upload a file (image, document, etc.) to SiYuan assets. The file content should be base64 encoded. Optionally auto-inserts the asset into a document block.',
         schema: {
           fileName: z.string().describe('Name of the file including extension (e.g., "image.png", "document.pdf")'),
           base64Content: z.string().describe('Base64 encoded content of the file'),
@@ -23,6 +25,14 @@ export class AssetToolProvider extends McpToolsProvider<any> {
             .string()
             .optional()
             .describe('Target assets directory path (e.g., "/data/assets/"). Defaults to "/data/assets/"'),
+          insertAfterBlock: z
+            .string()
+            .optional()
+            .describe('If provided, auto-insert the asset as an image/link block after this block ID'),
+          altText: z
+            .string()
+            .optional()
+            .describe('Alt text for the image (only used when insertAfterBlock is provided)'),
         },
         handler: uploadAssetHandler,
         title: lang('tool_title_upload_asset'),
@@ -129,12 +139,26 @@ async function uploadAssetHandler(params: {
   fileName: string;
   base64Content: string;
   assetsDirPath?: string;
+  insertAfterBlock?: string;
+  altText?: string;
 }) {
-  const { fileName, base64Content, assetsDirPath = '/data/assets/' } = params;
+  const { fileName, base64Content, assetsDirPath = '/data/assets/', insertAfterBlock, altText } = params;
   debugPush('Upload asset API called');
 
   if (!fileName || !base64Content) {
     return createErrorResponse('fileName and base64Content are required.');
+  }
+
+  // Validate insertAfterBlock if provided
+  if (insertAfterBlock) {
+    checkIdValid(insertAfterBlock);
+    const blockInfo = await getBlockDBItem(insertAfterBlock);
+    if (!blockInfo) {
+      return createErrorResponse('The specified insertAfterBlock ID does not exist.');
+    }
+    if (await filterBlock(insertAfterBlock, blockInfo)) {
+      return createErrorResponse('The specified block is excluded by user settings.');
+    }
   }
 
   try {
@@ -155,11 +179,28 @@ async function uploadAssetHandler(params: {
       return createErrorResponse('Upload succeeded but asset path not returned.');
     }
 
+    // Auto-insert block if requested
+    let insertedBlockId: string | null = null;
+    if (insertAfterBlock) {
+      const isImage = mimeType.startsWith('image/');
+      const alt = altText || fileName;
+      // Create markdown for image or link
+      const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
+
+      const insertResult = await insertBlockAPI(markdown, insertAfterBlock, 'insertAfter');
+      if (insertResult && insertResult.length > 0) {
+        insertedBlockId = insertResult[0].doOperations?.[0]?.id || null;
+      }
+    }
+
     return createJsonResponse({
       success: true,
       fileName,
       assetPath,
-      message: `Asset uploaded successfully. Use "${assetPath}" to reference it in documents.`,
+      insertedBlockId,
+      message: insertedBlockId
+        ? `Asset uploaded and inserted as block ${insertedBlockId}.`
+        : `Asset uploaded successfully. Use "${assetPath}" to reference it in documents.`,
     });
   } catch (error) {
     return createErrorResponse(`Failed to process the file: ${error}`);
