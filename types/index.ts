@@ -16,6 +16,9 @@ export interface SiyuanMCPConfig {
   FILTER_DOCUMENTS?: string;
   READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
   AUTO_APPROVE_LOCAL_CHANGE?: boolean;
+  // CF Access Service Token for kernel API authentication
+  CF_ACCESS_SERVICE_CLIENT_ID?: string;
+  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
 }
 
 /**

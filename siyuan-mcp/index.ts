@@ -28,6 +28,8 @@ let config: SiyuanConfig | null = null;
 let baseUrl: string = '';
 let authToken: string | undefined;
 let cfAccessToken: string | undefined;
+let cfServiceClientId: string | undefined;
+let cfServiceClientSecret: string | undefined;
 
 /**
  * Initialize the SiYuan context
@@ -36,6 +38,8 @@ let cfAccessToken: string | undefined;
 export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
   baseUrl = options.SIYUAN_KERNEL_URL.replace(/\/$/, '');
   authToken = options.SIYUAN_KERNEL_TOKEN;
+  cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
+  cfServiceClientSecret = options.CF_ACCESS_SERVICE_CLIENT_SECRET;
 
   try {
     const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
@@ -94,6 +98,12 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
   if (cfAccessToken) {
     headers['Cf-Access-Jwt-Assertion'] = cfAccessToken;
+  }
+  // Add CF Access Service Token for API authentication
+  // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
+  if (cfServiceClientId && cfServiceClientSecret) {
+    headers['CF-Access-Client-Id'] = cfServiceClientId;
+    headers['CF-Access-Client-Secret'] = cfServiceClientSecret;
   }
   return fetch(fullUrl, { ...init, headers });
 }
