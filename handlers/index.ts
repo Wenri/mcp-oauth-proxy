@@ -24,6 +24,11 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   });
 
   async init() {
+    if (!this.env.SIYUAN_KERNEL_URL) {
+      logPush('Warning: SIYUAN_KERNEL_URL not configured');
+      return;
+    }
+
     await initializeSiyuanMCPServer(this.server, this.env);
 
     // Log authenticated user info
@@ -35,22 +40,14 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 /**
  * Handle MCP requests (SSE and HTTP)
- * Derives SIYUAN_KERNEL_URL from request origin if not configured
  */
 async function handleMcpRequest(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  const url = new URL(req.url);
-
-  // Default SIYUAN_KERNEL_URL to request origin if not set
-  const envWithDefaults = env.SIYUAN_KERNEL_URL ? env : {
-    ...env,
-    SIYUAN_KERNEL_URL: url.origin,
-  };
-
-  if (url.pathname === '/sse' || url.pathname === '/sse/message') {
-    return SiyuanMCP.serveSSE('/sse').fetch(req, envWithDefaults, ctx);
+  const { pathname } = new URL(req.url);
+  if (pathname === '/sse' || pathname === '/sse/message') {
+    return SiyuanMCP.serveSSE('/sse').fetch(req, env, ctx);
   }
-  if (url.pathname === '/mcp') {
-    return SiyuanMCP.serve('/mcp').fetch(req, envWithDefaults, ctx);
+  if (pathname === '/mcp') {
+    return SiyuanMCP.serve('/mcp').fetch(req, env, ctx);
   }
   return new Response('Not found', { status: 404 });
 }

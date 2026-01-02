@@ -8,7 +8,7 @@
  * Uses string types (not literals) for CLI compatibility
  */
 export interface SiyuanMCPConfig {
-  SIYUAN_KERNEL_URL?: string;
+  SIYUAN_KERNEL_URL: string;
   SIYUAN_KERNEL_TOKEN?: string;
   RAG_BASE_URL?: string;
   RAG_API_KEY?: string;
