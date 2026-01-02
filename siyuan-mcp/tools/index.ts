@@ -14,6 +14,8 @@ export { FlashcardToolProvider } from './flashCard';
 export { DocVectorSearchProvider } from './vectorSearch';
 export { RelationToolProvider } from './relation';
 export { TimeToolProvider } from './time';
+export { AssetToolProvider } from './assets';
+export { FileSystemToolProvider } from './filesystem';
 
 // Re-export shared functions
 export { createNewDoc, createNewDocWithParentId } from './sharedFunction';
@@ -30,6 +32,8 @@ import { FlashcardToolProvider } from './flashCard';
 import { DocVectorSearchProvider } from './vectorSearch';
 import { RelationToolProvider } from './relation';
 import { TimeToolProvider } from './time';
+import { AssetToolProvider } from './assets';
+import { FileSystemToolProvider } from './filesystem';
 
 /**
  * Get all tool providers
@@ -47,5 +51,7 @@ export function getAllToolProviders(): McpToolsProvider<any>[] {
     new DocVectorSearchProvider(),
     new RelationToolProvider(),
     new TimeToolProvider(),
+    new AssetToolProvider(),
+    new FileSystemToolProvider(),
   ];
 }

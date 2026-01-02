@@ -613,6 +613,83 @@ export async function removeFileAPI(path: string): Promise<boolean> {
   return response.code === 0;
 }
 
+/** Rename file in workspace */
+export async function renameFileAPI(path: string, newPath: string): Promise<boolean> {
+  const url = '/api/file/renameFile';
+  const response = await postRequest({ path, newPath }, url);
+  return response.code === 0;
+}
+
+/** Read directory contents */
+export async function readDirAPI(path: string): Promise<any[] | null> {
+  const url = '/api/file/readDir';
+  const response = await postRequest({ path }, url);
+  if (response.code === 0 && response.data) {
+    return response.data;
+  }
+  return null;
+}
+
+/** Put file to workspace (general purpose) */
+export async function putFileAPI(
+  path: string,
+  file: Blob | string,
+  isDir: boolean = false
+): Promise<boolean> {
+  const url = '/api/file/putFile';
+  const pathParts = path.split('/');
+  const fileName = pathParts[pathParts.length - 1];
+
+  const fileBlob = typeof file === 'string'
+    ? new Blob([file], { type: 'text/plain' })
+    : file;
+
+  const formData = new FormData();
+  formData.append('path', path);
+  formData.append('isDir', isDir.toString());
+  formData.append('modTime', Date.now().toString());
+  formData.append('file', fileBlob, fileName);
+
+  const response = await kernelFetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  });
+  const result = await response.json() as { code: number };
+  return result.code === 0;
+}
+
+/** Upload assets (images, files) to SiYuan */
+export async function uploadAPI(
+  assetsDirPath: string,
+  files: { name: string; data: Blob }[]
+): Promise<{ succMap: Record<string, string>; errFiles: string[] } | null> {
+  const url = '/api/asset/upload';
+
+  const formData = new FormData();
+  formData.append('assetsDirPath', assetsDirPath);
+
+  for (const file of files) {
+    formData.append('file[]', file.data, file.name);
+  }
+
+  const response = await kernelFetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  });
+  const result = await response.json() as {
+    code: number;
+    data?: { succMap: Record<string, string>; errFiles: string[] };
+  };
+
+  if (result.code === 0 && result.data) {
+    return result.data;
+  }
+  console.warn('Upload failed:', result);
+  return null;
+}
+
 // Document sort types
 export const DOC_SORT_TYPES = {
   FILE_NAME_ASC: 0,
