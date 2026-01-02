@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { pushMsgAPI, reindexDoc } from '../syapi';
+import { pushMsgAPI, reindexDoc, flushTransaction } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -57,6 +57,19 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
           idempotentHint: true,
         },
       },
+      {
+        name: 'siyuan_flush_transaction',
+        description:
+          'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
+        schema: {},
+        handler: flushTransactionHandler,
+        title: lang('tool_title_flush_transaction'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
     ];
   }
 }
@@ -90,6 +103,17 @@ async function reindexDocHandler(params: { path: string }) {
     return createSuccessResponse(`Successfully reindexed: ${path}`);
   } else {
     return createErrorResponse('Failed to reindex document.');
+  }
+}
+
+async function flushTransactionHandler() {
+  debugPush('Flush transaction API called');
+
+  const result = await flushTransaction();
+  if (result === 0) {
+    return createSuccessResponse('Database transactions flushed successfully.');
+  } else {
+    return createErrorResponse('Failed to flush transactions.');
   }
 }
 

@@ -373,6 +373,16 @@ export async function reindexDoc(docpath: string): Promise<number> {
   return 0;
 }
 
+/** Flush pending database transactions */
+export async function flushTransaction(): Promise<number> {
+  const url = '/api/sqlite/flushTransaction';
+  const response = await postRequest({}, url);
+  if (response.code === 0) {
+    return 0;
+  }
+  return -1;
+}
+
 /** Export markdown content */
 export async function exportMdContent({
   id,

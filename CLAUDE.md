@@ -73,22 +73,24 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 │   ├── tools/                 # MCP tool implementations
 │   │   ├── index.ts           # Tool provider registry
 │   │   ├── baseToolProvider.ts
-│   │   ├── docRead.ts         # Document reading
-│   │   ├── docWrite.ts        # Document writing
-│   │   ├── blockWrite.ts      # Block-level editing
-│   │   ├── sql.ts             # SQL queries
+│   │   ├── docRead.ts         # Document reading, outline, HTML export
+│   │   ├── docWrite.ts        # Document writing, rename, move, delete
+│   │   ├── blockWrite.ts      # Block insert, update, delete, move, fold
+│   │   ├── sql.ts             # SQL queries, FTS5 full-text search
 │   │   ├── search.ts          # Full-text search
-│   │   ├── attributes.ts      # Custom attributes
+│   │   ├── attributes.ts      # Block attributes (single & batch)
 │   │   ├── dailynote.ts       # Daily note creation
 │   │   ├── flashCard.ts       # Flashcard management
 │   │   ├── vectorSearch.ts    # RAG vector search
 │   │   ├── relation.ts        # Document relations
-│   │   └── time.ts            # Time-based queries
+│   │   ├── assets.ts          # Asset upload (single & batch)
+│   │   ├── filesystem.ts      # File system operations
+│   │   └── utility.ts         # Time, notifications, reindex, flush
 │   ├── syapi/                 # SiYuan kernel API wrappers
 │   ├── utils/                 # Utility functions
 │   ├── logger/                # Logging utilities
 │   ├── types/                 # SiYuan-specific types
-│   └── static/                # Prompts and documentation
+│   └── static/                # Schema docs and SQL cheatsheet
 ├── types/
 │   └── index.ts               # Shared types (Env, SiyuanMCPConfig)
 ├── wrangler.jsonc             # Cloudflare Workers configuration
@@ -164,11 +166,13 @@ Each tool provider implements `McpToolsProvider` interface:
 - Tools include `name`, `description`, `schema`, `handler`, `annotations`
 
 Available tool categories:
-- **Document Operations**: read, write, create, move, rename, delete
-- **Block Operations**: insert, update, delete blocks
-- **Search**: full-text search, SQL queries, vector search (RAG)
-- **Organization**: daily notes, flashcards, attributes, relations
-- **Utilities**: time queries, notebook listing
+- **Document Operations**: read, write, create, move, rename, delete, outline, HTML export
+- **Block Operations**: insert, update, delete, move, fold/unfold blocks
+- **Search**: FTS5 full-text search (BM25 ranking, snippets), SQL queries, vector search (RAG)
+- **SQL**: query with advanced features (REGEXP, window functions, JSON), database schema, SQL cheatsheet
+- **Organization**: daily notes, flashcards, attributes (single & batch), relations
+- **Assets**: upload assets (single & batch), file system operations
+- **Utilities**: get time, push notifications, reindex documents, flush database transactions
 
 ## Environment Configuration
 
