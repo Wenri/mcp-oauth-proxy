@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, downloadExportFile } from '../syapi';
+import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -295,28 +295,19 @@ async function exportResourcesHandler(params: { paths: string[]; name?: string }
     return createErrorResponse('At least one path is required.');
   }
 
-  // Step 1: Create the zip archive
+  // Create the zip archive on SiYuan server
   const exportResult = await exportResourcesAPI(paths, name);
   if (!exportResult || !exportResult.path) {
     return createErrorResponse('Failed to create export archive.');
   }
 
-  // Step 2: Download the zip file from SiYuan server
-  const zipBlob = await downloadExportFile(exportResult.path);
-  if (!zipBlob) {
-    return createErrorResponse('Failed to download export archive.');
-  }
-
-  // Step 3: Convert to base64 and return
-  const base64 = await blobToBase64(zipBlob);
+  // Return the download path - the /export/* handler will proxy the download
   const fileName = exportResult.path.split('/').pop() || 'export.zip';
 
   return createJsonResponse({
     fileName,
-    content: base64,
-    type: 'base64',
-    size: zipBlob.size,
-    mimeType: 'application/zip',
+    downloadPath: exportResult.path,
+    message: `Export created. Download from: ${exportResult.path}`,
     paths: paths,
   });
 }

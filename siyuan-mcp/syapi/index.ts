@@ -768,20 +768,6 @@ export async function exportResourcesAPI(paths: string[], name?: string): Promis
   return null;
 }
 
-/** Download exported file from SiYuan server */
-export async function downloadExportFile(exportPath: string): Promise<Blob | null> {
-  // exportPath is like "/export/filename.zip" - need to fetch from kernel
-  const response = await kernelFetch(exportPath, {
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  return response.blob();
-}
-
 // Document sort types
 export const DOC_SORT_TYPES = {
   FILE_NAME_ASC: 0,

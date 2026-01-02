@@ -119,6 +119,60 @@ app.post("/authorize", async (c) => {
 	});
 });
 
+// GET /export/* - Proxy export file downloads from SiYuan kernel
+app.get("/export/*", async (c) => {
+	const env = c.env;
+	const path = c.req.path; // e.g., /export/filename.zip
+
+	if (!env.SIYUAN_KERNEL_URL) {
+		return c.text("SIYUAN_KERNEL_URL not configured", 500);
+	}
+
+	// Build the proxy URL to SiYuan kernel
+	const proxyUrl = new URL(path, env.SIYUAN_KERNEL_URL).href;
+
+	// Prepare headers for SiYuan kernel request
+	const headers: Record<string, string> = {};
+
+	// Add CF Access Service Token if configured (for SiYuan behind CF Access)
+	if (env.CF_ACCESS_SERVICE_CLIENT_ID && env.CF_ACCESS_SERVICE_CLIENT_SECRET) {
+		headers["CF-Access-Client-Id"] = env.CF_ACCESS_SERVICE_CLIENT_ID;
+		headers["CF-Access-Client-Secret"] = env.CF_ACCESS_SERVICE_CLIENT_SECRET;
+	}
+
+	// Add SiYuan token if configured
+	if (env.SIYUAN_KERNEL_TOKEN) {
+		headers["Authorization"] = `Token ${env.SIYUAN_KERNEL_TOKEN}`;
+	}
+
+	// Proxy the request to SiYuan kernel
+	const response = await fetch(proxyUrl, { headers });
+
+	if (!response.ok) {
+		return c.text(`Failed to fetch export file: ${response.status}`, response.status);
+	}
+
+	// Forward the response with appropriate headers
+	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
+	const contentDisposition = response.headers.get("Content-Disposition");
+
+	const responseHeaders: Record<string, string> = {
+		"Content-Type": contentType,
+	};
+	if (contentDisposition) {
+		responseHeaders["Content-Disposition"] = contentDisposition;
+	} else {
+		// Extract filename from path and set disposition
+		const filename = path.split("/").pop() || "download";
+		responseHeaders["Content-Disposition"] = `attachment; filename="${filename}"`;
+	}
+
+	return new Response(response.body, {
+		status: 200,
+		headers: responseHeaders,
+	});
+});
+
 // GET /callback - Handle CF Access callback
 app.get("/callback", async (c) => {
 	const env = c.env;
