@@ -12,17 +12,8 @@
 -- All documents
 SELECT id, hpath as title, updated FROM blocks WHERE type = 'd' ORDER BY updated DESC;
 
--- Search content (simple)
+-- Search content (use FTS5 for speed, LIKE for simplicity)
 SELECT id, type, substr(content, 1, 100) FROM blocks WHERE content LIKE '%keyword%';
-
--- Full-text search (fast)
-SELECT id, content, bm25(blocks_fts_case_insensitive) as score
-FROM blocks_fts_case_insensitive 
-WHERE blocks_fts_case_insensitive MATCH 'search terms'
-ORDER BY score LIMIT 20;
-
--- Block hierarchy (children of a block)
-SELECT * FROM blocks WHERE parent_id = 'BLOCK_ID';
 
 -- Document content (all blocks in a doc)
 SELECT * FROM blocks WHERE root_id = 'DOC_ID' ORDER BY sort;
@@ -35,22 +26,10 @@ SELECT * FROM blocks WHERE root_id = 'DOC_ID' ORDER BY sort;
 ### By Type
 
 ```sql
--- All paragraphs
-SELECT * FROM blocks WHERE type = 'p';
-
--- All headings (h1, h2, h3)
-SELECT * FROM blocks WHERE type = 'h';
-SELECT * FROM blocks WHERE type = 'h' AND subtype = 'h1';  -- Just h1
-
--- All code blocks
-SELECT * FROM blocks WHERE type = 'c';
-
--- All list items
-SELECT * FROM blocks WHERE type = 'i';
-
--- Ordered vs unordered lists
-SELECT * FROM blocks WHERE type = 'l' AND subtype = 'o';  -- Ordered
-SELECT * FROM blocks WHERE type = 'l' AND subtype = 'u';  -- Unordered
+-- Filter by type: d=doc, p=para, h=heading, c=code, l=list, i=item, t=table, b=quote
+SELECT * FROM blocks WHERE type = 'p';                      -- All paragraphs
+SELECT * FROM blocks WHERE type = 'h' AND subtype = 'h2';   -- H2 headings only
+SELECT * FROM blocks WHERE type = 'i' AND subtype = 't';    -- Task list items
 ```
 
 ### Type Statistics
@@ -74,15 +53,14 @@ ORDER BY count DESC;
 ### Basic Search
 
 ```sql
--- Simple match (case-insensitive)
-SELECT id, content, bm25(blocks_fts_case_insensitive) as relevance
+-- Case-insensitive search with relevance ranking (lower score = more relevant)
+SELECT id, hpath, substr(content, 1, 100), bm25(blocks_fts_case_insensitive) as score
 FROM blocks_fts_case_insensitive
-WHERE blocks_fts_case_insensitive MATCH 'neural network'
-ORDER BY relevance;
+WHERE blocks_fts_case_insensitive MATCH 'search terms'
+ORDER BY score LIMIT 20;
 
--- Case-sensitive search
-SELECT id, content FROM blocks_fts
-WHERE blocks_fts MATCH 'API';
+-- Case-sensitive search (use blocks_fts instead)
+SELECT id, content FROM blocks_fts WHERE blocks_fts MATCH 'API';
 ```
 
 ### Advanced FTS5 Syntax
@@ -114,25 +92,15 @@ WHERE blocks_fts MATCH 'API';
 ### FTS5 Functions
 
 ```sql
--- Highlighted snippets
-SELECT 
-    id,
-    snippet(blocks_fts_case_insensitive, 11, '<mark>', '</mark>', '...', 32) as snippet
+-- Snippet: extract matching text with context (column 11 = content)
+SELECT id, snippet(blocks_fts_case_insensitive, 11, '<mark>', '</mark>', '...', 32) as snippet
 FROM blocks_fts_case_insensitive
-WHERE blocks_fts_case_insensitive MATCH 'training'
-LIMIT 10;
+WHERE blocks_fts_case_insensitive MATCH 'keyword' LIMIT 10;
 
--- BM25 relevance ranking
-SELECT id, content, bm25(blocks_fts_case_insensitive) as score
+-- Highlight: mark all matches in full content
+SELECT id, highlight(blocks_fts_case_insensitive, 11, '[', ']') as highlighted
 FROM blocks_fts_case_insensitive
-WHERE blocks_fts_case_insensitive MATCH 'model'
-ORDER BY score;  -- Lower = more relevant
-
--- Highlight matches
-SELECT 
-    highlight(blocks_fts_case_insensitive, 11, '[', ']') as highlighted_content
-FROM blocks_fts_case_insensitive
-WHERE blocks_fts_case_insensitive MATCH 'loss';
+WHERE blocks_fts_case_insensitive MATCH 'keyword';
 ```
 
 ---
@@ -278,86 +246,35 @@ WHERE type = 'p' AND length > 0;
 
 ## JSON Functions
 
-### Create JSON
-
 ```sql
-SELECT json_object(
-    'id', id,
-    'type', type,
-    'length', length
-) as block_json
-FROM blocks
-LIMIT 5;
-```
+-- Build JSON object from block data
+SELECT json_object('id', id, 'type', type, 'len', length) as block_json
+FROM blocks LIMIT 5;
 
-### Aggregate to JSON Array
+-- Aggregate results as JSON array
+SELECT json_group_array(json_object('type', type, 'count', cnt))
+FROM (SELECT type, COUNT(*) as cnt FROM blocks GROUP BY type);
 
-```sql
-SELECT json_group_array(
-    json_object('type', type, 'count', cnt)
-) as type_distribution
-FROM (
-    SELECT type, COUNT(*) as cnt 
-    FROM blocks 
-    GROUP BY type
-);
-```
-
-### Parse JSON (if stored)
-
-```sql
-SELECT 
-    json_extract('{"name":"test","value":123}', '$.name') as name,
-    json_extract('{"name":"test","value":123}', '$.value') as value;
-```
-
-### JSON Tree Traversal
-
-```sql
-SELECT * FROM json_tree('{"a":{"b":1},"c":[1,2,3]}');
+-- Extract from IAL (block attributes stored as JSON-like string)
+SELECT id, json_extract(ial, '$.updated') as updated FROM blocks WHERE ial LIKE '%custom-%';
 ```
 
 ---
 
-## String Functions
-
-### Common Operations
+## String Functions & Pattern Matching
 
 ```sql
--- Length
-SELECT id, length(content) as char_count FROM blocks;
+-- Common string functions
+SELECT id,
+    length(content) as len,              -- Character count
+    substr(content, 1, 100) as preview,  -- Substring
+    instr(content, 'key') as pos         -- Find position (0 if not found)
+FROM blocks WHERE type = 'p' LIMIT 10;
 
--- Substring
-SELECT substr(content, 1, 100) as preview FROM blocks;
-
--- Find position
-SELECT instr(content, 'keyword') as position FROM blocks;
-
--- Replace
-SELECT replace(content, 'old', 'new') FROM blocks;
-
--- Case conversion
-SELECT upper(type), lower(content) FROM blocks;
-
--- Trim whitespace
-SELECT trim(content), ltrim(content), rtrim(content) FROM blocks;
-```
-
-### Pattern Matching
-
-```sql
--- LIKE (simple patterns)
-SELECT * FROM blocks WHERE content LIKE '%neural%';      -- Contains
-SELECT * FROM blocks WHERE content LIKE 'The%';          -- Starts with
-SELECT * FROM blocks WHERE content LIKE '%ing';          -- Ends with
-SELECT * FROM blocks WHERE content LIKE '_est';          -- Single char wildcard
-
--- GLOB (case-sensitive, Unix-style)
-SELECT * FROM blocks WHERE content GLOB '*Neural*';     -- Case-sensitive
-SELECT * FROM blocks WHERE content GLOB '[A-Z]*';       -- Starts with uppercase
-
--- REGEXP (if available)
-SELECT * FROM blocks WHERE content REGEXP '\d{4}-\d{2}-\d{2}';  -- Date pattern
+-- Pattern matching: LIKE (case-insensitive), GLOB (case-sensitive), REGEXP
+SELECT * FROM blocks WHERE content LIKE '%keyword%';                    -- Contains
+SELECT * FROM blocks WHERE content GLOB '*[A-Z]*';                      -- Has uppercase
+SELECT * FROM blocks WHERE content REGEXP '\d{4}-\d{2}-\d{2}';          -- Date pattern
 ```
 
 ---
@@ -514,29 +431,13 @@ ORDER BY b.sort;
 
 ---
 
-## Pragmas (Database Introspection)
+## Database Introspection
 
 ```sql
--- Database info
-SELECT * FROM pragma_database_list;
-SELECT * FROM pragma_page_count;
-SELECT * FROM pragma_freelist_count;
-
--- Table info
-SELECT * FROM pragma_table_list;
-SELECT * FROM pragma_table_info('blocks');
-
--- Index info
-SELECT * FROM pragma_index_list('blocks');
-
--- All functions
-SELECT DISTINCT name FROM pragma_function_list ORDER BY name;
-
--- All modules
-SELECT * FROM pragma_module_list;
-
--- SQLite version
-SELECT sqlite_version();
+SELECT sqlite_version();                                    -- SQLite version
+SELECT * FROM pragma_table_list;                            -- All tables
+SELECT * FROM pragma_table_info('blocks');                  -- Column info
+SELECT DISTINCT name FROM pragma_function_list ORDER BY name; -- Available functions
 ```
 
 ---
@@ -707,42 +608,8 @@ ORDER BY random() LIMIT 1;
 
 ## Search Results Grouped by Document
 
-### Find Documents Containing Keyword
-
 ```sql
--- Step 1: Find documents that contain the keyword
-SELECT DISTINCT root_id, MAX(hpath) as doc_title, MAX(updated) as last_updated
-FROM blocks
-WHERE (content || tag || name || alias || memo) LIKE '%keyword%'
-AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
-GROUP BY root_id
-ORDER BY last_updated DESC
-LIMIT 10;
-```
-
-### Get All Matching Blocks Within Documents
-
-```sql
--- Step 2: Get matching blocks from specific documents (use root_ids from step 1)
-SELECT
-    id,
-    root_id,
-    type,
-    hpath,
-    substr(content, 1, 200) as preview,
-    updated
-FROM blocks
-WHERE root_id IN ('DOC_ID_1', 'DOC_ID_2', 'DOC_ID_3')
-AND (content || tag || name || alias || memo) LIKE '%keyword%'
-AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
-ORDER BY root_id, sort
-LIMIT 100;
-```
-
-### Single Query: Documents with Match Count
-
-```sql
--- Find documents and count how many blocks match
+-- Find documents with match count (LIKE version)
 SELECT
     root_id,
     MAX(CASE WHEN type = 'd' THEN hpath END) as doc_title,
@@ -750,25 +617,16 @@ SELECT
     MAX(updated) as last_updated
 FROM blocks
 WHERE (content || tag || name || alias || memo) LIKE '%keyword%'
-AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
 GROUP BY root_id
 ORDER BY match_count DESC, last_updated DESC
 LIMIT 20;
-```
 
-### Using FTS5 for Grouped Search
-
-```sql
 -- Fast grouped search with FTS5
-SELECT
-    root_id,
-    COUNT(*) as matches,
-    MAX(hpath) as doc_path
+SELECT root_id, COUNT(*) as matches, MAX(hpath) as doc_path
 FROM blocks_fts_case_insensitive
 WHERE blocks_fts_case_insensitive MATCH 'keyword'
 GROUP BY root_id
-ORDER BY matches DESC
-LIMIT 20;
+ORDER BY matches DESC LIMIT 20;
 ```
 
 ---
