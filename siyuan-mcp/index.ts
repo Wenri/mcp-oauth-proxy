@@ -33,6 +33,9 @@ let authToken: string | undefined;
  * Fetches config from kernel API on initialization
  */
 export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
+  if (!options.SIYUAN_KERNEL_URL) {
+    throw new Error('SIYUAN_KERNEL_URL is required');
+  }
   baseUrl = options.SIYUAN_KERNEL_URL.replace(/\/$/, '');
   authToken = options.SIYUAN_KERNEL_TOKEN;
 
