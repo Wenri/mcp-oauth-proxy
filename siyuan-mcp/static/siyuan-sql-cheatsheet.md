@@ -713,11 +713,51 @@ LIMIT 30;
 
 ---
 
+## Advanced: CTE Pattern for Grouped Search
+
+The following CTE-based query searches content and groups results by document, with pagination support. This is a powerful pattern for building search interfaces.
+
+```sql
+WITH document_id_temp AS (
+  SELECT root_id,
+    MAX(CASE WHEN type = 'd' THEN (content || tag || name || alias || memo) END) documentContent
+  FROM blocks
+  WHERE type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
+  GROUP BY root_id
+  HAVING GROUP_CONCAT((content || tag || name || alias || memo)) LIKE '%关键词%'
+  ORDER BY (documentContent LIKE '%关键词%') DESC, MAX(updated) DESC
+)
+SELECT *,
+  (content || tag || name || alias || memo) AS concatContent,
+  (SELECT COUNT(1) FROM document_id_temp) as documentCount
+FROM blocks
+WHERE type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
+AND (
+  id IN (SELECT root_id FROM document_id_temp LIMIT 10 OFFSET 0)
+  OR (
+    root_id IN (SELECT root_id FROM document_id_temp LIMIT 10 OFFSET 0)
+    AND (concatContent LIKE '%关键词%')
+  )
+)
+ORDER BY sort ASC, (concatContent LIKE '%关键词%') DESC, updated DESC
+LIMIT 2048;
+```
+
+**How it works:**
+1. CTE finds matching documents ordered by relevance (title match first, then by update time)
+2. Main query returns document blocks + matching content blocks within those documents
+3. `documentCount` provides total matching documents for pagination
+4. `LIMIT 10 OFFSET 0` controls page size and position
+
+> **Note:** CTE support may vary. If blocked, use the non-CTE grouped search examples above.
+
+---
+
 ## Known Limitations
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| CTEs (`WITH` clause) | ❌ Blocked | API returns "Not a SELECT statement" |
+| CTEs (`WITH` clause) | ⚠️ May vary | Test with your SiYuan version |
 | Write operations | ❌ No persist | Execute but don't save |
 | Temp tables | ❌ Not visible | Created but can't query |
 | FTS shadow tables | ❌ Error | "id format incorrect" |

@@ -345,6 +345,14 @@ FROM blocks;
 
 All SQL queries without an explicit `LIMIT` will have `LIMIT 64` applied by SiYuan's query engine.
 
+### ID and Timestamp Format
+
+Block IDs follow the format `YYYYMMDDHHmmss-xxxxxxx` (timestamp + 7 random chars):
+- Example: `20210104091228-d0rzbmm`
+
+Time fields (`created`, `updated`) use `YYYYMMDDHHmmss` format:
+- Example: `20210104091228` = 2021-01-04 09:12:28
+
 ### Block Hierarchy
 
 Blocks are organized in a hierarchy:
@@ -387,7 +395,7 @@ SELECT * FROM blocks WHERE id IN (
 
 1. **Read-Only Access**: The MCP API provides read-only SQL access; write operations don't persist.
 
-2. **No CTEs**: `WITH` clauses are blocked at the API level.
+2. **CTEs**: `WITH` clause support may vary by SiYuan version. Test before relying on CTEs.
 
 3. **No Direct Shadow Table Access**: Querying FTS shadow tables directly returns errors.
 
