@@ -168,6 +168,7 @@ oauth.get('/authorize', async (c) => {
  * GET /callback - Exchange CF Access code for tokens, then complete OAuth flow
  */
 oauth.get('/callback', async (c) => {
+  try {
   const env = c.env;
   const code = c.req.query('code');
   const state = c.req.query('state');
@@ -176,7 +177,7 @@ oauth.get('/callback', async (c) => {
 
   // Helper to clear cookie and return error
   const errorResponse = (message: string, status: 400 | 500 = 400) => {
-    deleteCookie(c, STATE_COOKIE_NAME, { path: '/' });
+    deleteCookie(c, STATE_COOKIE_NAME, { path: '/', secure: true });
     return c.text(message, status);
   };
 
@@ -259,8 +260,12 @@ oauth.get('/callback', async (c) => {
   });
 
   // Clear cookie and redirect to client
-  deleteCookie(c, STATE_COOKIE_NAME, { path: '/' });
+  deleteCookie(c, STATE_COOKIE_NAME, { path: '/', secure: true });
   return c.redirect(redirectTo, 302);
+  } catch (err) {
+    console.error('Callback error:', err);
+    return c.text(`Callback error: ${err instanceof Error ? err.message : String(err)}`, 500);
+  }
 });
 
 export { oauth };
