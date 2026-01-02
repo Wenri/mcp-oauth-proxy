@@ -170,8 +170,8 @@ app.get("/callback", async (c) => {
 	return c.redirect(redirectTo, 302);
 });
 
-// Export the Hono app's fetch handler
-export const handleAccessRequest = app.fetch;
+// Export the Hono app directly (has .fetch method compatible with OAuthProvider)
+export const accessApp = app;
 
 // Helper functions
 

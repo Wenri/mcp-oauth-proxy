@@ -6,7 +6,7 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
-import { handleAccessRequest } from './access-handler';
+import { accessApp } from './access-handler';
 import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
 import type { Env } from '../types';
 import type { Props } from './workers-oauth-utils';
@@ -69,5 +69,5 @@ export default new OAuthProvider({
   clientRegistrationEndpoint: '/register',
   // Default handler for OAuth flow (redirects to CF Access)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  defaultHandler: { fetch: handleAccessRequest as any },
+  defaultHandler: accessApp as any,
 });
