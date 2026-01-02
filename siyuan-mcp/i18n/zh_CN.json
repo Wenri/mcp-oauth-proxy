@@ -93,6 +93,7 @@
   "tool_title_rename_file": "重命名文件",
   "tool_title_list_dir": "列出目录",
   "tool_title_create_dir": "创建目录",
+  "tool_title_export_resources": "导出资源",
   "tool_title_sql_cheatsheet": "获取SQL速查表",
   "tool_title_fulltext_search": "全文搜索（FTS5）",
   "tool_title_flush_transaction": "刷新数据库事务",

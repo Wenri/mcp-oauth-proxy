@@ -758,6 +758,30 @@ export async function uploadAPI(
   return null;
 }
 
+/** Export resources (files/folders) as zip */
+export async function exportResourcesAPI(paths: string[], name?: string): Promise<{ path: string } | null> {
+  const url = '/api/export/exportResources';
+  const response = await postRequest({ paths, name }, url);
+  if (response.code === 0 && response.data) {
+    return response.data;
+  }
+  return null;
+}
+
+/** Download exported file from SiYuan server */
+export async function downloadExportFile(exportPath: string): Promise<Blob | null> {
+  // exportPath is like "/export/filename.zip" - need to fetch from kernel
+  const response = await kernelFetch(exportPath, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.blob();
+}
+
 // Document sort types
 export const DOC_SORT_TYPES = {
   FILE_NAME_ASC: 0,
