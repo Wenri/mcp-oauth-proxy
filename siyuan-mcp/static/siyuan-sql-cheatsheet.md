@@ -666,6 +666,74 @@ ORDER BY random() LIMIT 1;
 
 ---
 
+## Search Results Grouped by Document
+
+### Find Documents Containing Keyword
+
+```sql
+-- Step 1: Find documents that contain the keyword
+SELECT DISTINCT root_id, MAX(hpath) as doc_title, MAX(updated) as last_updated
+FROM blocks
+WHERE (content || tag || name || alias || memo) LIKE '%keyword%'
+AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
+GROUP BY root_id
+ORDER BY last_updated DESC
+LIMIT 10;
+```
+
+### Get All Matching Blocks Within Documents
+
+```sql
+-- Step 2: Get matching blocks from specific documents (use root_ids from step 1)
+SELECT
+    id,
+    root_id,
+    type,
+    hpath,
+    substr(content, 1, 200) as preview,
+    updated
+FROM blocks
+WHERE root_id IN ('DOC_ID_1', 'DOC_ID_2', 'DOC_ID_3')
+AND (content || tag || name || alias || memo) LIKE '%keyword%'
+AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
+ORDER BY root_id, sort
+LIMIT 100;
+```
+
+### Single Query: Documents with Match Count
+
+```sql
+-- Find documents and count how many blocks match
+SELECT
+    root_id,
+    MAX(CASE WHEN type = 'd' THEN hpath END) as doc_title,
+    COUNT(*) as match_count,
+    MAX(updated) as last_updated
+FROM blocks
+WHERE (content || tag || name || alias || memo) LIKE '%keyword%'
+AND type IN ('d', 'h', 'c', 'm', 't', 'p', 'html', 'av')
+GROUP BY root_id
+ORDER BY match_count DESC, last_updated DESC
+LIMIT 20;
+```
+
+### Using FTS5 for Grouped Search
+
+```sql
+-- Fast grouped search with FTS5
+SELECT
+    root_id,
+    COUNT(*) as matches,
+    MAX(hpath) as doc_path
+FROM blocks_fts_case_insensitive
+WHERE blocks_fts_case_insensitive MATCH 'keyword'
+GROUP BY root_id
+ORDER BY matches DESC
+LIMIT 20;
+```
+
+---
+
 ## Useful Patterns
 
 ### Content Analysis
