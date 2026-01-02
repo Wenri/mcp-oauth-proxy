@@ -339,22 +339,6 @@ FROM blocks;
 
 ---
 
-## Database Statistics (Example)
-
-```
-Total Blocks:        1,135
-Documents:              32
-Paragraphs:            604
-Headings:              119
-List Items:            239
-Code Blocks:            27
-Tables:                 19
-Total Characters:  253,778
-Database Size:      ~6 MB
-```
-
----
-
 ## Query Hints
 
 ### Default LIMIT
