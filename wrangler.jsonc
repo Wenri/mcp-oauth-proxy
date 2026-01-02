@@ -6,9 +6,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "1002d1dfb85d7af05bfac3f26e586878",
 
-  // Rules for importing non-JS files
+  // Rules for importing non-JS files as text
   "rules": [
-    { "type": "Text", "globs": ["**/*.md"], "fallthrough": true }
+    { "type": "Text", "globs": ["**/*.md", "**/*.txt"], "fallthrough": true }
   ],
 
   // Routes for OAuth and MCP endpoints
