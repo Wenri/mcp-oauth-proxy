@@ -269,41 +269,6 @@ Each FTS5 virtual table creates internal shadow tables:
 
 ---
 
-## ID Format
-
-SiYuan uses a consistent ID format across all entities:
-
-```
-YYYYMMDDHHmmss-xxxxxxx
-│              │
-│              └── 7-character random suffix
-└── 14-digit timestamp (creation time)
-```
-
-Examples:
-- Block: `20250327231901-03xpxmd`
-- Notebook: `20250324183604-yhr5qrs`
-
----
-
-## Timestamp Format
-
-All timestamps use the format `YYYYMMDDHHmmss` (14 digits):
-
-```sql
--- Parse to readable date
-SELECT 
-    substr(created, 1, 4) || '-' ||
-    substr(created, 5, 2) || '-' ||
-    substr(created, 7, 2) || ' ' ||
-    substr(created, 9, 2) || ':' ||
-    substr(created, 11, 2) || ':' ||
-    substr(created, 13, 2) as created_date
-FROM blocks;
-```
-
----
-
 ## Relationships
 
 ```
@@ -385,26 +350,9 @@ SELECT * FROM blocks WHERE parent_id = (SELECT parent_id FROM blocks WHERE id = 
 
 ### Special Attributes
 
-**Daily Note**: Documents that are daily notes have a special attribute:
-```
-custom-dailynote-YYYYMMDD=YYYYMMDD
-```
-Example: `custom-dailynote-20240101=20240101` marks a document as the daily note for Jan 1, 2024.
-
-**Bookmarks**: Blocks with `bookmark=<name>` attribute are added to the named bookmark.
-
-**Task Lists**: Task list items have markdown format:
-- Incomplete: `* [ ] Task text`
-- Complete: `* [x] Task text`
-
-### Backlinks
-
-To find all blocks that reference a specific block:
-```sql
-SELECT * FROM blocks WHERE id IN (
-    SELECT block_id FROM refs WHERE def_block_id = '<target_block_id>'
-)
-```
+- **Daily Note**: `custom-dailynote-YYYYMMDD=YYYYMMDD` (e.g., `custom-dailynote-20240101`)
+- **Bookmarks**: `bookmark=<name>` adds block to named bookmark
+- **Task Lists**: `* [ ] incomplete` / `* [x] complete`
 
 ---
 
