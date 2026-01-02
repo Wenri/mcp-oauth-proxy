@@ -22,6 +22,7 @@ import {
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
+import { buildKernelHeaders } from "../siyuan-mcp";
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
 type HonoEnv = { Bindings: EnvWithOAuth };
@@ -128,24 +129,15 @@ app.get("/export/*", async (c) => {
 		return c.text("SIYUAN_KERNEL_URL not configured", 500);
 	}
 
-	// Build the proxy URL to SiYuan kernel
+	// Build the proxy URL and headers using shared utility
 	const proxyUrl = new URL(path, env.SIYUAN_KERNEL_URL).href;
+	const headers = buildKernelHeaders({
+		token: env.SIYUAN_KERNEL_TOKEN,
+		cfServiceClientId: env.CF_ACCESS_SERVICE_CLIENT_ID,
+		cfServiceClientSecret: env.CF_ACCESS_SERVICE_CLIENT_SECRET,
+	});
 
-	// Prepare headers for SiYuan kernel request
-	const headers: Record<string, string> = {};
-
-	// Add CF Access Service Token if configured (for SiYuan behind CF Access)
-	if (env.CF_ACCESS_SERVICE_CLIENT_ID && env.CF_ACCESS_SERVICE_CLIENT_SECRET) {
-		headers["CF-Access-Client-Id"] = env.CF_ACCESS_SERVICE_CLIENT_ID;
-		headers["CF-Access-Client-Secret"] = env.CF_ACCESS_SERVICE_CLIENT_SECRET;
-	}
-
-	// Add SiYuan token if configured
-	if (env.SIYUAN_KERNEL_TOKEN) {
-		headers["Authorization"] = `Token ${env.SIYUAN_KERNEL_TOKEN}`;
-	}
-
-	// Proxy the request to SiYuan kernel
+	// Proxy the request to SiYuan kernel (streams response)
 	const response = await fetch(proxyUrl, { headers });
 
 	if (!response.ok) {

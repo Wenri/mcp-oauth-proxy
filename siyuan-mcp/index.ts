@@ -80,6 +80,36 @@ export function hasContext(): boolean {
   return config !== null;
 }
 
+/** Build auth headers for SiYuan kernel requests */
+export function buildKernelHeaders(options: {
+  token?: string;
+  cfAccessToken?: string;
+  cfServiceClientId?: string;
+  cfServiceClientSecret?: string;
+  contentType?: string;
+}): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (options.contentType) {
+    headers['Content-Type'] = options.contentType;
+  }
+  if (options.token) {
+    headers['Authorization'] = `Token ${options.token}`;
+  }
+  // Add CF Access token for linked app authentication
+  // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
+  if (options.cfAccessToken) {
+    headers['cf-access-token'] = options.cfAccessToken;
+  }
+  // Add CF Access Service Token for API authentication
+  // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
+  if (options.cfServiceClientId && options.cfServiceClientSecret) {
+    headers['CF-Access-Client-Id'] = options.cfServiceClientId;
+    headers['CF-Access-Client-Secret'] = options.cfServiceClientSecret;
+  }
+  return headers;
+}
+
 /** Fetch from SiYuan kernel with authentication */
 export async function kernelFetch(url: string, init?: RequestInit): Promise<Response> {
   if (!baseUrl && !url.startsWith('http')) {
@@ -87,25 +117,18 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   }
 
   const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(init?.headers as Record<string, string>),
-  };
-  if (authToken) {
-    headers['Authorization'] = `Token ${authToken}`;
-  }
-  // Add CF Access token for linked app authentication
-  // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
-  if (cfAccessToken) {
-    headers['cf-access-token'] = cfAccessToken;
-  }
-  // Add CF Access Service Token for API authentication
-  // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
-  if (cfServiceClientId && cfServiceClientSecret) {
-    headers['CF-Access-Client-Id'] = cfServiceClientId;
-    headers['CF-Access-Client-Secret'] = cfServiceClientSecret;
-  }
-  return fetch(fullUrl, { ...init, headers });
+  const headers = buildKernelHeaders({
+    token: authToken,
+    cfAccessToken,
+    cfServiceClientId,
+    cfServiceClientSecret,
+    contentType: 'application/json',
+  });
+
+  return fetch(fullUrl, {
+    ...init,
+    headers: { ...headers, ...(init?.headers as Record<string, string>) },
+  });
 }
 
 /** Generate a SiYuan-compatible node ID */
