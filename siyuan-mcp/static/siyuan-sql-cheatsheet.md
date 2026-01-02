@@ -576,20 +576,6 @@ LIMIT 2048;
 
 ---
 
-## Known Limitations
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| CTEs (`WITH` clause) | ✅ Supported | Use for complex grouped queries |
-| Write operations | ❌ No persist | Execute but don't save |
-| Temp tables | ❌ Not visible | Created but can't query |
-| FTS shadow tables | ❌ Error | "id format incorrect" |
-| `VALUES` clause | ❌ Syntax error | Use subqueries instead |
-| `generate_series` | ❌ Not available | — |
-| Multiple statements | ⚠️ Partial | Only first SELECT returned |
-
----
-
 ## Tips
 
 1. **Use FTS for text search** — Much faster than `LIKE '%term%'`
