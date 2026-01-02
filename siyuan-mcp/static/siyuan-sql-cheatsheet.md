@@ -749,7 +749,7 @@ LIMIT 2048;
 3. `documentCount` provides total matching documents for pagination
 4. `LIMIT 10 OFFSET 0` controls page size and position
 
-> **Note:** CTE support may vary. If blocked, use the non-CTE grouped search examples above.
+**Tip:** Replace `关键词` with your search term. Adjust `LIMIT 10 OFFSET 0` for pagination.
 
 ---
 
@@ -757,7 +757,7 @@ LIMIT 2048;
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| CTEs (`WITH` clause) | ⚠️ May vary | Test with your SiYuan version |
+| CTEs (`WITH` clause) | ✅ Supported | Use for complex grouped queries |
 | Write operations | ❌ No persist | Execute but don't save |
 | Temp tables | ❌ Not visible | Created but can't query |
 | FTS shadow tables | ❌ Error | "id format incorrect" |

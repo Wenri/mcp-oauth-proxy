@@ -353,18 +353,35 @@ Block IDs follow the format `YYYYMMDDHHmmss-xxxxxxx` (timestamp + 7 random chars
 Time fields (`created`, `updated`) use `YYYYMMDDHHmmss` format:
 - Example: `20210104091228` = 2021-01-04 09:12:28
 
-### Block Hierarchy
+### Block Hierarchy & Relationships
 
-Blocks are organized in a hierarchy:
+Blocks form a tree structure with two key relationships:
 
-- **Content Blocks (Leaf)**: Contain actual content — `p`, `h`, `c`, `m`, `t`, etc.
-  - `content` and `markdown` fields contain the block's own content
-- **Container Blocks**: Contain other blocks — `l` (list), `i` (list item), `b` (quote), `s` (super block)
-  - `content` and `markdown` fields contain all nested content
-  - `parent_id` points to the immediate parent container
-- **Document Block**: Contains all blocks in a document — `d`
-  - `content` field contains the document title
-  - All blocks have `root_id` pointing to their document
+- **`parent_id`** → Points to the immediate container block above
+- **`root_id`** → Points to the document block this block belongs to
+
+**Block Types by Role:**
+
+| Role | Types | `content`/`markdown` Contains |
+|------|-------|------------------------------|
+| **Content (Leaf)** | `p`, `h`, `c`, `m`, `t`, `html` | Block's own content only |
+| **Container** | `l`, `i`, `b`, `s` | All nested blocks' content |
+| **Document** | `d` | Document title |
+
+**Navigation Patterns:**
+```sql
+-- Get parent of a block
+SELECT * FROM blocks WHERE id = (SELECT parent_id FROM blocks WHERE id = 'BLOCK_ID');
+
+-- Get all ancestors (walk up the tree)
+-- Use recursive queries or multiple lookups via parent_id
+
+-- Get all blocks in a document
+SELECT * FROM blocks WHERE root_id = 'DOC_ID' ORDER BY sort;
+
+-- Get siblings (same parent)
+SELECT * FROM blocks WHERE parent_id = (SELECT parent_id FROM blocks WHERE id = 'BLOCK_ID');
+```
 
 ### Special Attributes
 
@@ -395,7 +412,7 @@ SELECT * FROM blocks WHERE id IN (
 
 1. **Read-Only Access**: The MCP API provides read-only SQL access; write operations don't persist.
 
-2. **CTEs**: `WITH` clause support may vary by SiYuan version. Test before relying on CTEs.
+2. **CTEs Supported**: `WITH` clauses work for complex queries like grouped search.
 
 3. **No Direct Shadow Table Access**: Querying FTS shadow tables directly returns errors.
 
