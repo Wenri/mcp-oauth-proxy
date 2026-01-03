@@ -10,6 +10,7 @@ import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
+import { postRequest } from './syapi';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -64,13 +65,8 @@ export async function initializeContext(options: SiyuanMCPConfig): Promise<void>
   cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
   cfServiceClientSecret = options.CF_ACCESS_SERVICE_CLIENT_SECRET;
 
-  const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Kernel returned ${response.status}: ${text.slice(0, 100)}`);
-  }
-  const result = (await response.json()) as { code: number; data: { conf: SiyuanConfig } };
-  if (result.code !== 0) {
+  const result = await postRequest({}, '/api/system/getConf') as { code: number; data: { conf: SiyuanConfig } };
+  if (result.code !== 0 || !result.data?.conf) {
     throw new Error('Failed to get SiYuan config');
   }
   config = result.data.conf;
