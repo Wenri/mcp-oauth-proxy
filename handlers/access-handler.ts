@@ -38,6 +38,9 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
+// Cache TTL for downloaded files (1 hour)
+const DOWNLOAD_CACHE_TTL = 3600;
+
 // GET /download/:token/* - Proxy file downloads using OAuth token for auth
 // URL format: /download/{oauth_token}/temp/export/filename.zip
 app.get("/download/:token/*", async (c) => {
@@ -50,6 +53,22 @@ app.get("/download/:token/*", async (c) => {
 	const tokenData = await env.OAUTH_PROVIDER.unwrapToken<Props>(token);
 	if (!tokenData) {
 		return c.text("Invalid or expired token", 401);
+	}
+
+	// Check cache first (keyed by file path, not token)
+	const cache = caches.default;
+	const cacheKey = new Request(`https://siyuan-cache/${filePath}`);
+	const cached = await cache.match(cacheKey);
+	if (cached) {
+		// Clone cached response to add Content-Disposition header
+		const filename = filePath.split("/").pop() || "download";
+		const headers = new Headers(cached.headers);
+		headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+		headers.set("X-Cache", "HIT");
+		return new Response(cached.body, {
+			status: cached.status,
+			headers,
+		});
 	}
 
 	// Fallback to request origin when SIYUAN_KERNEL_URL is not set
@@ -75,26 +94,39 @@ app.get("/download/:token/*", async (c) => {
 		return c.text(`Failed to fetch export file: ${response.status}`, response.status as any);
 	}
 
-	// Forward the response directly, preserving headers
-	const responseHeaders = new Headers();
-
-	// Copy essential headers from backend response
-	// Note: Content-Length may be unavailable when backend uses chunked transfer encoding (e.g., via CF Access)
+	// Get content info from backend
 	const contentLength = response.headers.get("Content-Length");
-	const contentType = response.headers.get("Content-Type");
+	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
+	const filename = filePath.split("/").pop() || "download";
 
+	// Tee the stream - one for client, one for cache
+	const [clientStream, cacheStream] = response.body!.tee();
+
+	// Cache in background (don't block response)
+	c.executionCtx.waitUntil(
+		cache.put(
+			cacheKey,
+			new Response(cacheStream, {
+				status: response.status,
+				headers: {
+					"Content-Type": contentType,
+					"Cache-Control": `public, max-age=${DOWNLOAD_CACHE_TTL}`,
+					...(contentLength ? { "Content-Length": contentLength } : {}),
+				},
+			}),
+		),
+	);
+
+	// Build response headers for client
+	const responseHeaders = new Headers();
 	if (contentLength) {
 		responseHeaders.set("Content-Length", contentLength);
 	}
-	if (contentType) {
-		responseHeaders.set("Content-Type", contentType);
-	}
-
-	// Ensure Content-Disposition is set for downloads
-	const filename = filePath.split("/").pop() || "download";
+	responseHeaders.set("Content-Type", contentType);
 	responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
+	responseHeaders.set("X-Cache", "MISS");
 
-	return new Response(response.body, {
+	return new Response(clientStream, {
 		status: response.status,
 		headers: responseHeaders,
 	});
