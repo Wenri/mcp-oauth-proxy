@@ -8,7 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import type { Connection, ConnectionContext } from 'agents';
 import { accessApp } from './access-handler';
-import { initializeSiyuanMCPServer, setOAuthToken, logPush } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer, setOAuthTokenExpiry, setGrantKey, logPush } from '../siyuan-mcp';
 import type { Env } from '../types';
 import type { Props } from './workers-oauth-utils';
 
@@ -38,7 +38,8 @@ export class SiyuanMCP extends McpAgent<EnvWithOAuth, Record<string, never>, Pro
       this.server,
       this.env,
       this.props?.accessToken,
-      this.props?.workerBaseUrl
+      this.props?.workerBaseUrl,
+      this.env.COOKIE_ENCRYPTION_KEY
     );
 
     // Log authenticated user info
@@ -52,9 +53,17 @@ export class SiyuanMCP extends McpAgent<EnvWithOAuth, Record<string, never>, Pro
     const authHeader = ctx.request?.headers.get('Authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
+
+      // Extract grantKey (userId:grantId) from token
+      // Token format: userId:grantId:secret
+      const parts = token.split(':');
+      if (parts.length >= 2) {
+        setGrantKey(`${parts[0]}:${parts[1]}`);
+      }
+
       // Unwrap token to get expiry time
       const tokenData = await this.env.OAUTH_PROVIDER.unwrapToken<Props>(token);
-      setOAuthToken(token, tokenData?.expiresAt);
+      setOAuthTokenExpiry(tokenData?.expiresAt);
     }
     return super.onConnect(conn, ctx);
   }

@@ -9,6 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
+import { encryptGrant } from './utils/crypto';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -31,13 +32,18 @@ let cfAccessToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 let workerBaseUrl: string | undefined;
-let oauthToken: string | undefined;
 let oauthTokenExpiresAt: number | undefined;
+let grantKey: string | undefined;
+let encryptionKey: string | undefined;
 
-/** Set the OAuth token and its expiry (captured from Authorization header) */
-export function setOAuthToken(token: string, expiresAt?: number): void {
-  oauthToken = token;
+/** Set the OAuth token expiry (captured from Authorization header) */
+export function setOAuthTokenExpiry(expiresAt?: number): void {
   oauthTokenExpiresAt = expiresAt;
+}
+
+/** Set the grant key (userId:grantId) extracted from access token */
+export function setGrantKey(key: string): void {
+  grantKey = key;
 }
 
 /** Get remaining TTL for OAuth token in seconds */
@@ -191,15 +197,18 @@ export function getAppId(): string {
  * @param mcpConfig - SiYuan configuration (kernel URL, tokens, etc.)
  * @param accessToken - Optional CF Access token for linked app authentication
  * @param baseUrl - Optional worker base URL for constructing download URLs
+ * @param cookieEncryptionKey - Optional encryption key for download URL tokens
  */
 export async function initializeSiyuanMCPServer(
   server: McpServer,
   mcpConfig: SiyuanMCPConfig,
   accessToken?: string,
-  baseUrl?: string
+  baseUrl?: string,
+  cookieEncryptionKey?: string
 ): Promise<void> {
   cfAccessToken = accessToken;
   workerBaseUrl = baseUrl;
+  encryptionKey = cookieEncryptionKey;
   // initializeContext uses workerBaseUrl as fallback if SIYUAN_KERNEL_URL not set
   await initializeContext(mcpConfig);
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
@@ -208,22 +217,25 @@ export async function initializeSiyuanMCPServer(
 }
 
 /**
- * Build a download URL for an export file using the OAuth token
- * Returns the full URL if workerBaseUrl and oauthToken are available,
+ * Build a download URL for an export file using encrypted grant token
+ * Uses HKDF + XOR encryption to bind the grant to the specific file path.
+ * Returns the full URL if workerBaseUrl, grantKey, and encryptionKey are available,
  * otherwise returns just the path.
  *
  * @param path - The export path from SiYuan kernel (e.g., "temp/export/filename.zip")
  * @returns Full download URL or path
  */
-export function buildDownloadUrl(path: string): string {
+export async function buildDownloadUrl(path: string): Promise<string> {
   // Ensure path has leading slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  if (workerBaseUrl && oauthToken) {
-    // Construct full URL: {workerBaseUrl}/download/{oauthToken}/{path}
-    return `${workerBaseUrl}/download/${oauthToken}${normalizedPath}`;
+  if (workerBaseUrl && grantKey && encryptionKey) {
+    // Encrypt grantKey bound to this specific path
+    const token = await encryptGrant(grantKey, normalizedPath, encryptionKey);
+    // Construct full URL: {workerBaseUrl}/download/{encryptedToken}/{path}
+    return `${workerBaseUrl}/download/${token}${normalizedPath}`;
   }
   // Fallback: return path with placeholder
-  return `/download/<oauth_token>${normalizedPath}`;
+  return `/download/<token>${normalizedPath}`;
 }
 
 /**

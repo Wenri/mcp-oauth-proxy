@@ -143,7 +143,7 @@ async function readFileHandler(params: { path: string }) {
   }
 
   const { response, contentType } = result;
-  const downloadUrl = buildDownloadUrl(path);
+  const downloadUrl = await buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
   const cacheTtl = getTokenTtl();
 
@@ -304,7 +304,7 @@ async function createArchiveHandler(params: { paths: string[]; name?: string }) 
   }
 
   const fileName = result.path.split('/').pop() || 'archive.zip';
-  const downloadUrl = buildDownloadUrl(result.path);
+  const downloadUrl = await buildDownloadUrl(result.path);
 
   return createJsonResponse({
     fileName,

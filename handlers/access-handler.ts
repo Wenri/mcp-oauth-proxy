@@ -23,9 +23,19 @@ import {
 	validateOAuthState,
 } from "./workers-oauth-utils";
 import { buildKernelHeaders } from "../siyuan-mcp";
+import { decryptGrant } from "../siyuan-mcp/utils/crypto";
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
 type HonoEnv = { Bindings: EnvWithOAuth };
+
+/** Grant record structure from KV */
+interface GrantRecord {
+	userId: string;
+	clientId: string;
+	scope: string[];
+	encryptedProps: string;
+	expiresAt?: number;
+}
 
 const app = new Hono<HonoEnv>();
 
@@ -38,23 +48,43 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
-// GET /download/:token/* - Proxy file downloads using OAuth token for auth
-// URL format: /download/{oauth_token}/temp/export/filename.zip
+// GET /download/:token/* - Proxy file downloads using encrypted grant token
+// URL format: /download/{encryptedToken}/temp/export/filename.zip
+// Token is encrypted grantKey (userId:grantId) bound to the file path
 app.get("/download/:token/*", async (c) => {
 	const env = c.env;
 	const token = c.req.param("token");
-	// Get the path after /download/{token} (without leading slash for API)
-	const filePath = c.req.path.split("/").slice(3).join("/");
+	// Get the path after /download/{token} (with leading slash for decryption)
+	const filePath = "/" + c.req.path.split("/").slice(3).join("/");
 
-	// Validate OAuth token and get props (includes cfAccessToken)
-	const tokenData = await env.OAUTH_PROVIDER.unwrapToken<Props>(token);
-	if (!tokenData) {
-		return c.text("Invalid or expired token", 401);
+	// Decrypt token to get grantKey
+	let grantKey: string;
+	try {
+		grantKey = await decryptGrant(token, filePath, env.COOKIE_ENCRYPTION_KEY);
+	} catch {
+		return c.text("Invalid token", 401);
 	}
 
-	// Calculate remaining TTL from token expiry
+	// Parse grantKey
+	const colonIndex = grantKey.indexOf(":");
+	if (colonIndex === -1) {
+		return c.text("Invalid token format", 401);
+	}
+	const userId = grantKey.slice(0, colonIndex);
+	const grantId = grantKey.slice(colonIndex + 1);
+
+	// Verify grant exists and is not expired
+	const grant = await env.OAUTH_KV.get<GrantRecord>(`grant:${userId}:${grantId}`, "json");
+	if (!grant) {
+		return c.text("Grant not found or revoked", 401);
+	}
+	if (grant.expiresAt && grant.expiresAt < Math.floor(Date.now() / 1000)) {
+		return c.text("Grant expired", 401);
+	}
+
+	// Calculate cache TTL from grant expiry (default 1 hour if no expiry)
 	const now = Math.floor(Date.now() / 1000);
-	const cacheTtl = Math.max(0, tokenData.expiresAt - now);
+	const cacheTtl = grant.expiresAt ? Math.max(0, grant.expiresAt - now) : 3600;
 
 	// Check cache first (keyed by full URL including token)
 	const cache = caches.default;
@@ -75,20 +105,20 @@ app.get("/download/:token/*", async (c) => {
 	// Fallback to request origin when SIYUAN_KERNEL_URL is not set
 	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 
-	// Build auth headers using cfAccessToken from props
+	// Build auth headers using service token (user's cfAccessToken not available in new scheme)
 	const headers = buildKernelHeaders(
 		env.SIYUAN_KERNEL_TOKEN,
-		tokenData.grant.props.accessToken,
+		undefined, // No user cfAccessToken in new scheme
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
 
-	// Use /api/file/getFile API to fetch the file
+	// Use /api/file/getFile API to fetch the file (without leading slash)
 	const apiUrl = new URL("/api/file/getFile", kernelUrl).href;
 	const response = await fetch(apiUrl, {
 		method: "POST",
 		headers,
-		body: JSON.stringify({ path: filePath }),
+		body: JSON.stringify({ path: filePath.slice(1) }), // Remove leading slash for API
 	});
 
 	if (!response.ok) {
@@ -103,7 +133,7 @@ app.get("/download/:token/*", async (c) => {
 	// Tee the stream - one for client, one for cache
 	const [clientStream, cacheStream] = response.body!.tee();
 
-	// Cache in background with remaining token TTL
+	// Cache in background with remaining grant TTL
 	if (cacheTtl > 0) {
 		c.executionCtx.waitUntil(
 			cache.put(
