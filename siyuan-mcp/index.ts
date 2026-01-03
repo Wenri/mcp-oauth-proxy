@@ -44,11 +44,10 @@ export function setOAuthToken(token: string): void {
  * Falls back to workerBaseUrl if SIYUAN_KERNEL_URL not set
  */
 export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
-  const kernelUrl = options.SIYUAN_KERNEL_URL || workerBaseUrl;
-  if (!kernelUrl) {
+  baseUrl = (options.SIYUAN_KERNEL_URL || workerBaseUrl)?.replace(/\/$/, '') || '';
+  if (!baseUrl) {
     throw new Error('SIYUAN_KERNEL_URL is required (or set workerBaseUrl first)');
   }
-  baseUrl = kernelUrl.replace(/\/$/, '');
   authToken = options.SIYUAN_KERNEL_TOKEN;
   cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
   cfServiceClientSecret = options.CF_ACCESS_SERVICE_CLIENT_SECRET;
