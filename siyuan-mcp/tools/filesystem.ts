@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { waitUntil } from 'cloudflare:workers';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
@@ -162,17 +163,19 @@ async function readFileHandler(params: { path: string }) {
     // Tee stream - one for cache, one discarded (we just return URL)
     const [cacheStream, _] = response.body!.tee();
 
-    // Cache the response (don't await - let it happen in background)
-    cache.put(
-      cacheKey,
-      new Response(cacheStream, {
-        status: response.status,
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
-        },
-      }),
-    ).catch(() => {}); // Ignore cache errors
+    // Cache the response in background
+    waitUntil(
+      cache.put(
+        cacheKey,
+        new Response(cacheStream, {
+          status: response.status,
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
+          },
+        }),
+      ),
+    );
   }
 
   // Return download URL (body not fully read by us)
