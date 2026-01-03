@@ -31,6 +31,12 @@ let cfAccessToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 let workerBaseUrl: string | undefined;
+let oauthToken: string | undefined;
+
+/** Set the OAuth token (captured from Authorization header) */
+export function setOAuthToken(token: string): void {
+  oauthToken = token;
+}
 
 /**
  * Initialize the SiYuan context
@@ -186,20 +192,20 @@ export async function initializeSiyuanMCPServer(
 }
 
 /**
- * Build a download URL for an export file using the CF Access token
- * Returns the full URL if workerBaseUrl and cfAccessToken are available,
+ * Build a download URL for an export file using the OAuth token
+ * Returns the full URL if workerBaseUrl and oauthToken are available,
  * otherwise returns just the path.
  *
  * @param path - The export path from SiYuan kernel (e.g., "/export/filename.zip")
  * @returns Full download URL or path
  */
 export function buildDownloadUrl(path: string): string {
-  if (workerBaseUrl && cfAccessToken) {
-    // Construct full URL: {workerBaseUrl}/export/{cfAccessToken}{path}
-    return `${workerBaseUrl}/export/${cfAccessToken}${path}`;
+  if (workerBaseUrl && oauthToken) {
+    // Construct full URL: {workerBaseUrl}/export/{oauthToken}{path}
+    return `${workerBaseUrl}/export/${oauthToken}${path}`;
   }
   // Fallback: return path with placeholder
-  return `/export/<cf_access_token>${path}`;
+  return `/export/<oauth_token>${path}`;
 }
 
 /**

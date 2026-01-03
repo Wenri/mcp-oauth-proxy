@@ -6,8 +6,9 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
+import type { Connection, ConnectionContext } from 'agents';
 import { accessApp } from './access-handler';
-import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer, setOAuthToken, logPush } from '../siyuan-mcp';
 import type { Env } from '../types';
 import type { Props } from './workers-oauth-utils';
 
@@ -41,6 +42,15 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
     if (this.props?.email) {
       logPush(`Authenticated user: ${this.props.email}`);
     }
+  }
+
+  async onConnect(conn: Connection, ctx: ConnectionContext) {
+    // Capture OAuth token from Authorization header
+    const authHeader = ctx.request?.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      setOAuthToken(authHeader.slice(7));
+    }
+    return super.onConnect(conn, ctx);
   }
 }
 
