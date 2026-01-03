@@ -4,11 +4,10 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
+import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { buildDownloadUrl } from '..';
 
 export class FileSystemToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -96,20 +95,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
-        name: 'siyuan_export_resources',
-        description:
-          'Export files or folders from SiYuan workspace as a zip archive. Returns a download URL for the zip file. Useful for bundling multiple files/assets for download or backup.',
-        schema: {
-          paths: z
-            .array(z.string())
-            .describe('Array of file/folder paths to export (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
-          name: z.string().optional().describe('Custom name for the zip file (without .zip extension)'),
-        },
-        handler: exportResourcesHandler,
-        title: lang('tool_title_export_resources'),
-        annotations: { readOnlyHint: true },
       },
     ];
   }
@@ -286,28 +271,4 @@ async function createDirHandler(params: { path: string }) {
   }
 
   return createSuccessResponse(`Directory created at ${path}`);
-}
-
-async function exportResourcesHandler(params: { paths: string[]; name?: string }) {
-  const { paths, name } = params;
-  debugPush('Export resources API called');
-
-  if (!paths || paths.length === 0) {
-    return createErrorResponse('At least one path is required.');
-  }
-
-  // Create the zip archive on SiYuan server
-  const exportResult = await exportResourcesAPI(paths, name);
-  if (!exportResult || !exportResult.path) {
-    return createErrorResponse('Failed to create export archive.');
-  }
-
-  const fileName = exportResult.path.split('/').pop() || 'export.zip';
-  const downloadUrl = buildDownloadUrl(exportResult.path);
-
-  return createJsonResponse({
-    fileName,
-    downloadUrl,
-    paths: paths,
-  });
 }
