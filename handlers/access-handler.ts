@@ -76,12 +76,23 @@ app.get("/download/:token/*", async (c) => {
 	}
 
 	// Forward the response directly, preserving headers
-	const responseHeaders = new Headers(response.headers);
-	// Ensure Content-Disposition is set for downloads
-	if (!responseHeaders.has("Content-Disposition")) {
-		const filename = filePath.split("/").pop() || "download";
-		responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
+	const responseHeaders = new Headers();
+
+	// Copy essential headers from backend response
+	// Note: Content-Length may be unavailable when backend uses chunked transfer encoding (e.g., via CF Access)
+	const contentLength = response.headers.get("Content-Length");
+	const contentType = response.headers.get("Content-Type");
+
+	if (contentLength) {
+		responseHeaders.set("Content-Length", contentLength);
 	}
+	if (contentType) {
+		responseHeaders.set("Content-Type", contentType);
+	}
+
+	// Ensure Content-Disposition is set for downloads
+	const filename = filePath.split("/").pop() || "download";
+	responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
 
 	return new Response(response.body, {
 		status: response.status,

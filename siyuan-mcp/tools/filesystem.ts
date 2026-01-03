@@ -16,7 +16,7 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_read_file',
         description:
-          'Read a file from SiYuan workspace. For text files, returns the content. For binary files (images, etc.), returns base64 encoded content.',
+          'Read a file from SiYuan workspace. For text files (detected via Content-Type or extension), returns the content directly. For binary files (images, etc.), returns metadata with a download URL.',
         schema: {
           path: z
             .string()
@@ -116,19 +116,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
 }
 
 /**
- * Convert Blob to base64 string
- */
-async function blobToBase64(blob: Blob): Promise<string> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-/**
  * Convert base64 string to Blob
  */
 function base64ToBlob(base64: string, mimeType: string = 'application/octet-stream'): Blob {
@@ -142,9 +129,40 @@ function base64ToBlob(base64: string, mimeType: string = 'application/octet-stre
 }
 
 /**
- * Check if a file is likely text based on extension
+ * Check if content is text based on MIME type from Content-Type header
  */
-function isTextFile(path: string): boolean {
+function isTextMimeType(mimeType: string): boolean {
+  if (!mimeType) return false;
+
+  // Extract base type (ignore charset and other parameters)
+  const baseType = mimeType.split(';')[0].trim().toLowerCase();
+
+  // text/* types are always text
+  if (baseType.startsWith('text/')) return true;
+
+  // Common text-based application/* types
+  const textApplicationTypes = [
+    'application/json',
+    'application/xml',
+    'application/javascript',
+    'application/x-javascript',
+    'application/ecmascript',
+    'application/xhtml+xml',
+    'application/ld+json',
+    'application/manifest+json',
+    'application/sql',
+    'application/graphql',
+    'application/x-sh',
+    'application/x-yaml',
+  ];
+
+  return textApplicationTypes.includes(baseType);
+}
+
+/**
+ * Check if a file is likely text based on extension (fallback)
+ */
+function isTextFileExtension(path: string): boolean {
   const textExtensions = [
     'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx',
     'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash', 'zsh',
@@ -172,23 +190,25 @@ async function readFileHandler(params: { path: string }) {
 
   // If it's a Blob (binary file)
   if (result instanceof Blob) {
-    if (isTextFile(path)) {
+    // Check if text: trust MIME type first, then fall back to extension
+    const isText = isTextMimeType(result.type) || isTextFileExtension(path);
+    if (isText) {
       // Try to read as text
       try {
         const text = await result.text();
-        return createJsonResponse({ path, content: text, type: 'text' });
+        return createJsonResponse({ path, content: text, type: 'text', mimeType: result.type });
       } catch {
-        // Fall through to base64
+        // Fall through to binary handling
       }
     }
-    // Return as base64
-    const base64 = await blobToBase64(result);
+    // Binary file: return download URL instead of base64 (more useful for LLMs)
+    const downloadUrl = buildDownloadUrl(path);
     return createJsonResponse({
       path,
-      content: base64,
-      type: 'base64',
+      type: 'binary',
       size: result.size,
       mimeType: result.type,
+      downloadUrl,
     });
   }
 
