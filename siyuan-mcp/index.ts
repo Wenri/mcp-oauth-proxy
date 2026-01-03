@@ -203,16 +203,18 @@ export async function initializeSiyuanMCPServer(
  * Returns the full URL if workerBaseUrl and oauthToken are available,
  * otherwise returns just the path.
  *
- * @param path - The export path from SiYuan kernel (e.g., "/export/filename.zip")
+ * @param path - The export path from SiYuan kernel (e.g., "temp/export/filename.zip")
  * @returns Full download URL or path
  */
 export function buildDownloadUrl(path: string): string {
+  // Ensure path has leading slash
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   if (workerBaseUrl && oauthToken) {
-    // Construct full URL: {workerBaseUrl}/export/{oauthToken}{path}
-    return `${workerBaseUrl}/export/${oauthToken}${path}`;
+    // Construct full URL: {workerBaseUrl}/export/{oauthToken}/{path}
+    return `${workerBaseUrl}/export/${oauthToken}${normalizedPath}`;
   }
   // Fallback: return path with placeholder
-  return `/export/<oauth_token>${path}`;
+  return `/export/<oauth_token>${normalizedPath}`;
 }
 
 /**
