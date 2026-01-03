@@ -38,9 +38,6 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
-// Cache TTL matches OAuth access token TTL (1 hour)
-const CACHE_TTL = 3600;
-
 // GET /download/:token/* - Proxy file downloads using OAuth token for auth
 // URL format: /download/{oauth_token}/temp/export/filename.zip
 app.get("/download/:token/*", async (c) => {
@@ -54,6 +51,10 @@ app.get("/download/:token/*", async (c) => {
 	if (!tokenData) {
 		return c.text("Invalid or expired token", 401);
 	}
+
+	// Calculate remaining TTL from token expiry
+	const now = Math.floor(Date.now() / 1000);
+	const cacheTtl = Math.max(0, tokenData.expiresAt - now);
 
 	// Check cache first (keyed by full URL including token)
 	const cache = caches.default;
@@ -102,20 +103,22 @@ app.get("/download/:token/*", async (c) => {
 	// Tee the stream - one for client, one for cache
 	const [clientStream, cacheStream] = response.body!.tee();
 
-	// Cache in background (don't block response)
-	c.executionCtx.waitUntil(
-		cache.put(
-			cacheKey,
-			new Response(cacheStream, {
-				status: response.status,
-				headers: {
-					"Content-Type": contentType,
-					"Cache-Control": `public, max-age=${CACHE_TTL}`,
-					...(contentLength ? { "Content-Length": contentLength } : {}),
-				},
-			}),
-		),
-	);
+	// Cache in background with remaining token TTL
+	if (cacheTtl > 0) {
+		c.executionCtx.waitUntil(
+			cache.put(
+				cacheKey,
+				new Response(cacheStream, {
+					status: response.status,
+					headers: {
+						"Content-Type": contentType,
+						"Cache-Control": `public, max-age=${cacheTtl}`,
+						...(contentLength ? { "Content-Length": contentLength } : {}),
+					},
+				}),
+			),
+		);
+	}
 
 	// Build response headers for client
 	const responseHeaders = new Headers();

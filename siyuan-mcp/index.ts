@@ -32,10 +32,19 @@ let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 let workerBaseUrl: string | undefined;
 let oauthToken: string | undefined;
+let oauthTokenExpiresAt: number | undefined;
 
-/** Set the OAuth token (captured from Authorization header) */
-export function setOAuthToken(token: string): void {
+/** Set the OAuth token and its expiry (captured from Authorization header) */
+export function setOAuthToken(token: string, expiresAt?: number): void {
   oauthToken = token;
+  oauthTokenExpiresAt = expiresAt;
+}
+
+/** Get remaining TTL for OAuth token in seconds */
+export function getTokenTtl(): number {
+  if (!oauthTokenExpiresAt) return 3600; // Default 1 hour if unknown
+  const now = Math.floor(Date.now() / 1000);
+  return Math.max(0, oauthTokenExpiresAt - now);
 }
 
 /**

@@ -9,10 +9,7 @@ import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAP
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { buildDownloadUrl } from '..';
-
-// Cache TTL matches OAuth access token TTL (1 hour)
-const CACHE_TTL = 3600;
+import { buildDownloadUrl, getTokenTtl } from '..';
 
 export class FileSystemToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -148,6 +145,7 @@ async function readFileHandler(params: { path: string }) {
   const { response, contentType } = result;
   const downloadUrl = buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
+  const cacheTtl = getTokenTtl();
 
   // Cache using downloadUrl as key (includes token, per-user cache)
   const cache = caches.default;
@@ -156,7 +154,7 @@ async function readFileHandler(params: { path: string }) {
   if (isText) {
     // Text file: read content and cache
     const text = await response.text();
-    if (!cached) {
+    if (!cached && cacheTtl > 0) {
       waitUntil(
         cache.put(
           downloadUrl,
@@ -164,17 +162,17 @@ async function readFileHandler(params: { path: string }) {
             status: 200,
             headers: {
               'Content-Type': contentType,
-              'Cache-Control': `public, max-age=${CACHE_TTL}`,
+              'Cache-Control': `public, max-age=${cacheTtl}`,
             },
           }),
         ),
       );
     }
-    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, cacheTtl: CACHE_TTL });
+    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, cacheTtl });
   }
 
   // Binary file: tee stream to cache while returning download URL
-  if (!cached) {
+  if (!cached && cacheTtl > 0) {
     const [cacheStream, _] = response.body!.tee();
     waitUntil(
       cache.put(
@@ -183,7 +181,7 @@ async function readFileHandler(params: { path: string }) {
           status: response.status,
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': `public, max-age=${CACHE_TTL}`,
+            'Cache-Control': `public, max-age=${cacheTtl}`,
           },
         }),
       ),
@@ -195,7 +193,7 @@ async function readFileHandler(params: { path: string }) {
     type: 'binary',
     mimeType: contentType,
     downloadUrl,
-    cacheTtl: CACHE_TTL,
+    cacheTtl,
   });
 }
 

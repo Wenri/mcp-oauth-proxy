@@ -3,7 +3,7 @@
  * Based on: https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access
  */
 
-import OAuthProvider from '@cloudflare/workers-oauth-provider';
+import OAuthProvider, { type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import type { Connection, ConnectionContext } from 'agents';
@@ -12,13 +12,15 @@ import { initializeSiyuanMCPServer, setOAuthToken, logPush } from '../siyuan-mcp
 import type { Env } from '../types';
 import type { Props } from './workers-oauth-utils';
 
+type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
+
 // Re-export Env for convenience
 export type { Env } from '../types';
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers
  */
-export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
+export class SiyuanMCP extends McpAgent<EnvWithOAuth, Record<string, never>, Props> {
   server = new McpServer({
     name: 'siyuan-mcp',
     version: '1.0.0',
@@ -46,10 +48,13 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   }
 
   async onConnect(conn: Connection, ctx: ConnectionContext) {
-    // Capture OAuth token from Authorization header
+    // Capture OAuth token and expiry from Authorization header
     const authHeader = ctx.request?.headers.get('Authorization');
     if (authHeader?.startsWith('Bearer ')) {
-      setOAuthToken(authHeader.slice(7));
+      const token = authHeader.slice(7);
+      // Unwrap token to get expiry time
+      const tokenData = await this.env.OAUTH_PROVIDER.unwrapToken<Props>(token);
+      setOAuthToken(token, tokenData?.expiresAt);
     }
     return super.onConnect(conn, ctx);
   }
