@@ -162,18 +162,49 @@ async function kramdownReadHandler(params: { id: string }) {
   );
 }
 
+const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico'];
+const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'];
+
+/** Check if file extension is supported media */
+function isMediaExtension(path: string): boolean {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  return imageExtensions.includes(ext) || audioExtensions.includes(ext);
+}
+
+/** Check if response is supported image/audio and return blob promise, or null */
+function getSupportedMediaBlob(
+  result: { response: Response; contentType: string } | null
+): Promise<Blob> | null {
+  if (!result) return null;
+
+  const { response, contentType } = result;
+  const baseType = contentType.split(';')[0].trim().toLowerCase();
+
+  // Check MIME type (extension already filtered before fetch)
+  if (baseType.startsWith('image/') || baseType.startsWith('audio/')) {
+    return response.blob();
+  }
+
+  return null;
+}
+
 async function getAssets(id: string) {
   const assetsInfo = await getBlockAssets(id);
-  const assetsPathList = assetsInfo.map((item) => item.path);
-  const assetsPromise: Promise<Blob>[] = [];
 
-  assetsPathList.forEach((pathItem) => {
-    if (isSupportedImageOrAudio(pathItem)) {
-      assetsPromise.push(getFileAPIv2('/data/' + pathItem));
-    }
-  });
+  // Pre-filter by extension, fetch in parallel
+  const fetchResults = await Promise.all(
+    assetsInfo
+      .map((item) => item.path)
+      .filter(isMediaExtension)
+      .map((pathItem) => getFileAPIv2('/data/' + pathItem))
+  );
 
-  const assetsBlobResult = await Promise.all(assetsPromise);
+  // Filter nulls synchronously, then read blobs in parallel
+  const blobPromises = fetchResults
+    .map(getSupportedMediaBlob)
+    .filter((p): p is Promise<Blob> => p !== null);
+
+  const assetsBlobResult = await Promise.all(blobPromises);
   const base64ObjPromise: Promise<any>[] = [];
   let mediaLengthSum = 0;
 
@@ -191,24 +222,6 @@ async function getAssets(id: string) {
   }
 
   return await Promise.all(base64ObjPromise);
-}
-
-function isSupportedImageOrAudio(path: string): 'image' | 'audio' | false {
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico'];
-  const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'];
-
-  const extMatch = path.match(/\.([a-zA-Z0-9]+)$/);
-  if (!extMatch) return false;
-
-  const ext = extMatch[1].toLowerCase();
-
-  if (imageExtensions.includes(ext)) {
-    return 'image';
-  } else if (audioExtensions.includes(ext)) {
-    return 'audio';
-  } else {
-    return false;
-  }
 }
 
 async function getHPathHandler(params: { id: string; includeOutline?: boolean }) {

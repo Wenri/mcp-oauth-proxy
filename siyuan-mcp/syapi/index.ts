@@ -623,8 +623,39 @@ export async function createDocWithPath(
   throw new Error(response.msg);
 }
 
-/** Get file from workspace (returns blob for binary files) */
-export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
+/** Response type for getFileAPIv2 */
+export type FileAPIResult = { response: Response; contentType: string } | null;
+
+/** Check if MIME type indicates text content */
+export function isTextMimeType(mimeType: string): boolean {
+  if (!mimeType) return false;
+  const baseType = mimeType.split(';')[0].trim().toLowerCase();
+  if (baseType.startsWith('text/')) return true;
+  const textTypes = [
+    'application/json', 'application/xml', 'application/javascript',
+    'application/x-javascript', 'application/ecmascript', 'application/xhtml+xml',
+    'application/ld+json', 'application/manifest+json', 'application/sql',
+    'application/graphql', 'application/x-sh', 'application/x-yaml',
+  ];
+  return textTypes.includes(baseType);
+}
+
+/** Check if file extension indicates text content */
+export function isTextExtension(path: string): boolean {
+  const textExtensions = [
+    'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx',
+    'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash', 'zsh',
+    'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs',
+    'sql', 'graphql', 'vue', 'svelte', 'astro', 'php', 'pl', 'lua',
+    'r', 'R', 'scala', 'kt', 'swift', 'dart', 'elm', 'clj', 'ex', 'exs',
+    'sy', 'csv', 'log', 'env', 'gitignore', 'dockerignore', 'editorconfig',
+  ];
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  return textExtensions.includes(ext);
+}
+
+/** Get file from workspace - returns Response directly for efficient streaming */
+export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
   const url = '/api/file/getFile';
 
   const response = await kernelFetch(url, {
@@ -639,16 +670,16 @@ export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
 
   const contentType = response.headers.get('Content-Type') || '';
 
+  // Check for JSON error response (404)
   if (contentType.includes('application/json')) {
-    const json = (await response.json()) as { code?: number; [key: string]: unknown };
+    const cloned = response.clone();
+    const json = (await cloned.json()) as { code?: number };
     if (json.code === 404) {
       return null;
     }
-    return json;
-  } else {
-    // Binary file - return as blob
-    return response.blob();
   }
+
+  return { response, contentType };
 }
 
 /** Get JSON file from workspace */

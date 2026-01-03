@@ -4,11 +4,14 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
+import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl } from '..';
+
+// Cache TTL for files (1 hour)
+const FILE_CACHE_TTL = 3600;
 
 export class FileSystemToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -128,53 +131,6 @@ function base64ToBlob(base64: string, mimeType: string = 'application/octet-stre
   return new Blob([bytes], { type: mimeType });
 }
 
-/**
- * Check if content is text based on MIME type from Content-Type header
- */
-function isTextMimeType(mimeType: string): boolean {
-  if (!mimeType) return false;
-
-  // Extract base type (ignore charset and other parameters)
-  const baseType = mimeType.split(';')[0].trim().toLowerCase();
-
-  // text/* types are always text
-  if (baseType.startsWith('text/')) return true;
-
-  // Common text-based application/* types
-  const textApplicationTypes = [
-    'application/json',
-    'application/xml',
-    'application/javascript',
-    'application/x-javascript',
-    'application/ecmascript',
-    'application/xhtml+xml',
-    'application/ld+json',
-    'application/manifest+json',
-    'application/sql',
-    'application/graphql',
-    'application/x-sh',
-    'application/x-yaml',
-  ];
-
-  return textApplicationTypes.includes(baseType);
-}
-
-/**
- * Check if a file is likely text based on extension (fallback)
- */
-function isTextFileExtension(path: string): boolean {
-  const textExtensions = [
-    'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx',
-    'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash', 'zsh',
-    'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs',
-    'sql', 'graphql', 'vue', 'svelte', 'astro', 'php', 'pl', 'lua',
-    'r', 'R', 'scala', 'kt', 'swift', 'dart', 'elm', 'clj', 'ex', 'exs',
-    'sy', 'csv', 'log', 'env', 'gitignore', 'dockerignore', 'editorconfig',
-  ];
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  return textExtensions.includes(ext);
-}
-
 async function readFileHandler(params: { path: string }) {
   const { path } = params;
   debugPush('Read file API called');
@@ -188,32 +144,45 @@ async function readFileHandler(params: { path: string }) {
     return createErrorResponse('File not found or failed to read.');
   }
 
-  // If it's a Blob (binary file)
-  if (result instanceof Blob) {
-    // Check if text: trust MIME type first, then fall back to extension
-    const isText = isTextMimeType(result.type) || isTextFileExtension(path);
-    if (isText) {
-      // Try to read as text
-      try {
-        const text = await result.text();
-        return createJsonResponse({ path, content: text, type: 'text', mimeType: result.type });
-      } catch {
-        // Fall through to binary handling
-      }
-    }
-    // Binary file: return download URL instead of base64 (more useful for LLMs)
-    const downloadUrl = buildDownloadUrl(path);
-    return createJsonResponse({
-      path,
-      type: 'binary',
-      size: result.size,
-      mimeType: result.type,
-      downloadUrl,
-    });
+  const { response, contentType } = result;
+
+  // Check if text: trust MIME type first, then fall back to extension
+  if (isTextMimeType(contentType) || isTextExtension(path)) {
+    const text = await response.text();
+    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType });
   }
 
-  // If it's already JSON (e.g., error response or JSON file content)
-  return createJsonResponse({ path, content: result, type: 'json' });
+  // Binary file: tee stream to cache while returning download URL
+  const cache = caches.default;
+  const cacheKey = new Request(`https://siyuan-cache/${path}`);
+
+  // Check if already cached
+  const cached = await cache.match(cacheKey);
+  if (!cached) {
+    // Tee stream - one for cache, one discarded (we just return URL)
+    const [cacheStream, _] = response.body!.tee();
+
+    // Cache the response (don't await - let it happen in background)
+    cache.put(
+      cacheKey,
+      new Response(cacheStream, {
+        status: response.status,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
+        },
+      }),
+    ).catch(() => {}); // Ignore cache errors
+  }
+
+  // Return download URL (body not fully read by us)
+  const downloadUrl = buildDownloadUrl(path);
+  return createJsonResponse({
+    path,
+    type: 'binary',
+    mimeType: contentType,
+    downloadUrl,
+  });
 }
 
 async function writeFileHandler(params: { path: string; content: string; isBase64?: boolean }) {
