@@ -98,17 +98,17 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
         },
       },
       {
-        name: 'siyuan_export_dir',
+        name: 'siyuan_create_archive',
         description:
-          'Export files or directories from SiYuan workspace as a zip archive. Returns a download URL for the zip file. Can export any workspace path including assets, widgets, notebooks, etc.',
+          'Create a zip archive from files or directories in SiYuan workspace. Returns a download URL for the zip file. Can archive any workspace path including assets, widgets, notebooks, etc.',
         schema: {
           paths: z
             .array(z.string())
-            .describe('Array of file/directory paths to export (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
-          name: z.string().optional().describe('Custom name for the zip file (without .zip extension)'),
+            .describe('Array of file/directory paths to archive (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
+          name: z.string().optional().describe('Custom name for the archive (without .zip extension)'),
         },
-        handler: exportDirHandler,
-        title: lang('tool_title_export_dir'),
+        handler: createArchiveHandler,
+        title: lang('tool_title_create_archive'),
         annotations: { readOnlyHint: true },
       },
     ];
@@ -288,22 +288,22 @@ async function createDirHandler(params: { path: string }) {
   return createSuccessResponse(`Directory created at ${path}`);
 }
 
-async function exportDirHandler(params: { paths: string[]; name?: string }) {
+async function createArchiveHandler(params: { paths: string[]; name?: string }) {
   const { paths, name } = params;
-  debugPush('Export directory API called');
+  debugPush('Create archive API called');
 
   if (!paths || paths.length === 0) {
     return createErrorResponse('At least one path is required.');
   }
 
   // Create the zip archive on SiYuan server
-  const exportResult = await exportResourcesAPI(paths, name);
-  if (!exportResult || !exportResult.path) {
-    return createErrorResponse('Failed to create export archive.');
+  const result = await exportResourcesAPI(paths, name);
+  if (!result || !result.path) {
+    return createErrorResponse('Failed to create archive.');
   }
 
-  const fileName = exportResult.path.split('/').pop() || 'export.zip';
-  const downloadUrl = buildDownloadUrl(exportResult.path);
+  const fileName = result.path.split('/').pop() || 'archive.zip';
+  const downloadUrl = buildDownloadUrl(result.path);
 
   return createJsonResponse({
     fileName,
