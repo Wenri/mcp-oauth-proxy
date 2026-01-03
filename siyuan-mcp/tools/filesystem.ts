@@ -301,13 +301,13 @@ async function exportResourcesHandler(params: { paths: string[]; name?: string }
     return createErrorResponse('Failed to create export archive.');
   }
 
-  // Return the download path - the /export/* handler will proxy the download
   const fileName = exportResult.path.split('/').pop() || 'export.zip';
 
+  // Return the kernel path - /export handler will use OAuth token for auth
   return createJsonResponse({
     fileName,
     downloadPath: exportResult.path,
-    message: `Export created. Download from: ${exportResult.path}`,
+    message: `Export created. Download from: /export/<oauth_token>${exportResult.path}`,
     paths: paths,
   });
 }

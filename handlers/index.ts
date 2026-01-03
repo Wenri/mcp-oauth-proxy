@@ -45,7 +45,7 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
  * Acts as OAuth Provider to MCP clients, and as OAuth Client to CF Access.
  */
 export default new OAuthProvider({
-  // MCP transport handlers (require valid access token)
+  // API handlers (require valid access token)
   apiHandlers: {
     '/sse': SiyuanMCP.serveSSE('/sse'),
     '/mcp': SiyuanMCP.serve('/mcp'),

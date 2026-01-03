@@ -80,50 +80,51 @@ export function hasContext(): boolean {
   return config !== null;
 }
 
-/** Build auth headers for SiYuan kernel requests */
-export function buildKernelHeaders(options: {
-  token?: string;
-  cfAccessToken?: string;
-  cfServiceClientId?: string;
-  cfServiceClientSecret?: string;
-  contentType?: string;
-}): Record<string, string> {
-  const headers: Record<string, string> = {};
+/**
+ * Build auth headers for SiYuan kernel requests.
+ * @param token - SiYuan API token
+ * @param cfAccessToken - CF Access token for linked app authentication
+ * @param cfServiceClientId - CF Access Service Token client ID
+ * @param cfServiceClientSecret - CF Access Service Token client secret
+ */
+export function buildKernelHeaders(
+  token?: string,
+  cfAccessToken?: string,
+  cfServiceClientId?: string,
+  cfServiceClientSecret?: string
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
-  if (options.contentType) {
-    headers['Content-Type'] = options.contentType;
-  }
-  if (options.token) {
-    headers['Authorization'] = `Token ${options.token}`;
+  if (token) {
+    headers['Authorization'] = `Token ${token}`;
   }
   // Add CF Access token for linked app authentication
   // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
-  if (options.cfAccessToken) {
-    headers['cf-access-token'] = options.cfAccessToken;
+  if (cfAccessToken) {
+    headers['cf-access-token'] = cfAccessToken;
   }
   // Add CF Access Service Token for API authentication
   // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
-  if (options.cfServiceClientId && options.cfServiceClientSecret) {
-    headers['CF-Access-Client-Id'] = options.cfServiceClientId;
-    headers['CF-Access-Client-Secret'] = options.cfServiceClientSecret;
+  if (cfServiceClientId && cfServiceClientSecret) {
+    headers['CF-Access-Client-Id'] = cfServiceClientId;
+    headers['CF-Access-Client-Secret'] = cfServiceClientSecret;
   }
   return headers;
 }
 
-/** Fetch from SiYuan kernel with authentication */
+/**
+ * Fetch from SiYuan kernel with authentication using module-level context.
+ * Use this inside MCP tools where initializeContext() has been called.
+ */
 export async function kernelFetch(url: string, init?: RequestInit): Promise<Response> {
   if (!baseUrl && !url.startsWith('http')) {
     throw new Error('Context not initialized. Call initializeContext first.');
   }
 
   const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-  const headers = buildKernelHeaders({
-    token: authToken,
-    cfAccessToken,
-    cfServiceClientId,
-    cfServiceClientSecret,
-    contentType: 'application/json',
-  });
+  const headers = buildKernelHeaders(authToken, cfAccessToken, cfServiceClientId, cfServiceClientSecret);
 
   return fetch(fullUrl, {
     ...init,
