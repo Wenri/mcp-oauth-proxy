@@ -22,7 +22,9 @@
     { "pattern": "sy.wenri.me/.well-known/*", "zone_name": "wenri.me" },
     // MCP endpoints (built-in SiYuan MCP server)
     { "pattern": "sy.wenri.me/mcp*", "zone_name": "wenri.me" },
-    { "pattern": "sy.wenri.me/sse*", "zone_name": "wenri.me" }
+    { "pattern": "sy.wenri.me/sse*", "zone_name": "wenri.me" },
+    // Export download proxy (authenticated file downloads)
+    { "pattern": "sy.wenri.me/export/*", "zone_name": "wenri.me" }
   ],
 
   // KV namespace for OAuth state management and RAG indexing queue

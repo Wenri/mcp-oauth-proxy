@@ -46,15 +46,14 @@ app.get("/export/:token/*", async (c) => {
 	// Get the path after /export/{token}
 	const path = "/" + c.req.path.split("/").slice(3).join("/");
 
-	if (!env.SIYUAN_KERNEL_URL) {
-		return c.text("SIYUAN_KERNEL_URL not configured", 500);
-	}
-
 	// Validate OAuth token and get props (includes cfAccessToken)
 	const tokenData = await env.OAUTH_PROVIDER.unwrapToken<Props>(token);
 	if (!tokenData) {
 		return c.text("Invalid or expired token", 401);
 	}
+
+	// Fallback to request origin when SIYUAN_KERNEL_URL is not set
+	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 
 	// Build auth headers using cfAccessToken from props
 	const headers = buildKernelHeaders(
@@ -63,7 +62,7 @@ app.get("/export/:token/*", async (c) => {
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
-	const proxyUrl = new URL(path, env.SIYUAN_KERNEL_URL).href;
+	const proxyUrl = new URL(path, kernelUrl).href;
 	const response = await fetch(proxyUrl, { headers });
 
 	if (!response.ok) {
