@@ -528,5 +528,6 @@ export interface Props {
 	email: string;
 	login: string;
 	name: string;
+	workerBaseUrl: string;
 	[key: string]: unknown;
 }

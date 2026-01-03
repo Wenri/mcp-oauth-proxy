@@ -210,6 +210,7 @@ app.get("/callback", async (c) => {
 			email: user.email,
 			login: user.sub,
 			name: user.name,
+			workerBaseUrl: new URL(request.url).origin,
 		} as Props,
 		request: oauthReqInfo,
 		scope: oauthReqInfo.scope,
