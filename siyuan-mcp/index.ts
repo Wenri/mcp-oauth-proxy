@@ -10,7 +10,7 @@ import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
-import { postRequest } from './syapi';
+import { initKernel, postRequest } from './syapi';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -19,18 +19,15 @@ import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
 // Re-export types for convenience (canonical source is ../types)
 export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
 
-// Re-export logger (used by handlers)
+// Re-export for external use (handlers)
 export { logPush } from './logger';
+export { buildKernelHeaders } from './syapi';
 
 // ============================================================================
-// Context - Module-level state and kernel communication
+// Context - Module-level state
 // ============================================================================
 
 let config: SiyuanConfig | null = null;
-let baseUrl: string = '';
-let authToken: string | undefined;
-let cfServiceClientId: string | undefined;
-let cfServiceClientSecret: string | undefined;
 let workerBaseUrl: string | undefined;
 let oauthTokenExpiresAt: number | undefined;
 let grantKey: string | undefined;
@@ -53,36 +50,10 @@ export function getTokenTtl(): number {
   return Math.max(0, oauthTokenExpiresAt - now);
 }
 
-/**
- * Initialize the SiYuan context
- * Fetches config from kernel API on initialization
- * Falls back to workerBaseUrl if SIYUAN_KERNEL_URL not set
- */
-export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
-  baseUrl = (options.SIYUAN_KERNEL_URL || workerBaseUrl || '').replace(/\/$/, '');
-  if (!baseUrl) throw new Error('SIYUAN_KERNEL_URL or workerBaseUrl required');
-  authToken = options.SIYUAN_KERNEL_TOKEN;
-  cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
-  cfServiceClientSecret = options.CF_ACCESS_SERVICE_CLIENT_SECRET;
-
-  const result = await postRequest({}, '/api/system/getConf') as { code: number; data: { conf: SiyuanConfig } };
-  if (result.code !== 0 || !result.data?.conf) {
-    throw new Error('Failed to get SiYuan config');
-  }
-  config = result.data.conf;
-
-  config.filterNotebooks = options.FILTER_NOTEBOOKS;
-  config.filterDocuments = options.FILTER_DOCUMENTS;
-  config.autoApproveLocalChange = options.AUTO_APPROVE_LOCAL_CHANGE;
-  if (options.RAG_BASE_URL) {
-    config.rag = { baseUrl: options.RAG_BASE_URL, apiKey: options.RAG_API_KEY };
-  }
-}
-
 /** Get the current SiYuan config */
 export function getConfig(): SiyuanConfig {
   if (!config) {
-    throw new Error('Context not initialized. Call initializeContext first.');
+    throw new Error('MCP server not initialized.');
   }
   return config;
 }
@@ -90,51 +61,6 @@ export function getConfig(): SiyuanConfig {
 /** Check if context is initialized */
 export function hasContext(): boolean {
   return config !== null;
-}
-
-/**
- * Build auth headers for SiYuan kernel requests.
- * @param token - SiYuan API token
- * @param cfServiceClientId - CF Access Service Token client ID
- * @param cfServiceClientSecret - CF Access Service Token client secret
- */
-export function buildKernelHeaders(
-  token?: string,
-  cfServiceClientId?: string,
-  cfServiceClientSecret?: string
-): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Token ${token}`;
-  }
-  // Add CF Access Service Token for API authentication
-  // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
-  if (cfServiceClientId && cfServiceClientSecret) {
-    headers['CF-Access-Client-Id'] = cfServiceClientId;
-    headers['CF-Access-Client-Secret'] = cfServiceClientSecret;
-  }
-  return headers;
-}
-
-/**
- * Fetch from SiYuan kernel with authentication using module-level context.
- * Use this inside MCP tools where initializeContext() has been called.
- */
-export async function kernelFetch(url: string, init?: RequestInit): Promise<Response> {
-  if (!baseUrl && !url.startsWith('http')) {
-    throw new Error('Context not initialized. Call initializeContext first.');
-  }
-
-  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-  const headers = buildKernelHeaders(authToken, cfServiceClientId, cfServiceClientSecret);
-
-  return fetch(fullUrl, {
-    ...init,
-    headers: { ...headers, ...(init?.headers as Record<string, string>) },
-  });
 }
 
 /** Generate a SiYuan-compatible node ID */
@@ -168,7 +94,6 @@ export function getAppId(): string {
 
 /**
  * Initialize an existing MCP server with SiYuan tools and prompts
- * Use this when you already have a server instance (e.g., from McpAgent)
  *
  * @param server - The MCP server instance to configure
  * @param mcpConfig - SiYuan configuration (kernel URL, tokens, etc.)
@@ -183,38 +108,53 @@ export async function initializeSiyuanMCPServer(
 ): Promise<void> {
   workerBaseUrl = baseUrl;
   encryptionKey = cookieEncryptionKey;
-  // initializeContext uses workerBaseUrl as fallback if SIYUAN_KERNEL_URL not set
-  await initializeContext(mcpConfig);
+
+  // Initialize kernel connection
+  const kernelUrl = (mcpConfig.SIYUAN_KERNEL_URL || baseUrl || '').replace(/\/$/, '');
+  if (!kernelUrl) throw new Error('SIYUAN_KERNEL_URL or baseUrl required');
+
+  initKernel(
+    kernelUrl,
+    mcpConfig.SIYUAN_KERNEL_TOKEN,
+    mcpConfig.CF_ACCESS_SERVICE_CLIENT_ID,
+    mcpConfig.CF_ACCESS_SERVICE_CLIENT_SECRET
+  );
+
+  // Fetch config from kernel
+  const result = await postRequest({}, '/api/system/getConf') as { code: number; data: { conf: SiyuanConfig } };
+  if (result.code !== 0 || !result.data?.conf) {
+    throw new Error('Failed to get SiYuan config');
+  }
+  config = result.data.conf;
+
+  // Apply local config overrides
+  config.filterNotebooks = mcpConfig.FILTER_NOTEBOOKS;
+  config.filterDocuments = mcpConfig.FILTER_DOCUMENTS;
+  config.autoApproveLocalChange = mcpConfig.AUTO_APPROVE_LOCAL_CHANGE;
+  if (mcpConfig.RAG_BASE_URL) {
+    config.rag = { baseUrl: mcpConfig.RAG_BASE_URL, apiKey: mcpConfig.RAG_API_KEY };
+  }
+
+  // Load tools and prompts
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);
-  logPush('SiYuan MCP server initialized with tools');
+  logPush('SiYuan MCP server initialized');
 }
 
 /**
  * Build a download URL for an export file using encrypted grant token
- * Uses HKDF + XOR encryption to bind the grant to the specific file path.
- * Returns the full URL if workerBaseUrl, grantKey, and encryptionKey are available,
- * otherwise returns just the path.
- *
- * @param path - The export path from SiYuan kernel (e.g., "temp/export/filename.zip")
- * @returns Full download URL or path
  */
 export async function buildDownloadUrl(path: string): Promise<string> {
-  // Ensure path has leading slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   if (workerBaseUrl && grantKey && encryptionKey) {
-    // Encrypt grantKey bound to this specific path
     const token = await encryptGrant(grantKey, normalizedPath, encryptionKey);
-    // Construct full URL: {workerBaseUrl}/download/{encryptedToken}/{path}
     return `${workerBaseUrl}/download/${token}${normalizedPath}`;
   }
-  // Fallback: return path with placeholder
   return `/download/<token>${normalizedPath}`;
 }
 
 /**
  * Create a new SiYuan MCP server instance (sync)
- * Call initializeSiyuanMCPServer() to configure it with tools and prompts
  */
 export function createSiyuanMCPServer(): McpServer {
   return new McpServer(

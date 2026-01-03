@@ -1,11 +1,72 @@
 /**
  * SiYuan Kernel API wrapper
- *
- * Uses kernelFetch from context for authenticated API calls.
  */
 
-import { kernelFetch } from '..';
 import { warnPush, errorPush } from '../logger';
+
+// ============================================================================
+// Kernel connection state
+// ============================================================================
+
+let baseUrl: string = '';
+let authToken: string | undefined;
+let cfServiceClientId: string | undefined;
+let cfServiceClientSecret: string | undefined;
+
+/**
+ * Initialize kernel connection
+ * @param url - Kernel base URL
+ * @param token - SiYuan API token
+ * @param serviceClientId - CF Access Service Token client ID
+ * @param serviceClientSecret - CF Access Service Token client secret
+ */
+export function initKernel(
+  url: string,
+  token?: string,
+  serviceClientId?: string,
+  serviceClientSecret?: string
+): void {
+  baseUrl = url.replace(/\/$/, '');
+  authToken = token;
+  cfServiceClientId = serviceClientId;
+  cfServiceClientSecret = serviceClientSecret;
+}
+
+/**
+ * Build auth headers for SiYuan kernel requests.
+ */
+export function buildKernelHeaders(
+  token?: string,
+  serviceClientId?: string,
+  serviceClientSecret?: string
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Token ${token}`;
+  }
+  if (serviceClientId && serviceClientSecret) {
+    headers['CF-Access-Client-Id'] = serviceClientId;
+    headers['CF-Access-Client-Secret'] = serviceClientSecret;
+  }
+  return headers;
+}
+
+/**
+ * Fetch from SiYuan kernel with authentication.
+ */
+export async function kernelFetch(url: string, init?: RequestInit): Promise<Response> {
+  if (!baseUrl && !url.startsWith('http')) {
+    throw new Error('Kernel not initialized. Call initKernel first.');
+  }
+  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+  const headers = buildKernelHeaders(authToken, cfServiceClientId, cfServiceClientSecret);
+  return fetch(fullUrl, {
+    ...init,
+    headers: { ...headers, ...(init?.headers as Record<string, string>) },
+  });
+}
 
 /**
  * Send POST request to SiYuan kernel API

@@ -5,9 +5,8 @@
  * It can be triggered by CF Cron or called manually to index documents.
  */
 
-import { initializeContext } from '..';
 import type { SiyuanMCPConfig } from '../../types';
-import { queryAPI, exportMdContent } from '../syapi';
+import { initKernel, queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
@@ -130,8 +129,8 @@ export async function processIndexQueue(config: IndexerConfig, kv: KVNamespace):
   processed: number;
   errors: number;
 }> {
-  // Initialize context
-  await initializeContext(config);
+  // Initialize kernel connection
+  initKernel(config.SIYUAN_KERNEL_URL!, config.SIYUAN_KERNEL_TOKEN);
 
   const provider = createRAGProvider(config);
   const queue = new IndexQueue(kv);
@@ -189,8 +188,8 @@ export async function queueRecentDocuments(
   kv: KVNamespace,
   sinceMinutes: number = 60
 ): Promise<number> {
-  // Initialize context
-  await initializeContext(config);
+  // Initialize kernel connection
+  initKernel(config.SIYUAN_KERNEL_URL!, config.SIYUAN_KERNEL_TOKEN);
 
   // Calculate timestamp for query
   const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
@@ -225,8 +224,8 @@ export async function queueAllDocuments(
   kv: KVNamespace,
   maxDocuments: number = 1000
 ): Promise<number> {
-  // Initialize context
-  await initializeContext(config);
+  // Initialize kernel connection
+  initKernel(config.SIYUAN_KERNEL_URL!, config.SIYUAN_KERNEL_TOKEN);
 
   // Query for all documents
   const sql = `SELECT id FROM blocks WHERE type = 'd' LIMIT ${maxDocuments}`;
