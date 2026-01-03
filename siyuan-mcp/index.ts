@@ -64,27 +64,16 @@ export async function initializeContext(options: SiyuanMCPConfig): Promise<void>
   cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
   cfServiceClientSecret = options.CF_ACCESS_SERVICE_CLIENT_SECRET;
 
-  try {
-    const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Kernel returned ${response.status}: ${text.slice(0, 100)}`);
-    }
-    const result = (await response.json()) as { code: number; data: { conf: SiyuanConfig } };
-    if (result.code !== 0) {
-      throw new Error('Failed to get SiYuan config');
-    }
-    config = result.data.conf;
-  } catch (error) {
-    console.error('Failed to fetch SiYuan config, using defaults:', error);
-    config = {
-      system: { id: 'unknown', os: 'unknown', kernelVersion: '0.0.0' },
-      editor: { markdown: { inlineMath: true } },
-      export: { addTitle: false },
-      flashcard: { deck: true },
-      fileTree: { sort: 0 },
-    };
+  const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel returned ${response.status}: ${text.slice(0, 100)}`);
   }
+  const result = (await response.json()) as { code: number; data: { conf: SiyuanConfig } };
+  if (result.code !== 0) {
+    throw new Error('Failed to get SiYuan config');
+  }
+  config = result.data.conf;
 
   config.filterNotebooks = options.FILTER_NOTEBOOKS;
   config.filterDocuments = options.FILTER_DOCUMENTS;
