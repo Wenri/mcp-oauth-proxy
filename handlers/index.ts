@@ -25,8 +25,7 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   });
 
   async init() {
-    const kernelUrl = this.env.SIYUAN_KERNEL_URL || this.props?.workerBaseUrl;
-    if (!kernelUrl) {
+    if (!this.env.SIYUAN_KERNEL_URL && !this.props?.workerBaseUrl) {
       logPush('Warning: Neither SIYUAN_KERNEL_URL nor workerBaseUrl available');
       return;
     }
