@@ -22,7 +22,7 @@ import {
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
-import { buildKernelHeaders } from "../siyuan-mcp";
+import { initKernel, getFileAPIv2 } from "../siyuan-mcp/syapi";
 import { decryptGrant } from "../siyuan-mcp/utils/crypto";
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
@@ -102,31 +102,24 @@ app.get("/download/:token/*", async (c) => {
 		});
 	}
 
-	// Fallback to request origin when SIYUAN_KERNEL_URL is not set
+	// Initialize kernel with service token
 	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
-
-	// Build auth headers using service token
-	const headers = buildKernelHeaders(
+	initKernel(
+		kernelUrl,
 		env.SIYUAN_KERNEL_TOKEN,
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
 
-	// Use /api/file/getFile API to fetch the file (without leading slash)
-	const apiUrl = new URL("/api/file/getFile", kernelUrl).href;
-	const response = await fetch(apiUrl, {
-		method: "POST",
-		headers,
-		body: JSON.stringify({ path: filePath.slice(1) }), // Remove leading slash for API
-	});
-
-	if (!response.ok) {
-		return c.text(`Failed to fetch export file: ${response.status}`, response.status as any);
+	// Fetch file using syapi
+	const result = await getFileAPIv2(filePath.slice(1)); // Remove leading slash
+	if (!result) {
+		return c.text("File not found", 404);
 	}
+	const { response, contentType } = result;
 
-	// Get content info from backend
+	// Get content info from response
 	const contentLength = response.headers.get("Content-Length");
-	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
 	const filename = filePath.split("/").pop() || "download";
 
 	// Tee the stream - one for client, one for cache
