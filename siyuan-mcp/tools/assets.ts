@@ -4,8 +4,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
-import { uploadAPI, insertBlockAPI, exportResourcesAPI } from '../syapi';
-import { buildDownloadUrl } from '..';
+import { uploadAPI, insertBlockAPI } from '../syapi';
 import { getBlockDBItem, checkIdValid } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
 import { McpToolsProvider } from './baseToolProvider';
@@ -68,20 +67,6 @@ export class AssetToolProvider extends McpToolsProvider<any> {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
-        name: 'siyuan_export_resources',
-        description:
-          'Export files or folders from SiYuan workspace as a zip archive. Returns a download URL for the zip file. Useful for bundling multiple files/assets for download or backup.',
-        schema: {
-          paths: z
-            .array(z.string())
-            .describe('Array of file/folder paths to export (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
-          name: z.string().optional().describe('Custom name for the zip file (without .zip extension)'),
-        },
-        handler: exportResourcesHandler,
-        title: lang('tool_title_export_resources'),
-        annotations: { readOnlyHint: true },
       },
     ];
   }
@@ -260,28 +245,4 @@ async function uploadAssetsBatchHandler(params: {
   } catch (error) {
     return createErrorResponse(`Failed to process the files: ${error}`);
   }
-}
-
-async function exportResourcesHandler(params: { paths: string[]; name?: string }) {
-  const { paths, name } = params;
-  debugPush('Export resources API called');
-
-  if (!paths || paths.length === 0) {
-    return createErrorResponse('At least one path is required.');
-  }
-
-  // Create the zip archive on SiYuan server
-  const exportResult = await exportResourcesAPI(paths, name);
-  if (!exportResult || !exportResult.path) {
-    return createErrorResponse('Failed to create export archive.');
-  }
-
-  const fileName = exportResult.path.split('/').pop() || 'export.zip';
-  const downloadUrl = buildDownloadUrl(exportResult.path);
-
-  return createJsonResponse({
-    fileName,
-    downloadUrl,
-    paths: paths,
-  });
 }
