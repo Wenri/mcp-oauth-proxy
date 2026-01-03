@@ -150,6 +150,7 @@ export async function buildDownloadUrl(path: string): Promise<string> {
     const token = await encryptGrant(grantKey, normalizedPath, encryptionKey);
     return `${workerBaseUrl}/download/${token}${normalizedPath}`;
   }
+  debugPush('buildDownloadUrl fallback:', { workerBaseUrl: !!workerBaseUrl, grantKey: !!grantKey, encryptionKey: !!encryptionKey });
   return `/download/<token>${normalizedPath}`;
 }
 

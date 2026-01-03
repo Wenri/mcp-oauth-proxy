@@ -2,9 +2,11 @@
  * Cryptographic utilities for download URL tokens
  *
  * Uses HKDF + XOR for lightweight encryption of grantKey,
- * with 7-bit packing for userId and base64 decoding for grantId
+ * with GSM 7-bit packing for userId and base64 decoding for grantId
  * to minimize URL length.
  */
+
+import { utils } from 'node-pdu';
 
 // ============================================================================
 // HKDF - Key Derivation
@@ -44,120 +46,45 @@ export async function deriveMask(
 }
 
 // ============================================================================
-// 7-bit ASCII Packing (GSM-style)
+// GSM 7-bit Packing (using node-pdu)
 // ============================================================================
 
 /**
- * Pack ASCII string into 7-bit format (8 chars → 7 bytes)
- * Saves 12.5% space for ASCII-only strings
+ * Pack string into GSM 7-bit format (8 chars → 7 bytes)
+ * Zero padding may create trailing @ (GSM position 0)
  */
 export function pack7bit(str: string): Uint8Array {
-  const bits: number[] = [];
-
-  // Convert each char to 7 bits
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i) & 0x7f; // Keep only 7 bits
-    for (let b = 6; b >= 0; b--) {
-      bits.push((code >> b) & 1);
-    }
-  }
-
-  // Pack bits into bytes
-  const bytes = new Uint8Array(Math.ceil(bits.length / 8));
-  for (let i = 0; i < bits.length; i++) {
-    bytes[Math.floor(i / 8)] |= bits[i] << (7 - (i % 8));
-  }
-
-  return bytes;
+  const { result } = utils.Helper.encode7Bit(str);
+  return utils.Helper.hexToUint8Array(result);
 }
 
 /**
- * Unpack 7-bit format back to ASCII string
+ * Unpack GSM 7-bit format back to string
+ * Trims trailing @ from zero padding (safe for emails/UUIDs)
  */
 export function unpack7bit(bytes: Uint8Array, charCount: number): string {
-  const bits: number[] = [];
-
-  // Extract all bits
-  for (let i = 0; i < bytes.length; i++) {
-    for (let b = 7; b >= 0; b--) {
-      bits.push((bytes[i] >> b) & 1);
-    }
-  }
-
-  // Convert every 7 bits to a char
-  let result = '';
-  for (let i = 0; i < charCount; i++) {
-    let code = 0;
-    for (let b = 0; b < 7; b++) {
-      code = (code << 1) | (bits[i * 7 + b] || 0);
-    }
-    result += String.fromCharCode(code);
-  }
-
-  return result;
+  const hex = Array.from(bytes)
+    .map((b) => utils.Helper.toStringHex(b, 2))
+    .join('');
+  return utils.Helper.decode7Bit(hex, charCount).replace(/@+$/, '');
 }
 
 // ============================================================================
-// Base64URL Encoding/Decoding
+// Base64URL Encoding/Decoding (using Uint8Array.fromBase64/toBase64)
 // ============================================================================
-
-const BASE64URL_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
 /**
  * Decode base64url string to bytes (no padding required)
  */
 export function base64urlDecode(str: string): Uint8Array {
-  // Build lookup table
-  const lookup: Record<string, number> = {};
-  for (let i = 0; i < BASE64URL_CHARS.length; i++) {
-    lookup[BASE64URL_CHARS[i]] = i;
-  }
-
-  // Each 4 chars = 3 bytes, handle remainder
-  const bytes: number[] = [];
-  let buffer = 0;
-  let bitsCollected = 0;
-
-  for (const char of str) {
-    const value = lookup[char];
-    if (value === undefined) continue; // Skip invalid chars
-
-    buffer = (buffer << 6) | value;
-    bitsCollected += 6;
-
-    if (bitsCollected >= 8) {
-      bitsCollected -= 8;
-      bytes.push((buffer >> bitsCollected) & 0xff);
-    }
-  }
-
-  return new Uint8Array(bytes);
+  return Uint8Array.fromBase64(str, { alphabet: 'base64url' });
 }
 
 /**
  * Encode bytes to base64url string (no padding)
  */
 export function base64urlEncode(bytes: Uint8Array): string {
-  let result = '';
-  let buffer = 0;
-  let bitsCollected = 0;
-
-  for (const byte of bytes) {
-    buffer = (buffer << 8) | byte;
-    bitsCollected += 8;
-
-    while (bitsCollected >= 6) {
-      bitsCollected -= 6;
-      result += BASE64URL_CHARS[(buffer >> bitsCollected) & 0x3f];
-    }
-  }
-
-  // Handle remaining bits
-  if (bitsCollected > 0) {
-    result += BASE64URL_CHARS[(buffer << (6 - bitsCollected)) & 0x3f];
-  }
-
-  return result;
+  return bytes.toBase64({ alphabet: 'base64url', omitPadding: true });
 }
 
 // ============================================================================

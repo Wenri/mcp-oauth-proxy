@@ -19,6 +19,7 @@
     "@modelcontextprotocol/sdk": "^1.25.1",
     "agents": "^0.3.3",
     "hono": "^4.11.3",
+    "node-pdu": "^2.1.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {
