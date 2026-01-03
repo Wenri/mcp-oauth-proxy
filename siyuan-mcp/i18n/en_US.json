@@ -123,6 +123,10 @@
   "history_dialog_allids": "All Modified IDs",
   "history_dialog_close": "Close",
   "history_dialog_fullcontent": "Full Content",
+  "history_status_pending": "Pending",
+  "history_status_approved": "Approved",
+  "history_status_rejected": "Rejected",
+  "history_status_unknown": "Unknown",
 
   "history_btn_clean": "Clean history",
   "history_btn_approve_all": "Approve All",
