@@ -32,12 +32,11 @@ export class SiyuanMCP extends McpAgent<EnvWithOAuth, Record<string, never>, Pro
       return;
     }
 
-    // Pass CF Access token and worker base URL from OAuth props
+    // Pass worker base URL from OAuth props
     // If SIYUAN_KERNEL_URL not set, workerBaseUrl is used as default
     await initializeSiyuanMCPServer(
       this.server,
       this.env,
-      this.props?.accessToken,
       this.props?.workerBaseUrl,
       this.env.COOKIE_ENCRYPTION_KEY
     );

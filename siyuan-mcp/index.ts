@@ -28,7 +28,6 @@ export { logPush } from './logger';
 let config: SiyuanConfig | null = null;
 let baseUrl: string = '';
 let authToken: string | undefined;
-let cfAccessToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 let workerBaseUrl: string | undefined;
@@ -111,13 +110,11 @@ export function hasContext(): boolean {
 /**
  * Build auth headers for SiYuan kernel requests.
  * @param token - SiYuan API token
- * @param cfAccessToken - CF Access token for linked app authentication
  * @param cfServiceClientId - CF Access Service Token client ID
  * @param cfServiceClientSecret - CF Access Service Token client secret
  */
 export function buildKernelHeaders(
   token?: string,
-  cfAccessToken?: string,
   cfServiceClientId?: string,
   cfServiceClientSecret?: string
 ): Record<string, string> {
@@ -127,11 +124,6 @@ export function buildKernelHeaders(
 
   if (token) {
     headers['Authorization'] = `Token ${token}`;
-  }
-  // Add CF Access token for linked app authentication
-  // See: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/
-  if (cfAccessToken) {
-    headers['cf-access-token'] = cfAccessToken;
   }
   // Add CF Access Service Token for API authentication
   // See: https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/
@@ -152,7 +144,7 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   }
 
   const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-  const headers = buildKernelHeaders(authToken, cfAccessToken, cfServiceClientId, cfServiceClientSecret);
+  const headers = buildKernelHeaders(authToken, cfServiceClientId, cfServiceClientSecret);
 
   return fetch(fullUrl, {
     ...init,
@@ -195,18 +187,15 @@ export function getAppId(): string {
  *
  * @param server - The MCP server instance to configure
  * @param mcpConfig - SiYuan configuration (kernel URL, tokens, etc.)
- * @param accessToken - Optional CF Access token for linked app authentication
  * @param baseUrl - Optional worker base URL for constructing download URLs
  * @param cookieEncryptionKey - Optional encryption key for download URL tokens
  */
 export async function initializeSiyuanMCPServer(
   server: McpServer,
   mcpConfig: SiyuanMCPConfig,
-  accessToken?: string,
   baseUrl?: string,
   cookieEncryptionKey?: string
 ): Promise<void> {
-  cfAccessToken = accessToken;
   workerBaseUrl = baseUrl;
   encryptionKey = cookieEncryptionKey;
   // initializeContext uses workerBaseUrl as fallback if SIYUAN_KERNEL_URL not set

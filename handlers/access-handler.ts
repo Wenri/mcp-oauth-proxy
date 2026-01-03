@@ -105,10 +105,9 @@ app.get("/download/:token/*", async (c) => {
 	// Fallback to request origin when SIYUAN_KERNEL_URL is not set
 	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 
-	// Build auth headers using service token (user's cfAccessToken not available in new scheme)
+	// Build auth headers using service token
 	const headers = buildKernelHeaders(
 		env.SIYUAN_KERNEL_TOKEN,
-		undefined, // No user cfAccessToken in new scheme
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
