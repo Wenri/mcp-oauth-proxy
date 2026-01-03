@@ -77,10 +77,14 @@ app.get("/download/:token/*", async (c) => {
 
 	// Forward the response with appropriate headers
 	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
+	const contentLength = response.headers.get("Content-Length");
 	const contentDisposition = response.headers.get("Content-Disposition");
 	const filename = filePath.split("/").pop() || "download";
 
 	c.header("Content-Type", contentType);
+	if (contentLength) {
+		c.header("Content-Length", contentLength);
+	}
 	c.header("Content-Disposition", contentDisposition || `attachment; filename="${filename}"`);
 
 	return c.body(response.body as ReadableStream);
