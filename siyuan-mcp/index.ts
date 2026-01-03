@@ -210,11 +210,11 @@ export function buildDownloadUrl(path: string): string {
   // Ensure path has leading slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   if (workerBaseUrl && oauthToken) {
-    // Construct full URL: {workerBaseUrl}/export/{oauthToken}/{path}
-    return `${workerBaseUrl}/export/${oauthToken}${normalizedPath}`;
+    // Construct full URL: {workerBaseUrl}/download/{oauthToken}/{path}
+    return `${workerBaseUrl}/download/${oauthToken}${normalizedPath}`;
   }
   // Fallback: return path with placeholder
-  return `/export/<oauth_token>${normalizedPath}`;
+  return `/download/<oauth_token>${normalizedPath}`;
 }
 
 /**

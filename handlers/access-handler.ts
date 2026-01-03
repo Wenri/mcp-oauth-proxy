@@ -38,12 +38,12 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
-// GET /export/:token/* - Proxy file downloads using OAuth token for auth
-// URL format: /export/{oauth_token}/export/filename.zip
-app.get("/export/:token/*", async (c) => {
+// GET /download/:token/* - Proxy file downloads using OAuth token for auth
+// URL format: /download/{oauth_token}/temp/export/filename.zip
+app.get("/download/:token/*", async (c) => {
 	const env = c.env;
 	const token = c.req.param("token");
-	// Get the path after /export/{token}
+	// Get the path after /download/{token}
 	const path = "/" + c.req.path.split("/").slice(3).join("/");
 
 	// Validate OAuth token and get props (includes cfAccessToken)
