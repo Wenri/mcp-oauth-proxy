@@ -50,7 +50,7 @@ export class SiyuanMCP extends McpAgent<EnvWithOAuth, Record<string, never>, Pro
   async onConnect(conn: Connection, ctx: ConnectionContext) {
     // Capture OAuth token and expiry from Authorization header
     const authHeader = ctx.request?.headers.get('Authorization');
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ') && this.env.OAUTH_PROVIDER) {
       const token = authHeader.slice(7);
 
       // Extract grantKey (userId:grantId) from token
