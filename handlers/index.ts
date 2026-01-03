@@ -6,6 +6,7 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
+import type { Connection, ConnectionContext } from 'agents';
 import { accessApp } from './access-handler';
 import { initializeSiyuanMCPServer, logPush } from '../siyuan-mcp';
 import type { Env } from '../types';
@@ -23,19 +24,35 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
     version: '1.0.0',
   });
 
+  private workerBaseUrl?: string;
+
   async init() {
     if (!this.env.SIYUAN_KERNEL_URL) {
       logPush('Warning: SIYUAN_KERNEL_URL not configured');
       return;
     }
 
-    // Pass CF Access token for linked app authentication to SiYuan kernel
-    await initializeSiyuanMCPServer(this.server, this.env, this.props?.accessToken);
+    // Pass CF Access token and lazy getter for worker base URL
+    await initializeSiyuanMCPServer(
+      this.server,
+      this.env,
+      this.props?.accessToken,
+      () => this.workerBaseUrl
+    );
 
     // Log authenticated user info
     if (this.props?.email) {
       logPush(`Authenticated user: ${this.props.email}`);
     }
+  }
+
+  async onConnect(conn: Connection, ctx: ConnectionContext) {
+    // Capture worker base URL from the request
+    if (ctx.request) {
+      const url = new URL(ctx.request.url);
+      this.workerBaseUrl = url.origin;
+    }
+    return super.onConnect(conn, ctx);
   }
 }
 

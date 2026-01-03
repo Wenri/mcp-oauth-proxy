@@ -30,6 +30,7 @@ let authToken: string | undefined;
 let cfAccessToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
+let getWorkerBaseUrl: (() => string | undefined) | undefined;
 
 /**
  * Initialize the SiYuan context
@@ -168,17 +169,38 @@ export function getAppId(): string {
  * @param server - The MCP server instance to configure
  * @param mcpConfig - SiYuan configuration (kernel URL, tokens, etc.)
  * @param accessToken - Optional CF Access token for linked app authentication
+ * @param baseUrlGetter - Optional lazy getter for worker base URL (resolved when needed)
  */
 export async function initializeSiyuanMCPServer(
   server: McpServer,
   mcpConfig: SiyuanMCPConfig,
-  accessToken?: string
+  accessToken?: string,
+  baseUrlGetter?: () => string | undefined
 ): Promise<void> {
   cfAccessToken = accessToken;
+  getWorkerBaseUrl = baseUrlGetter;
   await initializeContext(mcpConfig);
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);
   logPush('SiYuan MCP server initialized with tools');
+}
+
+/**
+ * Build a download URL for an export file using the CF Access token
+ * Returns the full URL if workerBaseUrl and cfAccessToken are available,
+ * otherwise returns just the path.
+ *
+ * @param path - The export path from SiYuan kernel (e.g., "/export/filename.zip")
+ * @returns Full download URL or path
+ */
+export function buildDownloadUrl(path: string): string {
+  const workerBaseUrl = getWorkerBaseUrl?.();
+  if (workerBaseUrl && cfAccessToken) {
+    // Construct full URL: {workerBaseUrl}/export/{cfAccessToken}{path}
+    return `${workerBaseUrl}/export/${cfAccessToken}${path}`;
+  }
+  // Fallback: return path with placeholder
+  return `/export/<cf_access_token>${path}`;
 }
 
 /**

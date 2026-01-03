@@ -38,11 +38,11 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
-// GET /export/:token/* - Proxy file downloads using OAuth token for auth
-// URL format: /export/{oauth_token}/export/filename.zip
+// GET /export/:token/* - Proxy file downloads using CF Access token for auth
+// URL format: /export/{cf_access_token}/export/filename.zip
 app.get("/export/:token/*", async (c) => {
 	const env = c.env;
-	const token = c.req.param("token");
+	const cfAccessToken = c.req.param("token");
 	// Get the path after /export/{token}
 	const path = "/" + c.req.path.split("/").slice(3).join("/");
 
@@ -50,16 +50,17 @@ app.get("/export/:token/*", async (c) => {
 		return c.text("SIYUAN_KERNEL_URL not configured", 500);
 	}
 
-	// Validate OAuth token and get props
-	const tokenData = await env.OAUTH_PROVIDER.unwrapToken<Props>(token);
-	if (!tokenData) {
+	// Validate CF Access token by verifying the JWT
+	try {
+		await verifyToken(env, cfAccessToken);
+	} catch (error) {
 		return c.text("Invalid or expired token", 401);
 	}
 
-	// Build auth headers using cfAccessToken from props
+	// Build auth headers using cfAccessToken
 	const headers = buildKernelHeaders(
 		env.SIYUAN_KERNEL_TOKEN,
-		tokenData.grant.props.accessToken,
+		cfAccessToken,
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);

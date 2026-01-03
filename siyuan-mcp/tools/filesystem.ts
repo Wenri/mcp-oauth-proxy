@@ -8,6 +8,7 @@ import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exp
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
+import { buildDownloadUrl } from '..';
 
 export class FileSystemToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -99,7 +100,7 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_export_resources',
         description:
-          'Export files or folders from SiYuan workspace as a zip archive. Returns the zip file as base64 encoded content. Useful for bundling multiple files/assets for download or backup.',
+          'Export files or folders from SiYuan workspace as a zip archive. Returns a download URL for the zip file. Useful for bundling multiple files/assets for download or backup.',
         schema: {
           paths: z
             .array(z.string())
@@ -302,12 +303,11 @@ async function exportResourcesHandler(params: { paths: string[]; name?: string }
   }
 
   const fileName = exportResult.path.split('/').pop() || 'export.zip';
+  const downloadUrl = buildDownloadUrl(exportResult.path);
 
-  // Return the kernel path - /export handler will use OAuth token for auth
   return createJsonResponse({
     fileName,
-    downloadPath: exportResult.path,
-    message: `Export created. Download from: /export/<oauth_token>${exportResult.path}`,
+    downloadUrl,
     paths: paths,
   });
 }
