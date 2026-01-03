@@ -151,7 +151,7 @@ async function readFileHandler(params: { path: string }) {
 
   // Cache all files for faster subsequent downloads
   const cache = caches.default;
-  const cacheKey = new Request(`https://siyuan-cache/${path}`);
+  const cacheKey = `https://siyuan-cache${path}`;
   const cached = await cache.match(cacheKey);
 
   if (isText) {

@@ -57,7 +57,7 @@ app.get("/download/:token/*", async (c) => {
 
 	// Check cache first (keyed by file path, not token)
 	const cache = caches.default;
-	const cacheKey = new Request(`https://siyuan-cache/${filePath}`);
+	const cacheKey = `https://siyuan-cache/${filePath}`;
 	const cached = await cache.match(cacheKey);
 	if (cached) {
 		// Clone cached response to add Content-Disposition header
