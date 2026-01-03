@@ -75,19 +75,18 @@ app.get("/download/:token/*", async (c) => {
 		return c.text(`Failed to fetch export file: ${response.status}`, response.status as any);
 	}
 
-	// Forward the response with appropriate headers
-	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
-	const contentLength = response.headers.get("Content-Length");
-	const contentDisposition = response.headers.get("Content-Disposition");
-	const filename = filePath.split("/").pop() || "download";
-
-	c.header("Content-Type", contentType);
-	if (contentLength) {
-		c.header("Content-Length", contentLength);
+	// Forward the response directly, preserving headers
+	const responseHeaders = new Headers(response.headers);
+	// Ensure Content-Disposition is set for downloads
+	if (!responseHeaders.has("Content-Disposition")) {
+		const filename = filePath.split("/").pop() || "download";
+		responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
 	}
-	c.header("Content-Disposition", contentDisposition || `attachment; filename="${filename}"`);
 
-	return c.body(response.body as ReadableStream);
+	return new Response(response.body, {
+		status: response.status,
+		headers: responseHeaders,
+	});
 });
 
 // GET /authorize - Show approval dialog or redirect if already approved
