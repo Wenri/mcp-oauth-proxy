@@ -146,24 +146,37 @@ async function readFileHandler(params: { path: string }) {
   }
 
   const { response, contentType } = result;
+  const downloadUrl = buildDownloadUrl(path);
+  const isText = isTextMimeType(contentType) || isTextExtension(path);
 
-  // Check if text: trust MIME type first, then fall back to extension
-  if (isTextMimeType(contentType) || isTextExtension(path)) {
+  // Cache all files for faster subsequent downloads
+  const cache = caches.default;
+  const cacheKey = new Request(`https://siyuan-cache/${path}`);
+  const cached = await cache.match(cacheKey);
+
+  if (isText) {
+    // Text file: read content and cache
     const text = await response.text();
-    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType });
+    if (!cached) {
+      waitUntil(
+        cache.put(
+          cacheKey,
+          new Response(text, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
+            },
+          }),
+        ),
+      );
+    }
+    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl });
   }
 
   // Binary file: tee stream to cache while returning download URL
-  const cache = caches.default;
-  const cacheKey = new Request(`https://siyuan-cache/${path}`);
-
-  // Check if already cached
-  const cached = await cache.match(cacheKey);
   if (!cached) {
-    // Tee stream - one for cache, one discarded (we just return URL)
     const [cacheStream, _] = response.body!.tee();
-
-    // Cache the response in background
     waitUntil(
       cache.put(
         cacheKey,
@@ -178,8 +191,6 @@ async function readFileHandler(params: { path: string }) {
     );
   }
 
-  // Return download URL (body not fully read by us)
-  const downloadUrl = buildDownloadUrl(path);
   return createJsonResponse({
     path,
     type: 'binary',
