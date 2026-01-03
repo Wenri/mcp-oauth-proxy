@@ -43,8 +43,8 @@ app.onError((error, c) => {
 app.get("/download/:token/*", async (c) => {
 	const env = c.env;
 	const token = c.req.param("token");
-	// Get the path after /download/{token}
-	const path = "/" + c.req.path.split("/").slice(3).join("/");
+	// Get the path after /download/{token} (without leading slash for API)
+	const filePath = c.req.path.split("/").slice(3).join("/");
 
 	// Validate OAuth token and get props (includes cfAccessToken)
 	const tokenData = await env.OAUTH_PROVIDER.unwrapToken<Props>(token);
@@ -62,8 +62,14 @@ app.get("/download/:token/*", async (c) => {
 		env.CF_ACCESS_SERVICE_CLIENT_ID,
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
-	const proxyUrl = new URL(path, kernelUrl).href;
-	const response = await fetch(proxyUrl, { headers });
+
+	// Use /api/file/getFile API to fetch the file
+	const apiUrl = new URL("/api/file/getFile", kernelUrl).href;
+	const response = await fetch(apiUrl, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ path: filePath }),
+	});
 
 	if (!response.ok) {
 		return c.text(`Failed to fetch export file: ${response.status}`, response.status as any);
@@ -72,14 +78,10 @@ app.get("/download/:token/*", async (c) => {
 	// Forward the response with appropriate headers
 	const contentType = response.headers.get("Content-Type") || "application/octet-stream";
 	const contentDisposition = response.headers.get("Content-Disposition");
+	const filename = filePath.split("/").pop() || "download";
 
 	c.header("Content-Type", contentType);
-	if (contentDisposition) {
-		c.header("Content-Disposition", contentDisposition);
-	} else {
-		const filename = path.split("/").pop() || "download";
-		c.header("Content-Disposition", `attachment; filename="${filename}"`);
-	}
+	c.header("Content-Disposition", contentDisposition || `attachment; filename="${filename}"`);
 
 	return c.body(response.body as ReadableStream);
 });
