@@ -41,13 +41,12 @@ export function setOAuthToken(token: string): void {
 /**
  * Initialize the SiYuan context
  * Fetches config from kernel API on initialization
- * @param options - SiYuan MCP configuration
- * @param fallbackUrl - Fallback URL if SIYUAN_KERNEL_URL not set (e.g., workerBaseUrl)
+ * Falls back to workerBaseUrl if SIYUAN_KERNEL_URL not set
  */
-export async function initializeContext(options: SiyuanMCPConfig, fallbackUrl?: string): Promise<void> {
-  const kernelUrl = options.SIYUAN_KERNEL_URL || fallbackUrl;
+export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
+  const kernelUrl = options.SIYUAN_KERNEL_URL || workerBaseUrl;
   if (!kernelUrl) {
-    throw new Error('SIYUAN_KERNEL_URL is required (or provide fallbackUrl)');
+    throw new Error('SIYUAN_KERNEL_URL is required (or set workerBaseUrl first)');
   }
   baseUrl = kernelUrl.replace(/\/$/, '');
   authToken = options.SIYUAN_KERNEL_TOKEN;
@@ -191,8 +190,8 @@ export async function initializeSiyuanMCPServer(
 ): Promise<void> {
   cfAccessToken = accessToken;
   workerBaseUrl = baseUrl;
-  // Pass workerBaseUrl as fallback if SIYUAN_KERNEL_URL not set
-  await initializeContext(mcpConfig, baseUrl);
+  // initializeContext uses workerBaseUrl as fallback if SIYUAN_KERNEL_URL not set
+  await initializeContext(mcpConfig);
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);
   logPush('SiYuan MCP server initialized with tools');
