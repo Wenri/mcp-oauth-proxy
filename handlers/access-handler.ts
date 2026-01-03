@@ -38,8 +38,8 @@ app.onError((error, c) => {
 	return c.text(`Error: ${error.message}`, 500);
 });
 
-// Cache TTL for downloaded files (1 hour)
-const DOWNLOAD_CACHE_TTL = 3600;
+// Cache TTL matches OAuth access token TTL (1 hour)
+const CACHE_TTL = 3600;
 
 // GET /download/:token/* - Proxy file downloads using OAuth token for auth
 // URL format: /download/{oauth_token}/temp/export/filename.zip
@@ -55,12 +55,12 @@ app.get("/download/:token/*", async (c) => {
 		return c.text("Invalid or expired token", 401);
 	}
 
-	// Check cache first (keyed by file path, not token)
+	// Check cache first (keyed by full URL including token)
 	const cache = caches.default;
-	const cacheKey = `https://siyuan-cache/${filePath}`;
+	const cacheKey = c.req.url;
 	const cached = await cache.match(cacheKey);
 	if (cached) {
-		// Clone cached response to add Content-Disposition header
+		// Return cached response with Content-Disposition header
 		const filename = filePath.split("/").pop() || "download";
 		const headers = new Headers(cached.headers);
 		headers.set("Content-Disposition", `attachment; filename="${filename}"`);
@@ -110,7 +110,7 @@ app.get("/download/:token/*", async (c) => {
 				status: response.status,
 				headers: {
 					"Content-Type": contentType,
-					"Cache-Control": `public, max-age=${DOWNLOAD_CACHE_TTL}`,
+					"Cache-Control": `public, max-age=${CACHE_TTL}`,
 					...(contentLength ? { "Content-Length": contentLength } : {}),
 				},
 			}),

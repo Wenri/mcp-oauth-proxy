@@ -11,8 +11,8 @@ import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl } from '..';
 
-// Cache TTL for files (1 hour)
-const FILE_CACHE_TTL = 3600;
+// Cache TTL matches OAuth access token TTL (1 hour)
+const CACHE_TTL = 3600;
 
 export class FileSystemToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -149,10 +149,9 @@ async function readFileHandler(params: { path: string }) {
   const downloadUrl = buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
 
-  // Cache all files for faster subsequent downloads
+  // Cache using downloadUrl as key (includes token, per-user cache)
   const cache = caches.default;
-  const cacheKey = `https://siyuan-cache${path}`;
-  const cached = await cache.match(cacheKey);
+  const cached = await cache.match(downloadUrl);
 
   if (isText) {
     // Text file: read content and cache
@@ -160,18 +159,18 @@ async function readFileHandler(params: { path: string }) {
     if (!cached) {
       waitUntil(
         cache.put(
-          cacheKey,
+          downloadUrl,
           new Response(text, {
             status: 200,
             headers: {
               'Content-Type': contentType,
-              'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
+              'Cache-Control': `public, max-age=${CACHE_TTL}`,
             },
           }),
         ),
       );
     }
-    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl });
+    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, cacheTtl: CACHE_TTL });
   }
 
   // Binary file: tee stream to cache while returning download URL
@@ -179,12 +178,12 @@ async function readFileHandler(params: { path: string }) {
     const [cacheStream, _] = response.body!.tee();
     waitUntil(
       cache.put(
-        cacheKey,
+        downloadUrl,
         new Response(cacheStream, {
           status: response.status,
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': `public, max-age=${FILE_CACHE_TTL}`,
+            'Cache-Control': `public, max-age=${CACHE_TTL}`,
           },
         }),
       ),
@@ -196,6 +195,7 @@ async function readFileHandler(params: { path: string }) {
     type: 'binary',
     mimeType: contentType,
     downloadUrl,
+    cacheTtl: CACHE_TTL,
   });
 }
 
