@@ -43,6 +43,9 @@ export function setOAuthToken(token: string): void {
  * Fetches config from kernel API on initialization
  */
 export async function initializeContext(options: SiyuanMCPConfig): Promise<void> {
+  if (!options.SIYUAN_KERNEL_URL) {
+    throw new Error('SIYUAN_KERNEL_URL is required');
+  }
   baseUrl = options.SIYUAN_KERNEL_URL.replace(/\/$/, '');
   authToken = options.SIYUAN_KERNEL_TOKEN;
   cfServiceClientId = options.CF_ACCESS_SERVICE_CLIENT_ID;
@@ -185,7 +188,11 @@ export async function initializeSiyuanMCPServer(
 ): Promise<void> {
   cfAccessToken = accessToken;
   workerBaseUrl = baseUrl;
-  await initializeContext(mcpConfig);
+  // Use workerBaseUrl as default if SIYUAN_KERNEL_URL not set
+  const effectiveConfig = mcpConfig.SIYUAN_KERNEL_URL
+    ? mcpConfig
+    : { ...mcpConfig, SIYUAN_KERNEL_URL: baseUrl };
+  await initializeContext(effectiveConfig);
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);
   logPush('SiYuan MCP server initialized with tools');

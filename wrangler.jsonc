@@ -72,8 +72,8 @@
   // - RAG_API_KEY: RAG backend API key
 
   "vars": {
-    // SiYuan kernel URL (required for Durable Objects)
-    "SIYUAN_KERNEL_URL": "https://sy.wenri.me"
+    // SiYuan kernel URL (optional, defaults to workerBaseUrl from OAuth)
+    // "SIYUAN_KERNEL_URL": "https://sy.wenri.me"
 
     // RAG backend configuration (optional)
     // "RAG_BASE_URL": "http://127.0.0.1:26808",

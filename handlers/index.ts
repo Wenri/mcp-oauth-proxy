@@ -25,12 +25,14 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   });
 
   async init() {
-    if (!this.env.SIYUAN_KERNEL_URL) {
-      logPush('Warning: SIYUAN_KERNEL_URL not configured');
+    const kernelUrl = this.env.SIYUAN_KERNEL_URL || this.props?.workerBaseUrl;
+    if (!kernelUrl) {
+      logPush('Warning: Neither SIYUAN_KERNEL_URL nor workerBaseUrl available');
       return;
     }
 
     // Pass CF Access token and worker base URL from OAuth props
+    // If SIYUAN_KERNEL_URL not set, workerBaseUrl is used as default
     await initializeSiyuanMCPServer(
       this.server,
       this.env,
