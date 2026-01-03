@@ -52,6 +52,10 @@ export async function initializeContext(options: SiyuanMCPConfig): Promise<void>
 
   try {
     const response = await kernelFetch('/api/system/getConf', { method: 'POST', body: '{}' });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Kernel returned ${response.status}: ${text.slice(0, 100)}`);
+    }
     const result = (await response.json()) as { code: number; data: { conf: SiyuanConfig } };
     if (result.code !== 0) {
       throw new Error('Failed to get SiYuan config');

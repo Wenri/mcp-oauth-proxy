@@ -17,6 +17,10 @@ export async function postRequest(data: any, url: string): Promise<any> {
     body: JSON.stringify(data),
     method: 'POST',
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
+  }
   return response.json();
 }
 
@@ -628,6 +632,11 @@ export async function getFileAPIv2(path: string): Promise<Blob | any | null> {
     body: JSON.stringify({ path }),
   });
 
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
+  }
+
   const contentType = response.headers.get('Content-Type') || '';
 
   if (contentType.includes('application/json')) {
@@ -671,6 +680,10 @@ export async function putJSONFile(path: string, object: any, format = false): Pr
     body: formData,
     headers: {}, // Clear Content-Type to let FormData set boundary
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
+  }
   return response.json();
 }
 
@@ -723,6 +736,10 @@ export async function putFileAPI(
     body: formData,
     headers: {},
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
+  }
   const result = await response.json() as { code: number };
   return result.code === 0;
 }
@@ -746,6 +763,10 @@ export async function uploadAPI(
     body: formData,
     headers: {},
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
+  }
   const result = await response.json() as {
     code: number;
     data?: { succMap: Record<string, string>; errFiles: string[] };
