@@ -143,6 +143,16 @@ async function readFileHandler(params: { path: string }) {
   const contentLength = response.headers.get('Content-Length');
   const knownSize = contentLength ? parseInt(contentLength, 10) : null;
 
+  // Build cache headers from upstream, override what we need
+  const buildCacheHeaders = (overrides: Record<string, string> = {}) => {
+    const headers = new Headers(response.headers);
+    headers.set('Cache-Control', `public, max-age=${cacheTtl}`);
+    for (const [key, value] of Object.entries(overrides)) {
+      headers.set(key, value);
+    }
+    return headers;
+  };
+
   // Helper to cache and return inline content
   const returnInline = (data: Uint8Array) => {
     if (!cached && cacheTtl > 0) {
@@ -151,11 +161,7 @@ async function readFileHandler(params: { path: string }) {
           downloadUrl,
           new Response(data, {
             status: 200,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': `public, max-age=${cacheTtl}`,
-              'Content-Length': data.length.toString(),
-            },
+            headers: buildCacheHeaders({ 'Content-Length': data.length.toString() }),
           }),
         ),
       );
@@ -174,10 +180,7 @@ async function readFileHandler(params: { path: string }) {
           downloadUrl,
           new Response(stream, {
             status: response.status,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': `public, max-age=${cacheTtl}`,
-            },
+            headers: buildCacheHeaders(),
           }),
         ),
       );
