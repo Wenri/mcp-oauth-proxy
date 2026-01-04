@@ -176,7 +176,7 @@ async function loadTools(
         {
           title: tool.title,
           description: tool.description,
-          inputSchema: tool.schema || {},
+          inputSchema: tool.inputSchema || {},
           annotations: tool.annotations,
         },
         async (params: any) => {

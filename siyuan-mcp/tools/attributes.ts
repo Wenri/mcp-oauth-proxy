@@ -19,7 +19,7 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_set_block_attributes',
         description:
           "Set, update, or delete attributes for a specific block. To delete an attribute, set its value to an empty string.",
-        schema: {
+        inputSchema: {
           blockId: z.string().describe('The ID of the block to modify.'),
           attributes: z
             .record(z.string())
@@ -38,7 +38,7 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_get_block_attributes',
         description: 'Get all attributes of a specific block.',
-        schema: {
+        inputSchema: {
           blockId: z.string().describe('The ID of the block to get attributes from.'),
         },
         handler: getBlockAttributesHandler,
@@ -51,7 +51,7 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_batch_set_attributes',
         description:
           'Set attributes on multiple blocks at once. More efficient than calling set_block_attributes multiple times.',
-        schema: {
+        inputSchema: {
           blocks: z
             .array(
               z.object({

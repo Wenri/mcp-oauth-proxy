@@ -19,7 +19,7 @@ export class AssetToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_upload_asset',
         description:
           'Upload a file (image, document, etc.) to SiYuan assets. The file content should be base64 encoded. Optionally auto-inserts the asset into a document block.',
-        schema: {
+        inputSchema: {
           fileName: z.string().describe('Name of the file including extension (e.g., "image.png", "document.pdf")'),
           base64Content: z.string().describe('Base64 encoded content of the file'),
           assetsDirPath: z
@@ -47,7 +47,7 @@ export class AssetToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_upload_assets_batch',
         description:
           'Upload multiple files to SiYuan assets in a single request. Each file should have a name and base64 encoded content.',
-        schema: {
+        inputSchema: {
           files: z
             .array(
               z.object({

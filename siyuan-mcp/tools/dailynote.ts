@@ -27,7 +27,7 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_append_to_dailynote',
         description: lang('tool_append_dailynote'),
-        schema: {
+        inputSchema: {
           markdownContent: z
             .string()
             .describe("The Markdown-formatted content to append to today's daily note."),
@@ -49,7 +49,7 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_list_notebook',
         description:
           'List all notebooks in SiYuan and return their metadata(such as id, open status, dailyNoteSavePath etc.).',
-        schema: {},
+        inputSchema: {},
         handler: listNotebookHandler,
         title: lang('tool_title_list_notebook'),
         annotations: {

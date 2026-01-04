@@ -20,7 +20,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_read_doc_content_markdown',
         description: 'Retrieve the content of a document or block by its ID',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document or block'),
           offset: z
             .number()
@@ -39,7 +39,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_get_block_kramdown',
         description:
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the block'),
         },
         handler: kramdownReadHandler,
@@ -50,7 +50,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_get_hpath',
         description:
           'Get the human-readable path (hpath) for a document or block by its ID. Optionally includes document outline for context.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document or block'),
           includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
         },
@@ -62,7 +62,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_get_doc_outline',
         description:
           'Get the outline (table of contents) of a document. Returns headings hierarchy which helps understand document structure.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document'),
         },
         handler: getDocOutlineHandler,
@@ -73,7 +73,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_export_html',
         description:
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document'),
         },
         handler: exportHtmlHandler,

@@ -22,7 +22,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_insert_block',
         description:
           'Insert a new block at a specified position. Content must be in markdown format. Position is anchored by one of: `nextID` (ID of block after), `previousID` (ID of block before), or `parentID` (parent block ID). `nextID` has highest priority.',
-        schema: {
+        inputSchema: {
           data: z.string().describe('The markdown content to insert'),
           nextID: z.string().optional().describe('ID of the block after the insertion point'),
           previousID: z.string().optional().describe('ID of the block before the insertion point'),
@@ -43,7 +43,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_prepend_block',
         description:
           'Insert a new block at the beginning of a parent block\'s children. Content must be in markdown format.',
-        schema: {
+        inputSchema: {
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('ID of the parent block (must be a container block)'),
         },
@@ -59,7 +59,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_append_block',
         description:
           'Insert a new block at the end of a parent block\'s children. Content must be in markdown format.',
-        schema: {
+        inputSchema: {
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('ID of the parent block (must be a container block)'),
         },
@@ -75,7 +75,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_update_block',
         description:
           'Update an existing block\'s content by ID. Content should be in Kramdown format. Using markdown format will lose block attributes.',
-        schema: {
+        inputSchema: {
           data: z.string().describe('The new content in Kramdown format'),
           id: z.string().describe('ID of the block to update'),
         },
@@ -90,7 +90,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_delete_block',
         description: 'Delete a block by its ID. This action is irreversible.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('ID of the block to delete'),
         },
         handler: deleteBlockHandler,
@@ -105,7 +105,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_move_block',
         description:
           'Move a block to a new position. Specify either parentID (to move as child of a container) or previousID (to move after a specific block). If both are provided, previousID takes precedence.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('ID of the block to move'),
           parentID: z.string().optional().describe('ID of the new parent block (must be a container block)'),
           previousID: z.string().optional().describe('ID of the block after which to place the moved block'),
@@ -121,7 +121,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_fold_block',
         description: 'Fold (collapse) a block to hide its children. Works on headings and other container blocks.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('ID of the block to fold'),
         },
         handler: foldBlockHandler,
@@ -135,7 +135,7 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_unfold_block',
         description: 'Unfold (expand) a block to show its children.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('ID of the block to unfold'),
         },
         handler: unfoldBlockHandler,

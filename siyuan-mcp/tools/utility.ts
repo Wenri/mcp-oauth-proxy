@@ -16,7 +16,7 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
       {
         name: 'get_current_time',
         description: lang('tool_get_current_time'),
-        schema: {},
+        inputSchema: {},
         handler: getCurrentTimeHandler,
         title: lang('tool_title_get_current_time'),
         annotations: {
@@ -27,7 +27,7 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_push_notification',
         description:
           'Push a notification message to the SiYuan UI. Useful for notifying the user about task progress or completion.',
-        schema: {
+        inputSchema: {
           message: z.string().describe('The notification message to display'),
           timeout: z
             .number()
@@ -46,7 +46,7 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_reindex_doc',
         description:
           'Reindex a document tree. Useful after batch operations to ensure the index is up to date.',
-        schema: {
+        inputSchema: {
           path: z.string().describe('The document path to reindex (e.g., "/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy")'),
         },
         handler: reindexDocHandler,
@@ -61,7 +61,7 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_flush_transaction',
         description:
           'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
-        schema: {},
+        inputSchema: {},
         handler: flushTransactionHandler,
         title: lang('tool_title_flush_transaction'),
         annotations: {

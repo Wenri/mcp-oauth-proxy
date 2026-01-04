@@ -21,7 +21,7 @@ export class SearchToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_search',
         description:
           'Perform a keyword-based full-text search across blocks in SiYuan (e.g., paragraphs, headings). This tool only matches literal text content in document bodies or headings. For dynamic queries (dailynote(i.e. diary), path restrictions, date ranges), use sql with `siyuan_query_sql` tool instead. Results are grouped by their containing documents with limit page size 10.',
-        schema: {
+        inputSchema: {
           query: z.string().describe('The keyword or phrase to search for across content blocks.'),
           page: z
             .number()
@@ -66,7 +66,7 @@ export class SearchToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_query_syntax',
         description:
           "Provides documentation about SiYuan's advanced query syntax for searching content blocks, including boolean operators (AND, OR, NOT).",
-        schema: {},
+        inputSchema: {},
         handler: querySyntaxHandler,
         title: lang('tool_title_query_syntax'),
         annotations: {

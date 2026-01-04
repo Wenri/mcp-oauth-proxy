@@ -21,7 +21,7 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_create_flashcards_with_new_doc',
         description: 'Create New Document, and Make Flashcards with Specific Method',
-        schema: {
+        inputSchema: {
           parentId: z
             .string()
             .describe('The ID of the parent document where the new document will be created.'),
@@ -50,7 +50,7 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_create_flashcards',
         description: 'Create flashcards from one or more block IDs.',
-        schema: {
+        inputSchema: {
           blockIds: z
             .array(z.string())
             .describe('The IDs of the blocks to be converted into flashcards.'),
@@ -70,7 +70,7 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_delete_flashcards',
         description: 'Delete flashcards from a deck using their corresponding block IDs.',
-        schema: {
+        inputSchema: {
           blockIds: z
             .array(z.string())
             .describe('The IDs of the blocks corresponding to the flashcards to be deleted.'),

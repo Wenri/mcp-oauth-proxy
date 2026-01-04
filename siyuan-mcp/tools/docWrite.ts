@@ -20,7 +20,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_append_markdown_to_doc',
         description: 'Append Markdown content to the end of a document in SiYuan by its ID.',
-        schema: {
+        inputSchema: {
           id: z
             .string()
             .describe('The unique identifier of the document to which the Markdown content will be appended.'),
@@ -40,7 +40,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_create_new_note_with_markdown_content',
         description:
           'Create a new note under a parent document in SiYuan with a specified title and Markdown content.',
-        schema: {
+        inputSchema: {
           parentId: z
             .string()
             .describe(
@@ -60,7 +60,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_rename_doc',
         description: 'Rename a document by its ID.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document to rename'),
           title: z.string().describe('The new title for the document'),
         },
@@ -75,7 +75,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
       {
         name: 'siyuan_remove_doc',
         description: 'Delete a document by its ID. This action moves the document to trash and is irreversible.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier of the document to delete'),
         },
         handler: removeDocHandler,
@@ -90,7 +90,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_move_docs',
         description:
           'Move one or more documents to a new location. Accepts either document IDs or full paths (notebook/path format).',
-        schema: {
+        inputSchema: {
           fromDocs: z
             .array(z.string())
             .describe('Array of document IDs or full paths (e.g., "20210808180117-abc" or "notebook123/path/to/doc.sy")'),

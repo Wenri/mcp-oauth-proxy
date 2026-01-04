@@ -18,7 +18,7 @@ export class RelationToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_get_doc_backlinks',
         description:
           "Retrieve all documents or blocks that reference a specified document or block within the workspace. The result includes the referencing document's ID, name, notebook ID, and path. Useful for understanding backlinks and document relationships within the knowledge base.",
-        schema: {
+        inputSchema: {
           id: z
             .string()
             .describe(
@@ -37,7 +37,7 @@ export class RelationToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_list_sub_docs',
         description:
           'Retrieve the basic information of sub-documents under a specified document within the SiYuan workspace. Useful for analyzing document structure and hierarchy relationships.',
-        schema: {
+        inputSchema: {
           id: z
             .string()
             .describe(
@@ -56,7 +56,7 @@ export class RelationToolProvider extends McpToolsProvider<any> {
         name: 'siyuan_get_children_blocks',
         description:
           'Get all child blocks under a parent block by its ID. This includes directly nested blocks and blocks under headings. Long block content will be abbreviated. Useful for understanding block hierarchy and content organization.',
-        schema: {
+        inputSchema: {
           id: z.string().describe('The unique identifier (ID) of the parent block.'),
         },
         handler: getChildBlocksTool,
