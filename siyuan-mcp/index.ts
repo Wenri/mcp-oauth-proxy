@@ -10,7 +10,7 @@ import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
-import { initKernel, postRequest } from './syapi';
+import { initKernel, postRequest, normalizePath } from './syapi';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -128,7 +128,7 @@ export async function initializeSiyuanMCPServer(
  * Build a download URL for an export file using encrypted grant token
  */
 export async function buildDownloadUrl(path: string): Promise<string> {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = normalizePath(path);
   if (workerBaseUrl && grantKey && encryptionKey) {
     const token = await encryptGrant(grantKey, normalizedPath, encryptionKey);
     return `${workerBaseUrl}/download/${token}${normalizedPath}`;

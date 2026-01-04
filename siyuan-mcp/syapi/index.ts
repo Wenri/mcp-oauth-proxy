@@ -743,7 +743,7 @@ export function isTextExtension(path: string): boolean {
 
 /** Default cache TTL: 1 hour for files, 60s for API responses */
 const DEFAULT_FILE_CACHE_TTL = 3600;
-const DEFAULT_API_CACHE_TTL = 60;
+const DEFAULT_API_CACHE_TTL = 180;
 
 /**
  * Cached POST request for JSON APIs.
@@ -814,9 +814,8 @@ export function cacheResponse(
   return new Response(body, { status: 200, headers });
 }
 
-/** Normalize file path for consistent cache keys */
-function normalizePath(path: string): string {
-  // Ensure leading slash, remove trailing slash, collapse double slashes
+/** Normalize file path: ensure leading slash, collapse double slashes, remove trailing slash */
+export function normalizePath(path: string): string {
   return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
 }
 

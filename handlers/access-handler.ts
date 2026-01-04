@@ -22,7 +22,7 @@ import {
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
-import { initKernel, getFileAPIv2 } from "../siyuan-mcp/syapi";
+import { initKernel, getFileAPIv2, normalizePath } from "../siyuan-mcp/syapi";
 import { decryptGrant } from "../siyuan-mcp/utils/crypto";
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
@@ -54,8 +54,8 @@ app.onError((error, c) => {
 app.get("/download/:token/*", async (c) => {
 	const env = c.env;
 	const token = c.req.param("token");
-	// Get the path after /download/{token} (with leading slash for decryption)
-	const filePath = "/" + c.req.path.split("/").slice(3).join("/");
+	// Get the path after /download/{token}, normalized to match encryption
+	const filePath = normalizePath(c.req.path.split("/").slice(3).join("/"));
 
 	// Decrypt token to get grantKey
 	let grantKey: string;
