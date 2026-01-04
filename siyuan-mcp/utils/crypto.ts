@@ -51,19 +51,27 @@ export async function deriveMask(
 
 /**
  * Pack string into GSM 7-bit format (8 chars → 7 bytes)
- * Zero padding may create trailing @ (GSM position 0)
+ * Uses ESC (0x1B) padding when length % 8 == 7 to avoid phantom @ character
  */
 export function pack7bit(str: string): Uint8Array {
   const { result } = utils.Helper.encode7Bit(str);
-  return utils.Helper.hexToUint8Array(result);
+  const bytes = utils.Helper.hexToUint8Array(result);
+
+  // When length % 8 == 7, we have 7 padding bits in the last byte
+  // Use ESC (0x1B) padding instead of zero to avoid phantom @ on decode
+  // ESC at end of stream is ignored by GSM decoder
+  if (str.length % 8 === 7) {
+    bytes[bytes.length - 1] = (0x1b << 1) | (bytes[bytes.length - 1] & 0x01);
+  }
+
+  return bytes;
 }
 
 /**
  * Unpack GSM 7-bit format back to string
- * Trims trailing @ from zero padding (safe for emails/UUIDs)
  */
 export function unpack7bit(bytes: Uint8Array, charCount: number): string {
-  return utils.Helper.decode7Bit(bytes.toHex(), charCount).replace(/@+$/, '');
+  return utils.Helper.decode7Bit(bytes.toHex(), charCount);
 }
 
 // ============================================================================
