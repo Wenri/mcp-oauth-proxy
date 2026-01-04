@@ -5,15 +5,13 @@
 export { McpResourceProvider } from './baseResourceProvider';
 export type { ResourceContext } from './baseResourceProvider';
 export { DocumentationResourceProvider } from './documentation';
-export { NotebookResourceProvider } from './notebooks';
-export { DocumentResourceProvider } from './documents';
 export { BlockResourceProvider } from './blocks';
+export { PathResourceProvider } from './paths';
 
 import { McpResourceProvider } from './baseResourceProvider';
 import { DocumentationResourceProvider } from './documentation';
-import { NotebookResourceProvider } from './notebooks';
-import { DocumentResourceProvider } from './documents';
 import { BlockResourceProvider } from './blocks';
+import { PathResourceProvider } from './paths';
 
 /**
  * Get all resource providers
@@ -21,8 +19,7 @@ import { BlockResourceProvider } from './blocks';
 export function getAllResourceProviders(): McpResourceProvider[] {
   return [
     new DocumentationResourceProvider(),
-    new NotebookResourceProvider(),
-    new DocumentResourceProvider(),
     new BlockResourceProvider(),
+    new PathResourceProvider(),
   ];
 }

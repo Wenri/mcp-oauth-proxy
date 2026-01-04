@@ -1,11 +1,14 @@
 /**
- * Block resources
+ * Block resources - unified access to notebooks, documents, and blocks by ID
  * URI scheme: syblk://{id}
+ *
+ * In SiYuan, notebooks, documents, and blocks all have unique IDs.
+ * This resource provides unified access to any of them.
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
-import { getKramdown } from '../syapi';
+import { getNodebookList, getDoc, getKramdown } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
 
 export class BlockResourceProvider extends McpResourceProvider {
@@ -13,21 +16,64 @@ export class BlockResourceProvider extends McpResourceProvider {
     server.registerResource(
       'block',
       new ResourceTemplate('syblk://{id}', {
-        list: undefined, // Too many blocks to list
+        list: async () => {
+          // List notebooks as top-level blocks
+          const notebooks = await getNodebookList();
+          return {
+            resources: notebooks.map((nb: any) => ({
+              uri: `syblk://${nb.id}`,
+              name: nb.name,
+              description: nb.closed ? 'notebook (closed)' : 'notebook (open)',
+              mimeType: 'application/json',
+            })),
+          };
+        },
       }),
       {
         title: 'SiYuan Block',
-        description: 'Block content in Kramdown format by ID. Example: syblk://20241231120000-abc1234',
+        description: 'Access any block by ID - works for notebooks, documents, and blocks. Example: syblk://20241231120000-abc1234',
       },
       async (uri, params) => {
-        const blockId = Array.isArray(params.id) ? params.id[0] : params.id;
-        const blockInfo = await getBlockDBItem(blockId);
-        if (!blockInfo) {
-          return { contents: [{ uri: uri.href, text: `Block not found: ${blockId}` }] };
+        const id = Array.isArray(params.id) ? params.id[0] : params.id;
+
+        // Check if it's a notebook
+        const notebooks = await getNodebookList();
+        const notebook = notebooks.find((nb: any) => nb.id === id);
+        if (notebook) {
+          return {
+            contents: [{
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(notebook, null, 2),
+            }],
+          };
         }
-        const kramdown = await getKramdown(blockId);
+
+        // Check if it's a block/document
+        const blockInfo = await getBlockDBItem(id);
+        if (!blockInfo) {
+          return { contents: [{ uri: uri.href, text: `Block not found: ${id}` }] };
+        }
+
+        // Document: return full markdown content
+        if (blockInfo.type === 'd') {
+          const doc = await getDoc(id);
+          if (!doc?.content) {
+            return { contents: [{ uri: uri.href, text: `Failed to read document: ${id}` }] };
+          }
+          return {
+            contents: [{
+              uri: uri.href,
+              mimeType: 'text/markdown',
+              text: doc.content,
+            }],
+          };
+        }
+
+        // Other blocks: return kramdown
+        const kramdown = await getKramdown(id);
         if (!kramdown) {
-          return { contents: [{ uri: uri.href, text: `Failed to read block: ${blockId}` }] };
+          return { contents: [{ uri: uri.href, text: `Failed to read block: ${id}` }] };
         }
         return {
           contents: [{
