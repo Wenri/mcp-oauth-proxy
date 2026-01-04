@@ -779,6 +779,25 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
 
   const contentType = response.headers.get('Content-Type') || '';
 
+  // Helper to cache and return response
+  const cacheAndReturn = (body: Uint8Array | ReadableStream<Uint8Array>, headers: Headers): FileAPIResult => {
+    if (cacheTtl > 0) {
+      const cacheHeaders = new Headers(headers);
+      cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
+
+      if (body instanceof Uint8Array) {
+        cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders }));
+        return { response: new Response(body, { status: 200, headers }), contentType };
+      }
+
+      const [cacheStream, returnStream] = body.tee();
+      cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders }));
+      return { response: new Response(returnStream, { status: 200, headers }), contentType };
+    }
+
+    return { response: new Response(body, { status: 200, headers }), contentType };
+  };
+
   // Check for JSON error response (404) - but skip for large files
   if (contentType.includes('application/json')) {
     const MAX_ERROR_SIZE = 1024; // Error responses are small
@@ -786,7 +805,7 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
     // Fast path: Content-Length tells us it's too big to be an error
     const contentLength = response.headers.get('Content-Length');
     if (contentLength && parseInt(contentLength, 10) > MAX_ERROR_SIZE) {
-      return { response, contentType };
+      return cacheAndReturn(response.body!, response.headers);
     }
 
     // Check for error with size-limited read
@@ -803,53 +822,18 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
       } catch {
         // Invalid JSON - treat as file content
       }
-      // Return the data we already read with known Content-Length
+      // Cache and return the data we already read
       const headers = new Headers(response.headers);
       headers.set('Content-Length', data.length.toString());
-      return {
-        response: new Response(data, {
-          status: response.status,
-          headers,
-        }),
-        contentType,
-      };
+      return cacheAndReturn(data, headers);
     }
 
-    // Too big - return the untouched stream
-    return {
-      response: new Response(returnStream, {
-        status: response.status,
-        headers: response.headers,
-      }),
-      contentType,
-    };
+    // Too big - cache and return the stream
+    return cacheAndReturn(returnStream, response.headers);
   }
 
-  // Cache the response if TTL > 0
-  if (cacheTtl > 0) {
-    const [cacheStream, returnStream] = response.body!.tee();
-    const headers = new Headers(response.headers);
-    headers.set('Cache-Control', `public, max-age=${cacheTtl}`);
-
-    // Cache in background
-    cache.put(
-      cacheKey,
-      new Response(cacheStream, {
-        status: response.status,
-        headers,
-      }),
-    );
-
-    return {
-      response: new Response(returnStream, {
-        status: response.status,
-        headers: response.headers,
-      }),
-      contentType,
-    };
-  }
-
-  return { response, contentType };
+  // Non-JSON response - cache and return
+  return cacheAndReturn(response.body!, response.headers);
 }
 
 /** Get JSON file from workspace */
