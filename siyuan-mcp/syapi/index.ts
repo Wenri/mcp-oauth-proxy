@@ -733,11 +733,18 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
 
   // Check for JSON error response (404)
   if (contentType.includes('application/json')) {
-    const cloned = response.clone();
-    const json = (await cloned.json()) as { code?: number };
+    const [checkStream, returnStream] = response.body!.tee();
+    const json = (await new Response(checkStream).json()) as { code?: number };
     if (json.code === 404) {
       return null;
     }
+    return {
+      response: new Response(returnStream, {
+        status: response.status,
+        headers: response.headers,
+      }),
+      contentType,
+    };
   }
 
   return { response, contentType };
