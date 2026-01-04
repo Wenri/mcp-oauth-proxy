@@ -191,17 +191,31 @@ async function loadTools(
 
 /** Load and register prompts with the MCP server */
 async function loadPrompts(server: McpServer): Promise<void> {
-  server.prompt('create_flashcards_system_cn', 'Create flash cards for SiYuan', () => ({
-    messages: [
-      { role: 'user', content: { type: 'text', text: promptCreateCardsSystemCN } },
-    ],
-  }));
+  server.registerPrompt(
+    'create_flashcards_system_cn',
+    {
+      title: 'Create Flashcards (CN)',
+      description: 'Create flash cards for SiYuan',
+    },
+    () => ({
+      messages: [
+        { role: 'user', content: { type: 'text', text: promptCreateCardsSystemCN } },
+      ],
+    })
+  );
 
-  server.prompt('sql_query_prompt_cn', 'SQL Query System Prompt for SiYuan', () => ({
-    messages: [
-      { role: 'assistant', content: { type: 'text', text: promptQuerySystemCN } },
-    ],
-  }));
+  server.registerPrompt(
+    'sql_query_prompt_cn',
+    {
+      title: 'SQL Query (CN)',
+      description: 'SQL Query System Prompt for SiYuan',
+    },
+    () => ({
+      messages: [
+        { role: 'assistant', content: { type: 'text', text: promptQuerySystemCN } },
+      ],
+    })
+  );
 }
 
 /** Load and register resources with the MCP server */
