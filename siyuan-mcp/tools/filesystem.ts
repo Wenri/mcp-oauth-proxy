@@ -125,7 +125,7 @@ async function readFileHandler(params: { path: string }) {
   }
 
   const cacheTtl = getTokenTtl();
-  const result = await getFileAPIv2(path, { cacheTtl });
+  const result = await getFileAPIv2(path, cacheTtl);
   if (result === null) {
     return createErrorResponse('File not found or failed to read.');
   }

@@ -744,18 +744,11 @@ export function isTextExtension(path: string): boolean {
   return textExtensions.includes(ext);
 }
 
-/** Options for getFileAPIv2 */
-export interface GetFileOptions {
-  /** Cache TTL in seconds for new entries. Default: 3600 (1 hour). Set to 0 to skip writing. */
-  cacheTtl?: number;
-}
-
 /** Default cache TTL: 1 hour */
 const DEFAULT_CACHE_TTL = 3600;
 
 /** Get file from workspace - returns Response directly for efficient streaming */
-export async function getFileAPIv2(path: string, options?: GetFileOptions): Promise<FileAPIResult> {
-  const { cacheTtl = DEFAULT_CACHE_TTL } = options || {};
+export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<FileAPIResult> {
   const cacheKey = `https://siyuan.cache/file/${path}`;
   const cache = caches.default;
 
