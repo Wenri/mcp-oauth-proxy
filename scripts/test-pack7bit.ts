@@ -178,32 +178,46 @@ function testRoundtrip() {
   }
 }
 
+// Count septets (extended chars like []{}~\^€| take 2 septets)
+const GSM_EXTENDED = new Set(['[', ']', '{', '}', '~', '\\', '^', '€', '|']);
+function countSeptets(str: string): number {
+  let count = 0;
+  for (const char of str) {
+    count += GSM_EXTENDED.has(char) ? 2 : 1;
+  }
+  return count;
+}
+
 // Test actual pack7bit/unpack7bit from crypto.ts
 function testCryptoFunctions() {
   console.log('=== Testing actual pack7bit/unpack7bit from crypto.ts ===\n');
 
   const testStrings = [
-    'user123',           // 7 chars - ESC padding case
-    'test123',           // 7 chars - ESC padding case
-    'user@example.com',  // 16 chars - perfect alignment
-    'a]b[c',             // 5 chars
-    'hello world',       // 11 chars
-    'aaaaaaaaaaaaaaa',   // 15 chars - ESC padding case
+    'user123',           // 7 chars, 7 septets - ESC padding case
+    'test123',           // 7 chars, 7 septets - ESC padding case
+    'user@example.com',  // 16 chars, 16 septets - perfect alignment
+    'a]b[c',             // 5 chars, 7 septets - ESC padding case (extended chars)
+    'hello world',       // 11 chars, 11 septets
+    'aaaaaaaaaaaaaaa',   // 15 chars, 15 septets - ESC padding case
+    'test[1]',           // 7 chars, 9 septets
+    '€100',              // 4 chars, 5 septets (€ is extended)
   ];
 
   for (const str of testStrings) {
+    const septets = countSeptets(str);
     const packed = pack7bit(str);
-    const unpacked = unpack7bit(packed, str.length);
+    const maxSeptets = Math.floor((packed.length * 8) / 7);
+    const unpacked = unpack7bit(packed, maxSeptets);
     const match = unpacked === str;
 
-    console.log(`"${str}" (${str.length} chars, len%8=${str.length % 8})`);
-    console.log(`  packed:   ${packed.toHex()}`);
+    console.log(`"${str}" (${str.length} chars, ${septets} septets, septets%8=${septets % 8})`);
+    console.log(`  packed:   ${packed.toHex()} (${packed.length} bytes)`);
     console.log(`  unpacked: "${unpacked}"`);
     console.log(`  match:    ${match ? '✓' : '✗ FAILED'}`);
 
-    // Also test decoding with length+1 to verify no phantom char
-    if (str.length % 8 === 7) {
-      const unpackedPlus1 = unpack7bit(packed, str.length + 1);
+    // Also test decoding with maxSeptets+1 to verify no phantom char
+    if (septets % 8 === 7) {
+      const unpackedPlus1 = unpack7bit(packed, maxSeptets + 1);
       console.log(`  decode+1: "${unpackedPlus1}" (should have no phantom @)`);
     }
     console.log();
