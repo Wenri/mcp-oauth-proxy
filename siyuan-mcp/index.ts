@@ -171,17 +171,26 @@ async function loadTools(
 
       logPush('Registering tool:', tool.name, tool.title);
 
-      server.tool(tool.name, tool.description, tool.schema || {}, async (params: any) => {
-        debugPush(`Tool ${tool.name} called with params:`, params);
-        try {
-          return await tool.handler(params, {});
-        } catch (error: any) {
-          return {
-            content: [{ type: 'text', text: `Error: ${error.message || 'Unknown error'}` }],
-            isError: true,
-          };
+      server.registerTool(
+        tool.name,
+        {
+          title: tool.title,
+          description: tool.description,
+          inputSchema: tool.schema || {},
+          annotations: tool.annotations,
+        },
+        async (params: any) => {
+          debugPush(`Tool ${tool.name} called with params:`, params);
+          try {
+            return await tool.handler(params, {});
+          } catch (error: any) {
+            return {
+              content: [{ type: 'text', text: `Error: ${error.message || 'Unknown error'}` }],
+              isError: true,
+            };
+          }
         }
-      });
+      );
     }
   }
 }
