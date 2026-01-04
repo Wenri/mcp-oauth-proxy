@@ -747,6 +747,39 @@ export function isTextExtension(path: string): boolean {
 /** Default cache TTL: 1 hour */
 const DEFAULT_CACHE_TTL = 3600;
 
+/**
+ * Cache a response body and return a Response object.
+ * Handles both Uint8Array (already buffered) and ReadableStream (uses tee()).
+ * @param body - Response body to cache
+ * @param headers - Response headers (Cache-Control will be added for caching)
+ * @param cacheKey - Cache key URL
+ * @param cacheTtl - Cache TTL in seconds (0 = no caching)
+ * @returns Response object for the caller
+ */
+export function cacheResponse(
+  body: Uint8Array | ReadableStream<Uint8Array>,
+  headers: Headers,
+  cacheKey: string,
+  cacheTtl: number
+): Response {
+  if (cacheTtl > 0) {
+    const cache = caches.default;
+    const cacheHeaders = new Headers(headers);
+    cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
+
+    if (body instanceof Uint8Array) {
+      cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders }));
+      return new Response(body, { status: 200, headers });
+    }
+
+    const [cacheStream, returnStream] = body.tee();
+    cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders }));
+    return new Response(returnStream, { status: 200, headers });
+  }
+
+  return new Response(body, { status: 200, headers });
+}
+
 /** Normalize file path for consistent cache keys */
 function normalizePath(path: string): string {
   // Ensure leading slash, remove trailing slash, collapse double slashes
@@ -757,10 +790,9 @@ function normalizePath(path: string): string {
 export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<FileAPIResult> {
   const normalizedPath = normalizePath(path);
   const cacheKey = `${baseUrl}/file${normalizedPath}`;
-  const cache = caches.default;
 
   // Always check cache first
-  const cached = await cache.match(cacheKey);
+  const cached = await caches.default.match(cacheKey);
   if (cached) {
     const contentType = cached.headers.get('Content-Type') || '';
     return { response: cached, contentType };
@@ -779,24 +811,11 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
 
   const contentType = response.headers.get('Content-Type') || '';
 
-  // Helper to cache and return response
-  const cacheAndReturn = (body: Uint8Array | ReadableStream<Uint8Array>, headers: Headers): FileAPIResult => {
-    if (cacheTtl > 0) {
-      const cacheHeaders = new Headers(headers);
-      cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
-
-      if (body instanceof Uint8Array) {
-        cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders }));
-        return { response: new Response(body, { status: 200, headers }), contentType };
-      }
-
-      const [cacheStream, returnStream] = body.tee();
-      cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders }));
-      return { response: new Response(returnStream, { status: 200, headers }), contentType };
-    }
-
-    return { response: new Response(body, { status: 200, headers }), contentType };
-  };
+  // Helper to cache and return FileAPIResult
+  const toResult = (body: Uint8Array | ReadableStream<Uint8Array>, headers: Headers): FileAPIResult => ({
+    response: cacheResponse(body, headers, cacheKey, cacheTtl),
+    contentType,
+  });
 
   // Check for JSON error response (404) - skip for large or non-JSON files
   const MAX_ERROR_SIZE = 1024;
@@ -821,15 +840,15 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
       // Cache and return the data we already read
       const headers = new Headers(response.headers);
       headers.set('Content-Length', data.length.toString());
-      return cacheAndReturn(data, headers);
+      return toResult(data, headers);
     }
 
     // limitedRead returned null (exceeded size) - cache and return the stream
-    return cacheAndReturn(returnStream, response.headers);
+    return toResult(returnStream, response.headers);
   }
 
   // Non-JSON or large JSON - cache and return directly
-  return cacheAndReturn(response.body!, response.headers);
+  return toResult(response.body!, response.headers);
 }
 
 /** Get JSON file from workspace */
