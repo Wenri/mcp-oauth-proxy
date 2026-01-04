@@ -172,10 +172,10 @@ async function loadTools(
       logPush('Registering tool:', tool.name, tool.title);
 
       const { name, handler, ...options } = tool;
-      server.registerTool(name, options, async (params: any) => {
+      server.registerTool(name, options, async (params: any, extra: any) => {
         debugPush(`Tool ${name} called with params:`, params);
         try {
-          return await handler(params, {});
+          return await handler(params, extra);
         } catch (error: any) {
           return {
             content: [{ type: 'text', text: `Error: ${error.message || 'Unknown error'}` }],
