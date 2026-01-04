@@ -104,7 +104,7 @@ export async function initializeSiyuanMCPServer(
   );
 
   // Fetch config from kernel
-  const result = await cachedPostRequest({}, '/api/system/getConf', 180) as { code: number; data: { conf: SiyuanConfig } };
+  const result = await cachedPostRequest({}, '/api/system/getConf') as { code: number; data: { conf: SiyuanConfig } };
   if (result.code !== 0 || !result.data?.conf) {
     throw new Error('Failed to get SiYuan config');
   }

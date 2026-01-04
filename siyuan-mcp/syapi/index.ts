@@ -352,7 +352,7 @@ export async function unfoldBlockAPI(id: string): Promise<boolean> {
 /** Get block Kramdown source (cached for 60s) */
 export async function getKramdown(blockid: string, throwError = false): Promise<string | null> {
   const url = '/api/block/getBlockKramdown';
-  const response = await cachedPostRequest({ id: blockid }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id: blockid }, url);
   if (response.code === 0 && response.data?.kramdown) {
     return response.data.kramdown;
   }
@@ -385,7 +385,7 @@ export async function getNotebookConf(notebookId: string): Promise<any> {
 /** Get child blocks (cached) */
 export async function getChildBlocks(id: string): Promise<any[]> {
   const url = '/api/block/getChildBlocks';
-  const response = await cachedPostRequest({ id }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id }, url);
   if (response.code === 0) {
     return response.data;
   }
@@ -395,7 +395,7 @@ export async function getChildBlocks(id: string): Promise<any[]> {
 /** Get document content (HTML/DOM, cached) */
 export async function getDoc(blockid: string, size: number = 5, mode: number = 0): Promise<any> {
   const url = '/api/filetree/getDoc';
-  const response = await cachedPostRequest({ id: blockid, mode, size }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id: blockid, mode, size }, url);
   if (response.code === 0 && response.data != null) {
     return response.data;
   }
@@ -405,7 +405,7 @@ export async function getDoc(blockid: string, size: number = 5, mode: number = 0
 /** Get document outline (cached) */
 export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
   const url = '/api/outline/getDocOutline';
-  const response = await cachedPostRequest({ id: docid }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id: docid }, url);
   if (response.code === 0) {
     return response.data;
   }
@@ -415,7 +415,7 @@ export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
 /** Get document preview (exported HTML, cached for 60s) */
 export async function getDocPreview(docid: string): Promise<string> {
   const url = '/api/export/preview';
-  const response = await cachedPostRequest({ id: docid }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id: docid }, url);
   if (response.code === 0 && response.data != null) {
     return response.data.html;
   }
@@ -462,7 +462,7 @@ export async function exportMdContent({
   yfm: boolean;
 }): Promise<any> {
   const url = '/api/export/exportMdContent';
-  const response = await cachedPostRequest({ id, refMode, embedMode, yfm }, url, DEFAULT_API_CACHE_TTL);
+  const response = await cachedPostRequest({ id, refMode, embedMode, yfm }, url);
   if (response.code === 0) {
     return response.data;
   }
@@ -754,7 +754,7 @@ const DEFAULT_API_CACHE_TTL = 180;
  * @param cacheTtl - Cache TTL in seconds (0 = no caching)
  * @returns Parsed JSON response
  */
-export async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number): Promise<any> {
+export async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number = DEFAULT_API_CACHE_TTL): Promise<any> {
   // Build cache key using URL object - handles empty params correctly
   const cacheUrl = new URL(url, baseUrl);
   cacheUrl.search = new URLSearchParams(data as Record<string, string>).toString();
