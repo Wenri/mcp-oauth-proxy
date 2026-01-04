@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createArrayResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -26,7 +26,17 @@ export class RelationToolProvider extends McpToolsProvider<any> {
             ),
         },
         outputSchema: {
-          backlinks: z.array(z.any()).describe('Array of documents/blocks that reference the specified ID'),
+          count: z.number().describe('Number of backlinks found'),
+          backlinks: z
+            .array(
+              z.object({
+                id: z.string().describe('Document ID'),
+                name: z.string().describe('Document name'),
+                notebookId: z.string().describe('Notebook ID containing the document'),
+                hpath: z.string().describe('Human-readable path'),
+              })
+            )
+            .describe('Array of documents that reference the specified ID'),
         },
         handler: getDocBacklink,
         title: 'Get Note Relationship',
@@ -48,7 +58,26 @@ export class RelationToolProvider extends McpToolsProvider<any> {
             ),
         },
         outputSchema: {
-          docs: z.array(z.any()).describe('Array of sub-document metadata'),
+          count: z.number().describe('Number of sub-documents found'),
+          docs: z
+            .array(
+              z.object({
+                path: z.string().describe('Document path'),
+                name: z.string().describe('Document title'),
+                icon: z.string().describe('Document icon'),
+                id: z.string().describe('Document block ID'),
+                count: z.number().describe('Reference count (backlinks)'),
+                size: z.number().describe('File size in bytes'),
+                hSize: z.string().describe('Human-readable file size'),
+                mtime: z.number().describe('Modification time (Unix timestamp)'),
+                ctime: z.number().describe('Creation time (Unix timestamp)'),
+                hMtime: z.string().describe('Human-readable modification time'),
+                hCtime: z.string().describe('Human-readable creation time'),
+                sort: z.number().describe('Custom sort order'),
+                subFileCount: z.number().describe('Count of sub-documents'),
+              })
+            )
+            .describe('Array of sub-document metadata'),
         },
         handler: getChildrenDocs,
         title: 'Get Sub-Document Information',
@@ -66,7 +95,18 @@ export class RelationToolProvider extends McpToolsProvider<any> {
           id: z.string().describe('The unique identifier (ID) of the parent block.'),
         },
         outputSchema: {
-          blocks: z.array(z.any()).describe('Array of child block metadata'),
+          count: z.number().describe('Number of child blocks'),
+          blocks: z
+            .array(
+              z.object({
+                id: z.string().describe('Block ID'),
+                type: z.string().describe('Block type (p, h, l, ul, ol, etc.)'),
+                subType: z.string().optional().describe('Block subtype'),
+                content: z.string().optional().describe('HTML content'),
+                markdown: z.string().optional().describe('Markdown content'),
+              })
+            )
+            .describe('Array of child block metadata'),
         },
         handler: getChildBlocksTool,
         title: 'Get Child Blocks',
@@ -99,7 +139,7 @@ async function getDocBacklink(params: { id: string }) {
   debugPush('backlinkResponse', backlinkResponse);
 
   if (backlinkResponse.backlinks.length == 0) {
-    return createJsonResponse({ backlinks: [] });
+    return createArrayResponse([], 'backlinks');
   }
 
   const result: any[] = [];
@@ -116,7 +156,7 @@ async function getDocBacklink(params: { id: string }) {
     }
   }
 
-  return createJsonResponse({ backlinks: result });
+  return createArrayResponse(result, 'backlinks');
 }
 
 async function getChildrenDocs(params: { id: string }) {
@@ -144,7 +184,7 @@ async function getChildrenDocs(params: { id: string }) {
     result = await listDocsByPathT({ notebook: sqlResult['box'], path: sqlResult['path'] });
   }
 
-  return createJsonResponse({ docs: result });
+  return createArrayResponse(result, 'docs');
 }
 
 async function getChildBlocksTool(params: { id: string }) {
@@ -162,5 +202,5 @@ async function getChildBlocksTool(params: { id: string }) {
     );
   }
 
-  return createJsonResponse({ blocks: await getChildBlocks(id) });
+  return createArrayResponse(await getChildBlocks(id), 'blocks');
 }

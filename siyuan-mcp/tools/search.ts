@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { formatSearchResult } from '../utils/resultFilter';
@@ -56,9 +56,6 @@ export class SearchToolProvider extends McpToolsProvider<any> {
             1: Group by document (default) - returns hits organized by their parent documents
           `),
         },
-        outputSchema: {
-          result: z.string().describe('Formatted search results as text'),
-        },
         handler: searchHandler,
         title: lang('tool_title_search'),
         annotations: {
@@ -70,9 +67,6 @@ export class SearchToolProvider extends McpToolsProvider<any> {
         description:
           "Provides documentation about SiYuan's advanced query syntax for searching content blocks, including boolean operators (AND, OR, NOT).",
         inputSchema: {},
-        outputSchema: {
-          syntax: z.string().describe('Query syntax documentation in markdown format'),
-        },
         handler: querySyntaxHandler,
         title: lang('tool_title_query_syntax'),
         annotations: {
@@ -106,19 +100,18 @@ async function searchHandler(params: {
   queryObj.types!.codeBlock = includingCodeBlock;
   queryObj.types!.databaseBlock = includingDatabase;
 
-  const response = await fullTextSearchBlock(queryObj);
-
   try {
+    const response = await fullTextSearchBlock(queryObj);
     const result = formatSearchResult(response, queryObj);
-    return createJsonResponse({ result });
+    return createSuccessResponse(result);
   } catch (err) {
-    errorPush('Error processing search results', err);
-    return createJsonResponse({ result: JSON.stringify(response) });
+    errorPush('Error in search', err);
+    return createErrorResponse(err instanceof Error ? err.message : 'Search failed');
   } finally {
     debugPush('Search tool finished');
   }
 }
 
 async function querySyntaxHandler() {
-  return createJsonResponse({ syntax: searchSyntax });
+  return createSuccessResponse(searchSyntax);
 }

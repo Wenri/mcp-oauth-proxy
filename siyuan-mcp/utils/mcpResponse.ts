@@ -45,9 +45,11 @@ export function createSuccessResponse(
  *   - `content`: YAML text representation (human/LLM-friendly) + extra content
  *   - `structuredContent`: Typed object for programmatic parsing by MCP clients
  *
+ * Note: For array responses, use createArrayResponse() instead.
+ *
  * @example
  * ```ts
- * // Simple response
+ * // Object response
  * return createJsonResponse({ success: true, blockId: "abc123" });
  *
  * // With image content
@@ -58,18 +60,47 @@ export function createSuccessResponse(
  * ```
  */
 export function createJsonResponse<T extends StructuredContent>(
-  data: T | unknown[],
+  data: T,
   extraContent: ContentBlock[] = []
 ): CallToolResult {
-  // Normalize arrays to { result: [...] } for consistent object structure
-  const normalized: StructuredContent = Array.isArray(data) ? { result: data } : data;
   return {
     content: [
-      { type: "text", text: YAML.stringify(normalized).trimEnd() },
+      { type: "text", text: YAML.stringify(data).trimEnd() },
       ...extraContent,
     ],
-    structuredContent: normalized,
+    structuredContent: data,
   };
+}
+
+/**
+ * Array response helper - wraps array with count and descriptive key name.
+ *
+ * @param data - Array to return
+ * @param key - Key name for the array (e.g., 'rows', 'blocks', 'results')
+ * @param context - Additional context fields (e.g., { query: "..." })
+ * @param extraContent - Additional content blocks (images, audio, etc.)
+ *
+ * @example
+ * ```ts
+ * // Simple array
+ * createArrayResponse(blocks, 'blocks')
+ * // → { count: 5, blocks: [...] }
+ *
+ * // With context
+ * createArrayResponse(results, 'results', { query: "search term" })
+ * // → { count: 3, query: "search term", results: [...] }
+ * ```
+ */
+export function createArrayResponse<T>(
+  data: T[],
+  key: string,
+  context: Record<string, unknown> = {},
+  extraContent: ContentBlock[] = []
+): CallToolResult {
+  return createJsonResponse(
+    { count: data.length, ...context, [key]: data },
+    extraContent
+  );
 }
 
 /**

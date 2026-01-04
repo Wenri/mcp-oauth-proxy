@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse, createArrayResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
@@ -45,10 +45,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
           content: z.string().describe('File content (text or base64 encoded for binary)'),
           isBase64: z.boolean().optional().describe('Set to true if content is base64 encoded binary data'),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the write operation succeeded'),
-          path: z.string().describe('Path where the file was written'),
-        },
         handler: writeFileHandler,
         title: lang('tool_title_write_file'),
         annotations: {
@@ -62,9 +58,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
         description: 'Delete a file or directory from SiYuan workspace.',
         inputSchema: {
           path: z.string().describe('Path to the file or directory to delete'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the removal succeeded'),
         },
         handler: removeFileHandler,
         title: lang('tool_title_remove_file'),
@@ -80,10 +73,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
         inputSchema: {
           path: z.string().describe('Current path of the file'),
           newPath: z.string().describe('New path for the file'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the rename succeeded'),
-          newPath: z.string().describe('The new path of the file'),
         },
         handler: renameFileHandler,
         title: lang('tool_title_rename_file'),
@@ -101,9 +90,18 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
           path: z.string().describe('Path to the directory (e.g., "/data/assets/", "/data/widgets/")'),
         },
         outputSchema: {
-          path: z.string().describe('Path of the directory'),
-          entries: z.array(z.any()).describe('Array of file/directory entries'),
           count: z.number().describe('Number of entries'),
+          path: z.string().describe('Path of the directory'),
+          entries: z
+            .array(
+              z.object({
+                name: z.string().describe('File or directory name'),
+                isDir: z.boolean().describe('Whether this is a directory'),
+                isSymlink: z.boolean().describe('Whether this is a symbolic link'),
+                updated: z.number().describe('Modification time (Unix timestamp)'),
+              })
+            )
+            .describe('Array of file/directory entries'),
         },
         handler: listDirHandler,
         title: lang('tool_title_list_dir'),
@@ -114,10 +112,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
         description: 'Create a new directory in SiYuan workspace.',
         inputSchema: {
           path: z.string().describe('Path for the new directory (e.g., "/data/assets/my-folder/")'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the directory creation succeeded'),
-          path: z.string().describe('Path where the directory was created'),
         },
         handler: createDirHandler,
         title: lang('tool_title_create_dir'),
@@ -219,7 +213,7 @@ async function writeFileHandler(params: { path: string; content: string; isBase6
     return createErrorResponse('Failed to write the file.');
   }
 
-  return createJsonResponse({ success: true, path });
+  return createSuccessResponse(path);
 }
 
 async function removeFileHandler(params: { path: string }) {
@@ -235,7 +229,7 @@ async function removeFileHandler(params: { path: string }) {
     return createErrorResponse('Failed to remove the file or directory.');
   }
 
-  return createJsonResponse({ success: true });
+  return createSuccessResponse('File removed');
 }
 
 async function renameFileHandler(params: { path: string; newPath: string }) {
@@ -251,7 +245,7 @@ async function renameFileHandler(params: { path: string; newPath: string }) {
     return createErrorResponse('Failed to rename the file.');
   }
 
-  return createJsonResponse({ success: true, newPath });
+  return createSuccessResponse(newPath);
 }
 
 async function listDirHandler(params: { path: string }) {
@@ -267,11 +261,7 @@ async function listDirHandler(params: { path: string }) {
     return createErrorResponse('Directory not found or failed to read.');
   }
 
-  return createJsonResponse({
-    path,
-    entries: result,
-    count: result.length,
-  });
+  return createArrayResponse(result, 'entries', { path });
 }
 
 async function createDirHandler(params: { path: string }) {
@@ -288,7 +278,7 @@ async function createDirHandler(params: { path: string }) {
     return createErrorResponse('Failed to create the directory.');
   }
 
-  return createJsonResponse({ success: true, path });
+  return createSuccessResponse(path);
 }
 
 async function createArchiveHandler(params: { paths: string[]; name?: string }) {

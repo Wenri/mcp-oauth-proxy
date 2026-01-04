@@ -5,7 +5,7 @@
 import { addRiffCards, queryAPI, removeRiffCards } from '../syapi';
 import { getBlockDBItem, isValidDeck, QUICK_DECK_ID } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { z } from 'zod';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
@@ -39,7 +39,6 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
             .describe('The Markdown-formatted content to append at the end of the new document.'),
         },
         outputSchema: {
-          success: z.boolean().describe('Whether the flashcard creation succeeded'),
           docId: z.string().describe('ID of the newly created document'),
           cardCount: z.number().describe('Number of flashcards created'),
         },
@@ -63,10 +62,6 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
             .optional()
             .describe('The ID of the deck to add the cards to. If not provided, a default deck will be used.'),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the flashcard creation succeeded'),
-          cardCount: z.number().describe('Number of flashcards created'),
-        },
         handler: createFlashcardsHandler,
         title: 'Create Flashcards',
         annotations: {
@@ -88,10 +83,6 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
             .describe(
               'The ID of the deck to remove the cards from. If not provided, a default deck will be used.'
             ),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the flashcard deletion succeeded'),
-          removedCount: z.number().describe('Number of flashcards removed'),
         },
         handler: deleteFlashcardsHandler,
         title: 'Delete Flashcards',
@@ -147,7 +138,7 @@ async function addFlashCardMarkdown(
   if (result) {
     // Parse document and add cards
     const addCardsResult = await parseDocAddCards(newDocId, type, deckId!);
-    return createJsonResponse({ success: true, docId: newDocId, cardCount: addCardsResult });
+    return createJsonResponse({ docId: newDocId, cardCount: addCardsResult });
   } else {
     return createErrorResponse('Card creation failed: Unknown error while creating flashcard document');
   }
@@ -187,7 +178,7 @@ async function createFlashcardsHandler(
   if (addCardsResult === null) {
     return createErrorResponse('Failed to create flashcards.');
   }
-  return createJsonResponse({ success: true, cardCount: filteredIds.length });
+  return createSuccessResponse(`Created ${filteredIds.length} flashcards`);
 }
 
 async function deleteFlashcardsHandler(params: { blockIds: string[]; deckId?: string }) {
@@ -206,7 +197,7 @@ async function deleteFlashcardsHandler(params: { blockIds: string[]; deckId?: st
   if (removeResult === null) {
     return createErrorResponse('Failed to delete flashcards.');
   }
-  return createJsonResponse({ success: true, removedCount: blockIds.length });
+  return createSuccessResponse(`Removed ${blockIds.length} flashcards`);
 }
 
 async function parseDocAddCards(

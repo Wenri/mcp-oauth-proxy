@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
 import {
   appendBlockAPI,
   createDailyNote,
@@ -37,10 +37,6 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
               'The ID of the target notebook where the daily note is located. The notebook must not be in a closed state.'
             ),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the append operation succeeded'),
-          blockId: z.string().describe('ID of the newly created block'),
-        },
         handler: appendToDailynoteHandler,
         title: lang('tool_title_append_to_dailynote'),
         annotations: {
@@ -55,7 +51,27 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
           'List all notebooks in SiYuan and return their metadata(such as id, open status, dailyNoteSavePath etc.).',
         inputSchema: {},
         outputSchema: {
-          notebooks: z.array(z.any()).describe('Array of notebook metadata objects'),
+          count: z.number().describe('Number of notebooks'),
+          notebooks: z
+            .array(
+              z.object({
+                id: z.string().describe('Notebook ID'),
+                name: z.string().describe('Notebook name'),
+                icon: z.string().describe('Notebook icon'),
+                sort: z.number().describe('Custom sort order'),
+                closed: z.boolean().describe('Whether notebook is closed'),
+                newFlashcardCount: z.number().optional().describe('Count of new flashcards'),
+                dueFlashcardCount: z.number().optional().describe('Count of due flashcards'),
+                flashcardCount: z.number().optional().describe('Total flashcard count'),
+                refCreateSaveBox: z.string().optional().describe('Ref create save box'),
+                refCreateSavePath: z.string().optional().describe('Ref create save path'),
+                docCreateSaveBox: z.string().optional().describe('Doc create save box'),
+                docCreateSavePath: z.string().optional().describe('Doc create save path'),
+                dailyNoteSavePath: z.string().optional().describe('Daily note save path template'),
+                dailyNoteTemplatePath: z.string().optional().describe('Daily note template path'),
+              })
+            )
+            .describe('Array of notebook metadata objects'),
         },
         handler: listNotebookHandler,
         title: lang('tool_title_list_notebook'),
@@ -111,14 +127,14 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
   }
 
   taskManager.insert(id, markdownContent, 'appendToDailyNote', {}, TASK_STATUS.APPROVED);
-  return createJsonResponse({ success: true, blockId: newBlockId });
+  return createSuccessResponse(newBlockId);
 }
 
 async function listNotebookHandler() {
   // PLATFORM CHANGE: Use kernel API instead of window.siyuan.notebooks
   const notebooks = await getNodebookList();
   if (!notebooks || notebooks.length === 0) {
-    return createJsonResponse({ notebooks: [] });
+    return createArrayResponse([], 'notebooks');
   }
 
   const augmentedNotebooks = await Promise.all(
@@ -143,5 +159,5 @@ async function listNotebookHandler() {
     })
   );
 
-  return createJsonResponse({ notebooks: augmentedNotebooks });
+  return createArrayResponse(augmentedNotebooks, 'notebooks');
 }

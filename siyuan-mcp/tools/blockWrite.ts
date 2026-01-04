@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
 import { checkIdValid, getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
@@ -94,9 +94,6 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
           data: z.string().describe('The new content in Kramdown format'),
           id: z.string().describe('ID of the block to update'),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the update operation succeeded'),
-        },
         handler: updateBlockHandler,
         title: lang('tool_title_update_block'),
         annotations: {
@@ -110,9 +107,6 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         description: 'Delete a block by its ID. This action is irreversible.',
         inputSchema: {
           id: z.string().describe('ID of the block to delete'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the delete operation succeeded'),
         },
         handler: deleteBlockHandler,
         title: lang('tool_title_delete_block'),
@@ -131,9 +125,6 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
           parentID: z.string().optional().describe('ID of the new parent block (must be a container block)'),
           previousID: z.string().optional().describe('ID of the block after which to place the moved block'),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the move operation succeeded'),
-        },
         handler: moveBlockHandler,
         title: lang('tool_title_move_block'),
         annotations: {
@@ -148,9 +139,6 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         inputSchema: {
           id: z.string().describe('ID of the block to fold'),
         },
-        outputSchema: {
-          success: z.boolean().describe('Whether the fold operation succeeded'),
-        },
         handler: foldBlockHandler,
         title: lang('tool_title_fold_block'),
         annotations: {
@@ -164,9 +152,6 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
         description: 'Unfold (expand) a block to show its children.',
         inputSchema: {
           id: z.string().describe('ID of the block to unfold'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the unfold operation succeeded'),
         },
         handler: unfoldBlockHandler,
         title: lang('tool_title_unfold_block'),
@@ -332,10 +317,10 @@ async function updateBlockHandler(params: { data: string; id: string }) {
       return createErrorResponse('Failed to update the block');
     }
     taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.APPROVED);
-    return createJsonResponse({ success: true });
+    return createSuccessResponse('Block updated');
   } else {
     taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.PENDING);
-    return createJsonResponse({ success: true, pending: true });
+    return createSuccessResponse('Block update pending approval');
   }
 }
 
@@ -361,7 +346,7 @@ async function deleteBlockHandler(params: { id: string }) {
   }
 
   taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
-  return createJsonResponse({ success: true });
+  return createSuccessResponse('Block deleted');
 }
 
 async function moveBlockHandler(params: { id: string; parentID?: string; previousID?: string }) {
@@ -402,7 +387,7 @@ async function moveBlockHandler(params: { id: string; parentID?: string; previou
     return createErrorResponse('Failed to move the block');
   }
 
-  return createJsonResponse({ success: true });
+  return createSuccessResponse('Block moved');
 }
 
 async function foldBlockHandler(params: { id: string }) {
@@ -420,7 +405,7 @@ async function foldBlockHandler(params: { id: string }) {
     return createErrorResponse('Failed to fold the block');
   }
 
-  return createJsonResponse({ success: true });
+  return createSuccessResponse('Block folded');
 }
 
 async function unfoldBlockHandler(params: { id: string }) {
@@ -438,5 +423,5 @@ async function unfoldBlockHandler(params: { id: string }) {
     return createErrorResponse('Failed to unfold the block');
   }
 
-  return createJsonResponse({ success: true });
+  return createSuccessResponse('Block unfolded');
 }

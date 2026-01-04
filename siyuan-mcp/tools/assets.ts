@@ -36,7 +36,6 @@ export class AssetToolProvider extends McpToolsProvider<any> {
             .describe('Alt text for the image (only used when insertAfterBlock is provided)'),
         },
         outputSchema: {
-          success: z.boolean().describe('Whether the upload succeeded'),
           fileName: z.string().describe('Name of the uploaded file'),
           assetPath: z.string().describe('Path to the uploaded asset'),
           insertedBlockId: z.string().nullable().describe('ID of the inserted block if auto-insert was used'),
@@ -69,7 +68,6 @@ export class AssetToolProvider extends McpToolsProvider<any> {
             .describe('Target assets directory path. Defaults to "/data/assets/"'),
         },
         outputSchema: {
-          success: z.boolean().describe('Whether the batch upload succeeded'),
           uploadedCount: z.number().describe('Number of files uploaded successfully'),
           failedCount: z.number().describe('Number of files that failed to upload'),
           succMap: z.record(z.string()).describe('Map of file names to their asset paths'),
@@ -195,7 +193,6 @@ async function uploadAssetHandler(params: {
     }
 
     return createJsonResponse({
-      success: true,
       fileName,
       assetPath,
       insertedBlockId,
@@ -237,7 +234,6 @@ async function uploadAssetsBatchHandler(params: {
     }
 
     return createJsonResponse({
-      success: true,
       uploadedCount: Object.keys(result.succMap).length,
       failedCount: result.errFiles?.length || 0,
       succMap: result.succMap,

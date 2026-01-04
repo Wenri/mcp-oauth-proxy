@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
@@ -26,9 +26,6 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
             .describe(
               "An object of key-value pairs representing the attributes to set. Setting an attribute to an empty string ('') will delete it."
             ),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the attribute update succeeded'),
         },
         handler: setBlockAttributesHandler,
         title: lang('tool_title_set_block_attributes'),
@@ -66,10 +63,6 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
               })
             )
             .describe('Array of blocks with their attributes to set'),
-        },
-        outputSchema: {
-          success: z.boolean().describe('Whether the batch update succeeded'),
-          count: z.number().describe('Number of blocks updated'),
         },
         handler: batchSetAttributesHandler,
         title: lang('tool_title_batch_set_attributes'),
@@ -127,9 +120,9 @@ async function setBlockAttributesHandler(params: { blockId: string; attributes: 
   try {
     const result = await addblockAttrAPI(attributes, blockId);
     if (result === 0) {
-      return createJsonResponse({ success: true });
+      return createSuccessResponse('Attributes updated');
     } else {
-      return createErrorResponse('Failed to update attributes.');
+      return createErrorResponse('Failed to update attributes');
     }
   } catch (error: any) {
     return createErrorResponse(`An error occurred: ${error.message}`);
@@ -187,9 +180,9 @@ async function batchSetAttributesHandler(params: { blocks: { id: string; attrs: 
   try {
     const result = await batchSetBlockAttrs(blockAttrs);
     if (result !== null) {
-      return createJsonResponse({ success: true, count: blocks.length });
+      return createSuccessResponse(`Updated ${blocks.length} blocks`);
     } else {
-      return createErrorResponse('Failed to batch update attributes.');
+      return createErrorResponse('Failed to batch update attributes');
     }
   } catch (error: any) {
     return createErrorResponse(`An error occurred: ${error.message}`);

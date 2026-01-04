@@ -14,6 +14,27 @@ import { blobToBase64Object } from '../utils/common';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
+// Recursive schema for outline items
+type OutlineItem = {
+  id: string;
+  name: string;
+  type: string;
+  depth: number;
+  count: number;
+  children?: OutlineItem[];
+};
+
+const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
+  z.object({
+    id: z.string().describe('Block ID'),
+    name: z.string().describe('Heading text'),
+    type: z.string().describe('Always "outline"'),
+    depth: z.number().describe('Heading depth level'),
+    count: z.number().describe('Child block count'),
+    children: z.array(outlineItemSchema).optional().describe('Nested outline items'),
+  })
+);
+
 export class DocReadToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
     return [
@@ -67,7 +88,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         outputSchema: {
           id: z.string().describe('The block/document ID'),
           hpath: z.string().describe('Human-readable path (e.g., "/Notebook/Parent Doc/Child Doc")'),
-          outline: z.array(z.any()).optional().describe('Document outline/TOC if includeOutline was true'),
+          outline: z.array(outlineItemSchema).optional().describe('Document outline/TOC if includeOutline was true'),
         },
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
@@ -82,7 +103,7 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         },
         outputSchema: {
           id: z.string().describe('The document ID'),
-          outline: z.array(z.any()).describe('Hierarchical outline with headings (id, name, type, depth, count, blocks)'),
+          outline: z.array(outlineItemSchema).describe('Hierarchical outline with headings'),
         },
         handler: getDocOutlineHandler,
         title: lang('tool_title_get_doc_outline'),

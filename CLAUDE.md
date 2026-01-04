@@ -354,3 +354,51 @@ npx @modelcontextprotocol/inspector@latest
 2. Implement `getTools()` returning tool definitions
 3. Add provider to `getAllToolProviders()` in `siyuan-mcp/tools/index.ts`
 4. Tools are automatically registered on server initialization
+
+### MCP Response Helpers
+
+Use these helpers from `siyuan-mcp/utils/mcpResponse.ts` for consistent responses:
+
+```typescript
+// Simple text/ID responses (no structuredContent)
+createSuccessResponse("Block updated");
+createSuccessResponse(newBlockId);
+createSuccessResponse("Done", [createImageContent(base64, "image/png")]);
+
+// Structured multi-field responses (with structuredContent)
+createJsonResponse({ fileName, assetPath, insertedBlockId });
+createJsonResponse({ docId, cardCount });
+
+// Array responses with count (with structuredContent)
+createArrayResponse(blocks, 'blocks');           // { count: N, blocks: [...] }
+createArrayResponse(rows, 'rows', { query });    // { count: N, query: "...", rows: [...] }
+
+// Error responses (sets isError: true)
+createErrorResponse("Invalid block ID");
+```
+
+**Response pattern guidelines:**
+- **Creates new entity** → return structured data with new ID (e.g., `createJsonResponse`)
+- **Modifies existing entity** → return simple success message (e.g., `createSuccessResponse`)
+- **Returns array data** → use `createArrayResponse` with descriptive key name
+- **Never include redundant fields** like `{ success: true }` - if no error, it succeeded
+
+### Recursive Schemas with z.lazy()
+
+For recursive structures like document outlines, use `z.lazy()` with explicit type annotation:
+
+```typescript
+type OutlineItem = {
+  id: string;
+  name: string;
+  children?: OutlineItem[];
+};
+
+const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    children: z.array(outlineItemSchema).optional(),
+  })
+);
+```
