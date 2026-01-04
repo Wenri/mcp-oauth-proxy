@@ -784,11 +784,13 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
       } catch {
         // Invalid JSON - treat as file content
       }
-      // Return the data we already read
+      // Return the data we already read with known Content-Length
+      const headers = new Headers(response.headers);
+      headers.set('Content-Length', data.length.toString());
       return {
         response: new Response(data, {
           status: response.status,
-          headers: response.headers,
+          headers,
         }),
         contentType,
       };
