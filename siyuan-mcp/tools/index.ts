@@ -2,7 +2,7 @@
  * Tools index - exports all tool providers
  */
 
-export { McpToolsProvider } from './baseToolProvider';
+export { McpToolsProvider, createNewDoc, createNewDocWithParentId } from './baseToolProvider';
 export { DocReadToolProvider } from './docRead';
 export { DocWriteToolProvider } from './docWrite';
 export { BlockWriteToolProvider } from './blockWrite';
@@ -16,9 +16,6 @@ export { RelationToolProvider } from './relation';
 export { AssetToolProvider } from './assets';
 export { FileSystemToolProvider } from './filesystem';
 export { UtilityToolProvider } from './utility';
-
-// Re-export shared functions
-export { createNewDoc, createNewDocWithParentId } from './sharedFunction';
 
 import { McpToolsProvider } from './baseToolProvider';
 import { DocReadToolProvider } from './docRead';
