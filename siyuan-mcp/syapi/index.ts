@@ -687,6 +687,23 @@ export async function createDocWithPath(
 /** Response type for getFileAPIv2 */
 export type FileAPIResult = { response: Response; contentType: string } | null;
 
+/** Create a size-limited stream that throws RangeError if exceeded */
+function limitedStream(stream: ReadableStream<Uint8Array>, maxBytes: number): ReadableStream<Uint8Array> {
+  let total = 0;
+  return stream.pipeThrough(
+    new TransformStream({
+      transform(chunk, controller) {
+        total += chunk.length;
+        if (total > maxBytes) {
+          controller.error(new RangeError('Size limit exceeded'));
+        } else {
+          controller.enqueue(chunk);
+        }
+      },
+    })
+  );
+}
+
 /** Check if MIME type indicates text content */
 export function isTextMimeType(mimeType: string): boolean {
   if (!mimeType) return false;
@@ -741,39 +758,15 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
       return { response, contentType };
     }
 
-    // Read limited bytes to check for error
+    // Check for error with size-limited stream
     const [checkStream, returnStream] = response.body!.tee();
-    const reader = checkStream.getReader();
-    const chunks: Uint8Array[] = [];
-    let totalSize = 0;
-
     try {
-      while (totalSize < MAX_ERROR_SIZE) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        totalSize += value.length;
+      const json = (await new Response(limitedStream(checkStream, MAX_ERROR_SIZE)).json()) as { code?: number };
+      if (json.code === 404) {
+        return null;
       }
-    } finally {
-      reader.cancel();
-    }
-
-    // Only parse if small enough to be an error response
-    if (totalSize > 0 && totalSize < MAX_ERROR_SIZE) {
-      const combined = new Uint8Array(totalSize);
-      let offset = 0;
-      for (const chunk of chunks) {
-        combined.set(chunk, offset);
-        offset += chunk.length;
-      }
-      try {
-        const json = JSON.parse(new TextDecoder().decode(combined)) as { code?: number };
-        if (json.code === 404) {
-          return null;
-        }
-      } catch {
-        // Not valid JSON, treat as file content
-      }
+    } catch {
+      // Too big or invalid JSON - treat as file content
     }
 
     return {
