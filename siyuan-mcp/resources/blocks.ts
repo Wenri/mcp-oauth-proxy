@@ -1,5 +1,6 @@
 /**
  * Block resources
+ * URI scheme: syblk://{id}
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -11,15 +12,15 @@ export class BlockResourceProvider extends McpResourceProvider {
   async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
     server.registerResource(
       'block',
-      new ResourceTemplate('siyuan://block/{blockId}', {
+      new ResourceTemplate('syblk://{id}', {
         list: undefined, // Too many blocks to list
       }),
       {
         title: 'SiYuan Block',
-        description: 'Block content in Kramdown format by ID',
+        description: 'Block content in Kramdown format by ID. Example: syblk://20241231120000-abc1234',
       },
       async (uri, params) => {
-        const blockId = Array.isArray(params.blockId) ? params.blockId[0] : params.blockId;
+        const blockId = Array.isArray(params.id) ? params.id[0] : params.id;
         const blockInfo = await getBlockDBItem(blockId);
         if (!blockInfo) {
           return { contents: [{ uri: uri.href, text: `Block not found: ${blockId}` }] };

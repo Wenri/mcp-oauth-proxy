@@ -606,6 +606,16 @@ export async function getHPathByIDAPI(id: string): Promise<string | null> {
   return null;
 }
 
+/** Get document ID by human-readable path */
+export async function getDocIDByHPath(notebook: string, hpath: string): Promise<string | null> {
+  const url = '/api/filetree/getIDsByHPath';
+  const response = await postRequest({ notebook, path: hpath }, url);
+  if (response.code === 0 && response.data?.length > 0) {
+    return response.data[0]; // Return first matching ID
+  }
+  return null;
+}
+
 /** Add flashcards */
 export async function addRiffCards(
   ids: string[],
