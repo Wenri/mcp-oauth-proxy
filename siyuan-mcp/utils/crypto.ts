@@ -51,16 +51,17 @@ export async function deriveMask(
 
 /**
  * Pack string into GSM 7-bit format (8 chars → 7 bytes)
- * Uses ESC (0x1B) padding when length % 8 == 7 to avoid phantom @ character
+ * Uses ESC (0x1B) padding when septets % 8 == 7 to avoid phantom @ character
+ * Note: Extended chars like []{}~\^€| take 2 septets each
  */
 export function pack7bit(str: string): Uint8Array {
-  const { result } = utils.Helper.encode7Bit(str);
+  const { length: septets, result } = utils.Helper.encode7Bit(str);
   const bytes = utils.Helper.hexToUint8Array(result);
 
-  // When length % 8 == 7, we have 7 padding bits in the last byte
+  // When septets % 8 == 7, we have 7 padding bits in the last byte
   // Use ESC (0x1B) padding instead of zero to avoid phantom @ on decode
   // ESC at end of stream is ignored by GSM decoder
-  if (str.length % 8 === 7) {
+  if (septets % 8 === 7) {
     bytes[bytes.length - 1] = (0x1b << 1) | (bytes[bytes.length - 1] & 0x01);
   }
 
@@ -69,9 +70,10 @@ export function pack7bit(str: string): Uint8Array {
 
 /**
  * Unpack GSM 7-bit format back to string
+ * @param septetCount - Number of septets (not chars - extended chars use 2 septets)
  */
-export function unpack7bit(bytes: Uint8Array, charCount: number): string {
-  return utils.Helper.decode7Bit(bytes.toHex(), charCount);
+export function unpack7bit(bytes: Uint8Array, septetCount: number): string {
+  return utils.Helper.decode7Bit(bytes.toHex(), septetCount);
 }
 
 // ============================================================================
@@ -130,10 +132,10 @@ export function decodeGrantKey(bytes: Uint8Array): { userId: string; grantId: st
   // grantId is always last 12 bytes
   const packedUserIdLength = bytes.length - GRANT_ID_BYTES;
 
-  // Calculate max possible userId chars from packed length
-  const maxChars = Math.floor((packedUserIdLength * 8) / 7);
+  // Calculate max possible septets from packed byte length
+  const maxSeptets = Math.floor((packedUserIdLength * 8) / 7);
   const packedUserId = bytes.slice(0, packedUserIdLength);
-  const userId = unpack7bit(packedUserId, maxChars);
+  const userId = unpack7bit(packedUserId, maxSeptets);
 
   // Decode grantId back to base64url
   const decodedGrantId = bytes.slice(packedUserIdLength);
