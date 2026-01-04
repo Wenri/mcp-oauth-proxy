@@ -754,8 +754,10 @@ const DEFAULT_API_CACHE_TTL = 180;
  * @returns Parsed JSON response
  */
 async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number): Promise<any> {
-  // Build cache key - URLSearchParams sorts keys for deterministic ordering
-  const cacheKey = `${baseUrl}${url}?${new URLSearchParams(data as Record<string, string>)}`;
+  // Build cache key using URL object - handles empty params correctly
+  const cacheUrl = new URL(url, baseUrl);
+  cacheUrl.search = new URLSearchParams(data as Record<string, string>).toString();
+  const cacheKey = cacheUrl.href;
   const cache = caches.default;
 
   // Check cache first
