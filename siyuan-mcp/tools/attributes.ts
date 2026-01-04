@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
@@ -27,6 +27,9 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
               "An object of key-value pairs representing the attributes to set. Setting an attribute to an empty string ('') will delete it."
             ),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the attribute update succeeded'),
+        },
         handler: setBlockAttributesHandler,
         title: lang('tool_title_set_block_attributes'),
         annotations: {
@@ -40,6 +43,9 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
         description: 'Get all attributes of a specific block.',
         inputSchema: {
           blockId: z.string().describe('The ID of the block to get attributes from.'),
+        },
+        outputSchema: {
+          attributes: z.record(z.string()).describe('Object of attribute key-value pairs'),
         },
         handler: getBlockAttributesHandler,
         title: lang('tool_title_get_block_attributes'),
@@ -60,6 +66,10 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
               })
             )
             .describe('Array of blocks with their attributes to set'),
+        },
+        outputSchema: {
+          success: z.boolean().describe('Whether the batch update succeeded'),
+          count: z.number().describe('Number of blocks updated'),
         },
         handler: batchSetAttributesHandler,
         title: lang('tool_title_batch_set_attributes'),
@@ -117,7 +127,7 @@ async function setBlockAttributesHandler(params: { blockId: string; attributes: 
   try {
     const result = await addblockAttrAPI(attributes, blockId);
     if (result === 0) {
-      return createSuccessResponse('Attributes updated successfully.');
+      return createJsonResponse({ success: true });
     } else {
       return createErrorResponse('Failed to update attributes.');
     }
@@ -143,7 +153,7 @@ async function getBlockAttributesHandler(params: { blockId: string }) {
 
   try {
     const attributes = await getblockAttr(blockId);
-    return createJsonResponse(attributes ?? {});
+    return createJsonResponse({ attributes: attributes ?? {} });
   } catch (error: any) {
     return createErrorResponse(`An error occurred: ${error.message}`);
   }
@@ -177,7 +187,7 @@ async function batchSetAttributesHandler(params: { blocks: { id: string; attrs: 
   try {
     const result = await batchSetBlockAttrs(blockAttrs);
     if (result !== null) {
-      return createSuccessResponse(`Successfully updated attributes for ${blocks.length} block(s).`);
+      return createJsonResponse({ success: true, count: blocks.length });
     } else {
       return createErrorResponse('Failed to batch update attributes.');
     }

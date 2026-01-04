@@ -90,6 +90,9 @@ export class DocVectorSearchProvider extends McpToolsProvider<any> {
         inputSchema: {
           question: z.string().describe('Describe question about note here'),
         },
+        outputSchema: {
+          answer: z.any().describe('RAG-generated answer based on indexed documents'),
+        },
         handler: (params: { question: string }, extra: any) =>
           answerWithRAG(params, extra, provider),
         title: lang('tool_title_generate_answer_with_doc'),
@@ -123,7 +126,7 @@ async function answerWithRAG(
     ]);
 
     logPush('RAG result', result);
-    return createJsonResponse(result);
+    return createJsonResponse({ answer: result });
   } catch (err: any) {
     errorPush('RAG API error', err);
     return createErrorResponse(

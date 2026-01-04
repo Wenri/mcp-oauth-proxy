@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
 import { checkIdValid, isADocId, getDocDBitem } from '../syapi/custom';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
@@ -27,6 +27,10 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
             .string()
             .describe('The Markdown-formatted text to append to the end of the specified document.'),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the append operation succeeded'),
+          blockId: z.string().describe('The ID of the newly created block'),
+        },
         handler: appendBlockHandler,
         title: lang('tool_title_append_markdown_to_doc'),
         annotations: {
@@ -48,6 +52,10 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
           title: z.string().describe('The title of the new note to be created.'),
           markdownContent: z.string().describe('The Markdown content of the new note.'),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the document creation succeeded'),
+          docId: z.string().describe('The ID of the newly created document'),
+        },
         handler: createNewNoteUnder,
         title: lang('tool_title_create_new_note_with_markdown_content'),
         annotations: {
@@ -63,6 +71,10 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
           id: z.string().describe('The unique identifier of the document to rename'),
           title: z.string().describe('The new title for the document'),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the rename operation succeeded'),
+          title: z.string().describe('The new title of the document'),
+        },
         handler: renameDocHandler,
         title: lang('tool_title_rename_doc'),
         annotations: {
@@ -76,6 +88,9 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
         description: 'Delete a document by its ID. This action moves the document to trash and is irreversible.',
         inputSchema: {
           id: z.string().describe('The unique identifier of the document to delete'),
+        },
+        outputSchema: {
+          success: z.boolean().describe('Whether the document was successfully removed'),
         },
         handler: removeDocHandler,
         title: lang('tool_title_remove_doc'),
@@ -95,6 +110,10 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
             .describe('Array of document IDs or full paths (e.g., "20210808180117-abc" or "notebook123/path/to/doc.sy")'),
           toNotebook: z.string().describe('Target notebook ID'),
           toPath: z.string().describe('Target path within the notebook (e.g., "/" for root, or "/Parent Doc" for subdoc)'),
+        },
+        outputSchema: {
+          success: z.boolean().describe('Whether the move operation succeeded'),
+          count: z.number().describe('Number of documents moved'),
         },
         handler: moveDocsHandler,
         title: lang('tool_title_move_docs'),
@@ -128,7 +147,7 @@ async function appendBlockHandler(params: { id: string; markdownContent: string 
   }
 
   taskManager.insert(result.id, markdownContent, 'appendToDocEnd', { docId: id }, TASK_STATUS.APPROVED);
-  return createSuccessResponse('Successfully appended, the block ID for the new content is ' + result.id);
+  return createJsonResponse({ success: true, blockId: result.id });
 }
 
 async function createNewNoteUnder(params: { parentId: string; title: string; markdownContent: string }) {
@@ -145,11 +164,10 @@ async function createNewNoteUnder(params: { parentId: string; title: string; mar
 
   if (result) {
     taskManager.insert(newDocId, markdownContent, 'createNewNoteUnder', {}, TASK_STATUS.APPROVED);
+    return createJsonResponse({ success: true, docId: newDocId });
   }
 
-  return result
-    ? createSuccessResponse(`Successfully created document, document ID is: ${newDocId}`)
-    : createErrorResponse('An Error Occurred');
+  return createErrorResponse('An Error Occurred');
 }
 
 async function renameDocHandler(params: { id: string; title: string }) {
@@ -174,7 +192,7 @@ async function renameDocHandler(params: { id: string; title: string }) {
     return createErrorResponse('Failed to rename the document');
   }
 
-  return createSuccessResponse(`Document renamed to "${title}" successfully.`);
+  return createJsonResponse({ success: true, title });
 }
 
 async function removeDocHandler(params: { id: string }) {
@@ -200,7 +218,7 @@ async function removeDocHandler(params: { id: string }) {
   }
 
   taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
-  return createSuccessResponse('Document removed successfully.');
+  return createJsonResponse({ success: true });
 }
 
 async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string; toPath: string }) {
@@ -242,5 +260,5 @@ async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string;
     return createErrorResponse('Failed to move the documents');
   }
 
-  return createSuccessResponse(`Successfully moved ${fromDocs.length} document(s).`);
+  return createJsonResponse({ success: true, count: fromDocs.length });
 }

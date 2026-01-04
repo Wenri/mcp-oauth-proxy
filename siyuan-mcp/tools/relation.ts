@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -25,6 +25,9 @@ export class RelationToolProvider extends McpToolsProvider<any> {
               'The ID of the target document or block. The notebook where the target resides must be open.'
             ),
         },
+        outputSchema: {
+          backlinks: z.array(z.any()).describe('Array of documents/blocks that reference the specified ID'),
+        },
         handler: getDocBacklink,
         title: 'Get Note Relationship',
         annotations: {
@@ -44,6 +47,9 @@ export class RelationToolProvider extends McpToolsProvider<any> {
               'The ID of the parent document or notebook. The notebook containing this document must be open.'
             ),
         },
+        outputSchema: {
+          docs: z.array(z.any()).describe('Array of sub-document metadata'),
+        },
         handler: getChildrenDocs,
         title: 'Get Sub-Document Information',
         annotations: {
@@ -58,6 +64,9 @@ export class RelationToolProvider extends McpToolsProvider<any> {
           'Get all child blocks under a parent block by its ID. This includes directly nested blocks and blocks under headings. Long block content will be abbreviated. Useful for understanding block hierarchy and content organization.',
         inputSchema: {
           id: z.string().describe('The unique identifier (ID) of the parent block.'),
+        },
+        outputSchema: {
+          blocks: z.array(z.any()).describe('Array of child block metadata'),
         },
         handler: getChildBlocksTool,
         title: 'Get Child Blocks',
@@ -90,7 +99,7 @@ async function getDocBacklink(params: { id: string }) {
   debugPush('backlinkResponse', backlinkResponse);
 
   if (backlinkResponse.backlinks.length == 0) {
-    return createSuccessResponse('No documents or blocks referencing the specified ID were found.');
+    return createJsonResponse({ backlinks: [] });
   }
 
   const result: any[] = [];
@@ -107,7 +116,7 @@ async function getDocBacklink(params: { id: string }) {
     }
   }
 
-  return createJsonResponse(result);
+  return createJsonResponse({ backlinks: result });
 }
 
 async function getChildrenDocs(params: { id: string }) {
@@ -135,7 +144,7 @@ async function getChildrenDocs(params: { id: string }) {
     result = await listDocsByPathT({ notebook: sqlResult['box'], path: sqlResult['path'] });
   }
 
-  return createJsonResponse(result);
+  return createJsonResponse({ docs: result });
 }
 
 async function getChildBlocksTool(params: { id: string }) {
@@ -153,5 +162,5 @@ async function getChildBlocksTool(params: { id: string }) {
     );
   }
 
-  return createJsonResponse(await getChildBlocks(id));
+  return createJsonResponse({ blocks: await getChildBlocks(id) });
 }

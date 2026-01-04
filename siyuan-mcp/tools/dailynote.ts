@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import {
   appendBlockAPI,
   createDailyNote,
@@ -37,6 +37,10 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
               'The ID of the target notebook where the daily note is located. The notebook must not be in a closed state.'
             ),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the append operation succeeded'),
+          blockId: z.string().describe('ID of the newly created block'),
+        },
         handler: appendToDailynoteHandler,
         title: lang('tool_title_append_to_dailynote'),
         annotations: {
@@ -50,6 +54,9 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
         description:
           'List all notebooks in SiYuan and return their metadata(such as id, open status, dailyNoteSavePath etc.).',
         inputSchema: {},
+        outputSchema: {
+          notebooks: z.array(z.any()).describe('Array of notebook metadata objects'),
+        },
         handler: listNotebookHandler,
         title: lang('tool_title_list_notebook'),
         annotations: {
@@ -104,14 +111,14 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
   }
 
   taskManager.insert(id, markdownContent, 'appendToDailyNote', {}, TASK_STATUS.APPROVED);
-  return createSuccessResponse('Successfully created the dailynote, the block ID for the new content is ' + newBlockId);
+  return createJsonResponse({ success: true, blockId: newBlockId });
 }
 
 async function listNotebookHandler() {
   // PLATFORM CHANGE: Use kernel API instead of window.siyuan.notebooks
   const notebooks = await getNodebookList();
   if (!notebooks || notebooks.length === 0) {
-    return createJsonResponse([]);
+    return createJsonResponse({ notebooks: [] });
   }
 
   const augmentedNotebooks = await Promise.all(
@@ -136,5 +143,5 @@ async function listNotebookHandler() {
     })
   );
 
-  return createJsonResponse(augmentedNotebooks);
+  return createJsonResponse({ notebooks: augmentedNotebooks });
 }

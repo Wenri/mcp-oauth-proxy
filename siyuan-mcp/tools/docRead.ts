@@ -31,6 +31,13 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
             .default(10000)
             .describe('The maximum number of characters to return in this request'),
         },
+        outputSchema: {
+          content: z.string().describe('The markdown content of the document/block (sliced by offset/limit)'),
+          offset: z.number().describe('The starting offset used'),
+          limit: z.number().describe('The limit used'),
+          hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
+          totalLength: z.number().describe('Total length of the full content in characters'),
+        },
         handler: blockReadHandler,
         title: lang('tool_title_read_doc_content_markdown'),
         annotations: { readOnlyHint: true },
@@ -41,6 +48,9 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
         inputSchema: {
           id: z.string().describe('The unique identifier of the block'),
+        },
+        outputSchema: {
+          kramdown: z.string().describe('The block content in Kramdown format with preserved formatting'),
         },
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
@@ -54,6 +64,11 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
           id: z.string().describe('The unique identifier of the document or block'),
           includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
         },
+        outputSchema: {
+          id: z.string().describe('The block/document ID'),
+          hpath: z.string().describe('Human-readable path (e.g., "/Notebook/Parent Doc/Child Doc")'),
+          outline: z.array(z.any()).optional().describe('Document outline/TOC if includeOutline was true'),
+        },
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
         annotations: { readOnlyHint: true },
@@ -65,6 +80,10 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
         inputSchema: {
           id: z.string().describe('The unique identifier of the document'),
         },
+        outputSchema: {
+          id: z.string().describe('The document ID'),
+          outline: z.array(z.any()).describe('Hierarchical outline with headings (id, name, type, depth, count, blocks)'),
+        },
         handler: getDocOutlineHandler,
         title: lang('tool_title_get_doc_outline'),
         annotations: { readOnlyHint: true },
@@ -75,6 +94,10 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
         inputSchema: {
           id: z.string().describe('The unique identifier of the document'),
+        },
+        outputSchema: {
+          id: z.string().describe('The document ID'),
+          html: z.string().describe('The rendered HTML content of the document'),
         },
         handler: exportHtmlHandler,
         title: lang('tool_title_export_html'),

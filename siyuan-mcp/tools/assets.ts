@@ -35,6 +35,13 @@ export class AssetToolProvider extends McpToolsProvider<any> {
             .optional()
             .describe('Alt text for the image (only used when insertAfterBlock is provided)'),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the upload succeeded'),
+          fileName: z.string().describe('Name of the uploaded file'),
+          assetPath: z.string().describe('Path to the uploaded asset'),
+          insertedBlockId: z.string().nullable().describe('ID of the inserted block if auto-insert was used'),
+          message: z.string().describe('Status message'),
+        },
         handler: uploadAssetHandler,
         title: lang('tool_title_upload_asset'),
         annotations: {
@@ -60,6 +67,13 @@ export class AssetToolProvider extends McpToolsProvider<any> {
             .string()
             .optional()
             .describe('Target assets directory path. Defaults to "/data/assets/"'),
+        },
+        outputSchema: {
+          success: z.boolean().describe('Whether the batch upload succeeded'),
+          uploadedCount: z.number().describe('Number of files uploaded successfully'),
+          failedCount: z.number().describe('Number of files that failed to upload'),
+          succMap: z.record(z.string()).describe('Map of file names to their asset paths'),
+          errFiles: z.array(z.string()).describe('List of file names that failed to upload'),
         },
         handler: uploadAssetsBatchHandler,
         title: lang('tool_title_upload_assets_batch'),

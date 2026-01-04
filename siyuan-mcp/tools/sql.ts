@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
 import { McpToolsProvider } from './baseToolProvider';
@@ -22,6 +22,9 @@ export class SqlToolProvider extends McpToolsProvider<any> {
         description:
           'Provides the SiYuan database schema, including table names, field names, and their relationships, to help construct valid SQL queries for retrieving notes or note content. Returns the schema in markdown format.',
         inputSchema: {},
+        outputSchema: {
+          schema: z.string().describe('Database schema documentation in markdown format'),
+        },
         handler: schemaHandler,
         title: lang('tool_title_database_schema'),
         annotations: {
@@ -33,6 +36,9 @@ export class SqlToolProvider extends McpToolsProvider<any> {
         description:
           'Provides a SQL cheatsheet with query examples for SiYuan database, including FTS5 full-text search, window functions, JSON operations, and common patterns.',
         inputSchema: {},
+        outputSchema: {
+          cheatsheet: z.string().describe('SQL cheatsheet documentation in markdown format'),
+        },
         handler: cheatsheetHandler,
         title: lang('tool_title_sql_cheatsheet'),
         annotations: {
@@ -60,6 +66,9 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
         inputSchema: {
           stmt: z.string().describe('SQL statement to execute (read-only, writes do not persist)'),
         },
+        outputSchema: {
+          results: z.array(z.any()).describe('Array of result rows from the SQL query'),
+        },
         handler: sqlHandler,
         title: lang('tool_title_query_sql'),
         annotations: {
@@ -75,6 +84,11 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
           limit: z.number().optional().default(20).describe('Maximum results to return (default: 20)'),
           snippetLength: z.number().optional().default(64).describe('Number of tokens around match in snippet (default: 64)'),
           caseSensitive: z.boolean().optional().default(false).describe('Use case-sensitive search (default: false)'),
+        },
+        outputSchema: {
+          query: z.string().describe('The search query that was executed'),
+          resultCount: z.number().describe('Number of results found'),
+          results: z.array(z.any()).describe('Array of matching blocks with id, snippet, relevance score'),
         },
         handler: fulltextSearchHandler,
         title: lang('tool_title_fulltext_search'),
@@ -112,17 +126,17 @@ async function sqlHandler(params: { stmt: string }) {
     sqlResult = filteredResult;
   }
 
-  return createJsonResponse(sqlResult);
+  return createJsonResponse({ results: sqlResult });
 }
 
 async function schemaHandler() {
   debugPush('Schema API called');
-  return createSuccessResponse(databaseSchema);
+  return createJsonResponse({ schema: databaseSchema });
 }
 
 async function cheatsheetHandler() {
   debugPush('SQL cheatsheet API called');
-  return createSuccessResponse(sqlCheatsheet);
+  return createJsonResponse({ cheatsheet: sqlCheatsheet });
 }
 
 async function fulltextSearchHandler(params: {

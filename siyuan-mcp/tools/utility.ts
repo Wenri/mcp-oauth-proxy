@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { pushMsgAPI, reindexDoc, flushTransaction } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -17,6 +17,21 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         name: 'get_current_time',
         description: lang('tool_get_current_time'),
         inputSchema: {},
+        outputSchema: {
+          iso: z.string().describe('ISO 8601 formatted timestamp'),
+          year: z.number().describe('Year (e.g., 2024)'),
+          month: z.string().describe('Month (01-12)'),
+          day: z.string().describe('Day of month (01-31)'),
+          hour: z.string().describe('Hour (00-23)'),
+          minute: z.string().describe('Minute (00-59)'),
+          second: z.string().describe('Second (00-59)'),
+          dayOfWeek: z.string().describe('Day of week (e.g., "Monday")'),
+          formattedDate: z.string().describe('Formatted date (YYYY-MM-DD)'),
+          formattedTime: z.string().describe('Formatted time (HH:MM:SS)'),
+          formattedDateTime: z.string().describe('Formatted datetime (YYYY-MM-DD HH:MM:SS)'),
+          timezoneOffset: z.number().describe('Timezone offset in minutes'),
+          unixTimestamp: z.number().describe('Unix timestamp in seconds'),
+        },
         handler: getCurrentTimeHandler,
         title: lang('tool_title_get_current_time'),
         annotations: {
@@ -32,7 +47,11 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
           timeout: z
             .number()
             .optional()
+            .default(7000)
             .describe('How long to show the notification in milliseconds (default: 7000)'),
+        },
+        outputSchema: {
+          success: z.boolean().describe('Whether the notification was sent successfully'),
         },
         handler: pushNotificationHandler,
         title: lang('tool_title_push_notification'),
@@ -49,6 +68,10 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         inputSchema: {
           path: z.string().describe('The document path to reindex (e.g., "/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy")'),
         },
+        outputSchema: {
+          success: z.boolean().describe('Whether the reindex operation succeeded'),
+          path: z.string().describe('The path that was reindexed'),
+        },
         handler: reindexDocHandler,
         title: lang('tool_title_reindex_doc'),
         annotations: {
@@ -62,6 +85,9 @@ export class UtilityToolProvider extends McpToolsProvider<any> {
         description:
           'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
         inputSchema: {},
+        outputSchema: {
+          success: z.boolean().describe('Whether the flush operation succeeded'),
+        },
         handler: flushTransactionHandler,
         title: lang('tool_title_flush_transaction'),
         annotations: {
@@ -83,11 +109,8 @@ async function pushNotificationHandler(params: { message: string; timeout?: numb
   }
 
   const result = await pushMsgAPI(message, timeout);
-  if (result === 0) {
-    return createSuccessResponse('Notification sent successfully.');
-  } else {
-    return createErrorResponse('Failed to send notification.');
-  }
+  const success = result === 0;
+  return createJsonResponse({ success });
 }
 
 async function reindexDocHandler(params: { path: string }) {
@@ -99,22 +122,16 @@ async function reindexDocHandler(params: { path: string }) {
   }
 
   const result = await reindexDoc(path);
-  if (result === 0) {
-    return createSuccessResponse(`Successfully reindexed: ${path}`);
-  } else {
-    return createErrorResponse('Failed to reindex document.');
-  }
+  const success = result === 0;
+  return createJsonResponse({ success, path });
 }
 
 async function flushTransactionHandler() {
   debugPush('Flush transaction API called');
 
   const result = await flushTransaction();
-  if (result === 0) {
-    return createSuccessResponse('Database transactions flushed successfully.');
-  } else {
-    return createErrorResponse('Failed to flush transactions.');
-  }
+  const success = result === 0;
+  return createJsonResponse({ success });
 }
 
 async function getCurrentTimeHandler() {
