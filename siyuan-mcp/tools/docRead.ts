@@ -253,12 +253,15 @@ function getEffectiveMimeType(response: Response, path: string): string | null {
   return getMimeFromExtension(path);
 }
 
-/** Convert blob to MCP ContentBlock with explicit MIME type */
-async function blobToContentBlock(blob: Blob, mimeType: string): Promise<{
-  type: string;
+/** MCP media content block (image or audio) */
+type MediaContentBlock = {
+  type: 'image' | 'audio';
   data: string;
   mimeType: string;
-}> {
+};
+
+/** Convert blob to MCP ContentBlock with explicit MIME type */
+async function blobToContentBlock(blob: Blob, mimeType: string): Promise<MediaContentBlock> {
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
@@ -268,7 +271,7 @@ async function blobToContentBlock(blob: Blob, mimeType: string): Promise<{
   const base64Data = btoa(binary);
 
   return {
-    type: mimeType.split('/')[0], // "image" or "audio"
+    type: mimeType.split('/')[0] as 'image' | 'audio',
     data: base64Data,
     mimeType,
   };
@@ -287,7 +290,7 @@ async function getAssets(id: string) {
     }))
   );
 
-  const contentBlocks: Promise<any>[] = [];
+  const contentBlocks: Promise<MediaContentBlock>[] = [];
   let mediaLengthSum = 0;
 
   for (const { path, response } of fetchResults) {
