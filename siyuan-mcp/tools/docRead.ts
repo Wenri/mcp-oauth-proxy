@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import mime from 'mime-types';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
 import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
@@ -205,40 +206,14 @@ async function kramdownReadHandler(params: { id: string }) {
   );
 }
 
-/** Extension to MIME type mapping */
-const extensionMimeMap: Record<string, string> = {
-  // Images
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  bmp: 'image/bmp',
-  svg: 'image/svg+xml',
-  webp: 'image/webp',
-  ico: 'image/x-icon',
-  // Audio
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-  ogg: 'audio/ogg',
-  m4a: 'audio/mp4',
-  flac: 'audio/flac',
-  aac: 'audio/aac',
-};
-
-/** Get MIME type from file extension, or null if not a supported media type */
-function getMimeFromExtension(path: string): string | null {
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  return extensionMimeMap[ext] || null;
-}
-
-/** Check if MIME type is a supported media type */
+/** Check if MIME type is a supported media type (image or audio) */
 function isMediaMime(mimeType: string): boolean {
   return mimeType.startsWith('image/') || mimeType.startsWith('audio/');
 }
 
 /**
  * Get effective MIME type for a response.
- * Priority: response MIME (if media) > extension-based MIME
+ * Priority: response MIME (if media) > extension-based MIME (via mime-types)
  */
 function getEffectiveMimeType(response: Response, path: string): string | null {
   const contentType = response.headers.get('Content-Type') || '';
@@ -249,8 +224,13 @@ function getEffectiveMimeType(response: Response, path: string): string | null {
     return responseMime;
   }
 
-  // Fall back to extension-based MIME (e.g., when server returns application/octet-stream)
-  return getMimeFromExtension(path);
+  // Fall back to extension-based MIME using mime-types library
+  const extMime = mime.lookup(path);
+  if (extMime && isMediaMime(extMime)) {
+    return extMime;
+  }
+
+  return null;
 }
 
 /** MCP media content block (image or audio) */
