@@ -687,21 +687,33 @@ export async function createDocWithPath(
 /** Response type for getFileAPIv2 */
 export type FileAPIResult = { response: Response; contentType: string } | null;
 
-/** Create a size-limited stream that throws RangeError if exceeded */
-function limitedStream(stream: ReadableStream<Uint8Array>, maxBytes: number): ReadableStream<Uint8Array> {
+/** Read stream with size limit. Returns null if exceeded, Uint8Array if complete. */
+async function limitedRead(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array | null> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
   let total = 0;
-  return stream.pipeThrough(
-    new TransformStream({
-      transform(chunk, controller) {
-        total += chunk.length;
-        if (total > maxBytes) {
-          controller.error(new RangeError('Size limit exceeded'));
-        } else {
-          controller.enqueue(chunk);
-        }
-      },
-    })
-  );
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > maxBytes) {
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.cancel();
+  }
+
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
 }
 
 /** Check if MIME type indicates text content */
@@ -758,15 +770,18 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
       return { response, contentType };
     }
 
-    // Check for error with size-limited stream
+    // Check for error with size-limited read
     const [checkStream, returnStream] = response.body!.tee();
-    try {
-      const json = (await new Response(limitedStream(checkStream, MAX_ERROR_SIZE)).json()) as { code?: number };
-      if (json.code === 404) {
-        return null;
+    const data = await limitedRead(checkStream, MAX_ERROR_SIZE);
+    if (data) {
+      try {
+        const json = JSON.parse(new TextDecoder().decode(data)) as { code?: number };
+        if (json.code === 404) {
+          return null;
+        }
+      } catch {
+        // Invalid JSON - treat as file content
       }
-    } catch {
-      // Too big or invalid JSON - treat as file content
     }
 
     return {
