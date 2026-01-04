@@ -134,6 +134,7 @@ async function readFileHandler(params: { path: string }) {
   const downloadUrl = await buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
   const cacheTtl = getTokenTtl();
+  const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
 
   // Cache using downloadUrl as key (includes token, per-user cache)
   const cache = caches.default;
@@ -156,7 +157,7 @@ async function readFileHandler(params: { path: string }) {
         ),
       );
     }
-    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, cacheTtl });
+    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, expiresAt });
   }
 
   // Binary file: tee stream to cache while returning download URL
@@ -181,7 +182,7 @@ async function readFileHandler(params: { path: string }) {
     type: 'binary',
     mimeType: contentType,
     downloadUrl,
-    cacheTtl,
+    expiresAt,
   });
 }
 
@@ -293,10 +294,13 @@ async function createArchiveHandler(params: { paths: string[]; name?: string }) 
 
   const fileName = result.path.split('/').pop() || 'archive.zip';
   const downloadUrl = await buildDownloadUrl(result.path);
+  const cacheTtl = getTokenTtl();
+  const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
 
   return createJsonResponse({
     fileName,
     downloadUrl,
+    expiresAt,
     paths: paths,
   });
 }
