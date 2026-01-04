@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { waitUntil } from 'cloudflare:workers';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
+import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -136,19 +136,44 @@ async function readFileHandler(params: { path: string }) {
   const cacheTtl = getTokenTtl();
   const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
 
-  // Cache using downloadUrl as key (includes token, per-user cache)
   const cache = caches.default;
   const cached = await cache.match(downloadUrl);
 
-  if (isText) {
-    // Text file: read content and cache
-    const text = await response.text();
+  const MAX_INLINE_SIZE = 512 * 1024; // 512KB
+  const contentLength = response.headers.get('Content-Length');
+  const knownSize = contentLength ? parseInt(contentLength, 10) : null;
+
+  // Helper to cache and return inline content
+  const returnInline = (data: Uint8Array) => {
     if (!cached && cacheTtl > 0) {
       waitUntil(
         cache.put(
           downloadUrl,
-          new Response(text, {
+          new Response(data, {
             status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': `public, max-age=${cacheTtl}`,
+              'Content-Length': data.length.toString(),
+            },
+          }),
+        ),
+      );
+    }
+    if (isText) {
+      return createJsonResponse({ path, content: new TextDecoder().decode(data), type: 'text', mimeType: contentType, downloadUrl, expiresAt });
+    }
+    return createJsonResponse({ path, content: data.toBase64(), type: 'binary', mimeType: contentType, downloadUrl, expiresAt, encoding: 'base64' });
+  };
+
+  // Helper to cache stream and return URL only
+  const returnUrlOnly = (stream: ReadableStream<Uint8Array>) => {
+    if (!cached && cacheTtl > 0) {
+      waitUntil(
+        cache.put(
+          downloadUrl,
+          new Response(stream, {
+            status: response.status,
             headers: {
               'Content-Type': contentType,
               'Cache-Control': `public, max-age=${cacheTtl}`,
@@ -157,33 +182,26 @@ async function readFileHandler(params: { path: string }) {
         ),
       );
     }
-    return createJsonResponse({ path, content: text, type: 'text', mimeType: contentType, downloadUrl, expiresAt });
+    return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
+  };
+
+  // Fast path: Content-Length tells us the size
+  if (knownSize !== null) {
+    if (knownSize <= MAX_INLINE_SIZE) {
+      const data = new Uint8Array(await response.arrayBuffer());
+      return returnInline(data);
+    }
+    return returnUrlOnly(response.body!);
   }
 
-  // Binary file: tee stream to cache while returning download URL
-  if (!cached && cacheTtl > 0) {
-    const [cacheStream, _] = response.body!.tee();
-    waitUntil(
-      cache.put(
-        downloadUrl,
-        new Response(cacheStream, {
-          status: response.status,
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': `public, max-age=${cacheTtl}`,
-          },
-        }),
-      ),
-    );
-  }
+  // Slow path: No Content-Length, tee + limitedRead
+  const [readStream, cacheStream] = response.body!.tee();
+  const data = await limitedRead(readStream, MAX_INLINE_SIZE);
 
-  return createJsonResponse({
-    path,
-    type: 'binary',
-    mimeType: contentType,
-    downloadUrl,
-    expiresAt,
-  });
+  if (data) {
+    return returnInline(data);
+  }
+  return returnUrlOnly(cacheStream);
 }
 
 async function writeFileHandler(params: { path: string; content: string; isBase64?: boolean }) {

@@ -688,7 +688,7 @@ export async function createDocWithPath(
 export type FileAPIResult = { response: Response; contentType: string } | null;
 
 /** Read stream with size limit. Returns null if exceeded, Uint8Array if complete. */
-async function limitedRead(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array | null> {
+export async function limitedRead(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array | null> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
