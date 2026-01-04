@@ -114,7 +114,7 @@ export async function queryAPI(sqlstmt: string): Promise<any[]> {
   return [];
 }
 
-/** List documents by path */
+/** List documents by path (cached) */
 export async function listDocsByPathT({
   notebook,
   path,
@@ -131,7 +131,7 @@ export async function listDocsByPathT({
   showHidden?: boolean | null;
 }): Promise<any[]> {
   const url = '/api/filetree/listDocsByPath';
-  const body: any = { notebook, path };
+  const body: Record<string, string | number | boolean> = { notebook, path };
   if (maxListCount !== undefined && maxListCount >= 0) {
     body.maxListCount = maxListCount;
   }
@@ -144,7 +144,7 @@ export async function listDocsByPathT({
   if (showHidden !== null) {
     body.showHidden = showHidden;
   }
-  const response = await postRequest(body, url);
+  const response = await cachedPostRequest(body, url);
   if (response.code !== 0 || response.data == null) {
     warnPush('listDocsByPath error:', response.msg);
     return [];
@@ -152,10 +152,10 @@ export async function listDocsByPathT({
   return response.data.files;
 }
 
-/** Get block attributes */
+/** Get block attributes (cached) */
 export async function getblockAttr(blockid: string): Promise<any> {
   const url = '/api/attr/getBlockAttrs';
-  const response = await postRequest({ id: blockid }, url);
+  const response = await cachedPostRequest({ id: blockid }, url);
   if (response.code !== 0) {
     throw new Error('Failed to get block attributes');
   }
@@ -362,20 +362,20 @@ export async function getKramdown(blockid: string, throwError = false): Promise<
   return null;
 }
 
-/** Get notebook list */
+/** Get notebook list (cached) */
 export async function getNodebookList(): Promise<any[]> {
   const url = '/api/notebook/lsNotebooks';
-  const response = await postRequest({}, url);
+  const response = await cachedPostRequest({}, url);
   if (response.code === 0 && response.data?.notebooks) {
     return response.data.notebooks;
   }
   return [];
 }
 
-/** Get notebook config */
+/** Get notebook config (cached) */
 export async function getNotebookConf(notebookId: string): Promise<any> {
   const url = '/api/notebook/getNotebookConf';
-  const response = await postRequest({ notebook: notebookId }, url);
+  const response = await cachedPostRequest({ notebook: notebookId }, url);
   if (response.code === 0 && response.data) {
     return response.data;
   }
@@ -528,10 +528,10 @@ export async function getBackLink2T(
   return getResponseData(postRequest({ id, sort, msort, k, mk }, url));
 }
 
-/** List document tree */
+/** List document tree (cached) */
 export async function listDocTree(notebook: string, path: string): Promise<any> {
   const url = '/api/filetree/listDocTree';
-  const response = await postRequest({ notebook, path }, url);
+  const response = await cachedPostRequest({ notebook, path }, url);
   if (response.code === 0) {
     return response.data.tree;
   }
@@ -596,20 +596,20 @@ export async function moveDocsAPI(
   return false;
 }
 
-/** Get human-readable path by ID */
+/** Get human-readable path by ID (cached) */
 export async function getHPathByIDAPI(id: string): Promise<string | null> {
   const url = '/api/filetree/getHPathByID';
-  const response = await postRequest({ id }, url);
+  const response = await cachedPostRequest({ id }, url);
   if (response.code === 0 && response.data) {
     return response.data;
   }
   return null;
 }
 
-/** Get document ID by human-readable path */
+/** Get document ID by human-readable path (cached) */
 export async function getDocIDByHPath(notebook: string, hpath: string): Promise<string | null> {
   const url = '/api/filetree/getIDsByHPath';
-  const response = await postRequest({ notebook, path: hpath }, url);
+  const response = await cachedPostRequest({ notebook, path: hpath }, url);
   if (response.code === 0 && response.data?.length > 0) {
     return response.data[0]; // Return first matching ID
   }
@@ -655,24 +655,24 @@ export async function removeRiffCards(
   return null;
 }
 
-/** Get all decks */
+/** Get all decks (cached) */
 export async function getRiffDecks(): Promise<any[]> {
   const url = '/api/riff/getRiffDecks';
-  const response = await postRequest({}, url);
+  const response = await cachedPostRequest({}, url);
   if (response.code === 0 && response.data) {
     return response.data;
   }
   return [];
 }
 
-/** Get document info */
+/** Get document info (cached) */
 export async function getDocInfo(id: string): Promise<any> {
-  return getResponseData(postRequest({ id }, '/api/block/getDocInfo'));
+  return getResponseData(cachedPostRequest({ id }, '/api/block/getDocInfo'));
 }
 
-/** Get tree statistics */
+/** Get tree statistics (cached) */
 export async function getTreeStat(id: string): Promise<any> {
-  return getResponseData(postRequest({ id }, '/api/block/getTreeStat'));
+  return getResponseData(cachedPostRequest({ id }, '/api/block/getTreeStat'));
 }
 
 /** Create document with path */
@@ -939,10 +939,10 @@ export async function renameFileAPI(path: string, newPath: string): Promise<bool
   return response.code === 0;
 }
 
-/** Read directory contents */
+/** Read directory contents (cached) */
 export async function readDirAPI(path: string): Promise<any[] | null> {
   const url = '/api/file/readDir';
-  const response = await postRequest({ path }, url);
+  const response = await cachedPostRequest({ path }, url);
   if (response.code === 0 && response.data) {
     return response.data;
   }

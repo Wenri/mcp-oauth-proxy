@@ -74,7 +74,7 @@ export class PathResourceProvider extends McpResourceProvider {
         return {
           contents: [{
             uri: uri.href,
-            mimeType: 'text/markdown',
+            mimeType: 'text/html',
             text: doc.content,
           }],
         };

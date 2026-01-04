@@ -56,7 +56,7 @@ export class BlockResourceProvider extends McpResourceProvider {
           return { contents: [{ uri: uri.href, text: `Block not found: ${id}` }] };
         }
 
-        // Document: return full markdown content
+        // Document: return full HTML content
         if (blockInfo.type === 'd') {
           const doc = await getDoc(id);
           if (!doc?.content) {
@@ -65,7 +65,7 @@ export class BlockResourceProvider extends McpResourceProvider {
           return {
             contents: [{
               uri: uri.href,
-              mimeType: 'text/markdown',
+              mimeType: 'text/html',
               text: doc.content,
             }],
           };
