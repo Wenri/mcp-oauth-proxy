@@ -744,10 +744,28 @@ export function isTextExtension(path: string): boolean {
   return textExtensions.includes(ext);
 }
 
-/** Get file from workspace - returns Response directly for efficient streaming */
-export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
-  const url = '/api/file/getFile';
+/** Options for getFileAPIv2 */
+export interface GetFileOptions {
+  /** Cache TTL in seconds. If > 0, enables caching. */
+  cacheTtl?: number;
+}
 
+/** Get file from workspace - returns Response directly for efficient streaming */
+export async function getFileAPIv2(path: string, options?: GetFileOptions): Promise<FileAPIResult> {
+  const { cacheTtl = 0 } = options || {};
+  const cacheKey = `https://siyuan.cache/file/${path}`;
+
+  // Check cache first
+  if (cacheTtl > 0) {
+    const cache = caches.default;
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      const contentType = cached.headers.get('Content-Type') || '';
+      return { response: cached, contentType };
+    }
+  }
+
+  const url = '/api/file/getFile';
   const response = await kernelFetch(url, {
     method: 'POST',
     body: JSON.stringify({ path }),
@@ -797,6 +815,31 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
     }
 
     // Too big - return the untouched stream
+    return {
+      response: new Response(returnStream, {
+        status: response.status,
+        headers: response.headers,
+      }),
+      contentType,
+    };
+  }
+
+  // Cache the response if TTL > 0
+  if (cacheTtl > 0) {
+    const cache = caches.default;
+    const [cacheStream, returnStream] = response.body!.tee();
+    const headers = new Headers(response.headers);
+    headers.set('Cache-Control', `public, max-age=${cacheTtl}`);
+
+    // Cache in background
+    cache.put(
+      cacheKey,
+      new Response(cacheStream, {
+        status: response.status,
+        headers,
+      }),
+    );
+
     return {
       response: new Response(returnStream, {
         status: response.status,

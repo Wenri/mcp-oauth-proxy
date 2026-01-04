@@ -86,22 +86,6 @@ app.get("/download/:token/*", async (c) => {
 	const now = Math.floor(Date.now() / 1000);
 	const cacheTtl = grant.expiresAt ? Math.max(0, grant.expiresAt - now) : 3600;
 
-	// Check cache first (keyed by full URL including token)
-	const cache = caches.default;
-	const cacheKey = c.req.url;
-	const cached = await cache.match(cacheKey);
-	if (cached) {
-		// Return cached response with Content-Disposition header
-		const filename = filePath.split("/").pop() || "download";
-		const headers = new Headers(cached.headers);
-		headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-		headers.set("X-Cache", "HIT");
-		return new Response(cached.body, {
-			status: cached.status,
-			headers,
-		});
-	}
-
 	// Initialize kernel with service token
 	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 	initKernel(
@@ -111,49 +95,21 @@ app.get("/download/:token/*", async (c) => {
 		env.CF_ACCESS_SERVICE_CLIENT_SECRET,
 	);
 
-	// Fetch file using syapi
-	const result = await getFileAPIv2(filePath.slice(1)); // Remove leading slash
+	// Fetch file using syapi (caching handled by getFileAPIv2)
+	const result = await getFileAPIv2(filePath.slice(1), { cacheTtl });
 	if (!result) {
 		return c.text("File not found", 404);
 	}
-	const { response, contentType } = result;
+	const { response } = result;
 
-	// Get content info from response
-	const contentLength = response.headers.get("Content-Length");
+	// Build response headers from upstream
 	const filename = filePath.split("/").pop() || "download";
+	const headers = new Headers(response.headers);
+	headers.set("Content-Disposition", `attachment; filename="${filename}"`);
 
-	// Tee the stream - one for client, one for cache
-	const [clientStream, cacheStream] = response.body!.tee();
-
-	// Cache in background with remaining grant TTL
-	if (cacheTtl > 0) {
-		c.executionCtx.waitUntil(
-			cache.put(
-				cacheKey,
-				new Response(cacheStream, {
-					status: response.status,
-					headers: {
-						"Content-Type": contentType,
-						"Cache-Control": `public, max-age=${cacheTtl}`,
-						...(contentLength ? { "Content-Length": contentLength } : {}),
-					},
-				}),
-			),
-		);
-	}
-
-	// Build response headers for client
-	const responseHeaders = new Headers();
-	if (contentLength) {
-		responseHeaders.set("Content-Length", contentLength);
-	}
-	responseHeaders.set("Content-Type", contentType);
-	responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
-	responseHeaders.set("X-Cache", "MISS");
-
-	return new Response(clientStream, {
+	return new Response(response.body, {
 		status: response.status,
-		headers: responseHeaders,
+		headers,
 	});
 });
 

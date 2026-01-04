@@ -3,7 +3,6 @@
  */
 
 import { z } from 'zod';
-import { waitUntil } from 'cloudflare:workers';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
@@ -125,7 +124,8 @@ async function readFileHandler(params: { path: string }) {
     return createErrorResponse('Path is required.');
   }
 
-  const result = await getFileAPIv2(path);
+  const cacheTtl = getTokenTtl();
+  const result = await getFileAPIv2(path, { cacheTtl });
   if (result === null) {
     return createErrorResponse('File not found or failed to read.');
   }
@@ -133,59 +133,18 @@ async function readFileHandler(params: { path: string }) {
   const { response, contentType } = result;
   const downloadUrl = await buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
-  const cacheTtl = getTokenTtl();
   const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
-
-  const cache = caches.default;
-  const cached = await cache.match(downloadUrl);
 
   const MAX_INLINE_SIZE = 512 * 1024; // 512KB
   const contentLength = response.headers.get('Content-Length');
   const knownSize = contentLength ? parseInt(contentLength, 10) : null;
 
-  // Build cache headers from upstream, override what we need
-  const buildCacheHeaders = (overrides: Record<string, string> = {}) => {
-    const headers = new Headers(response.headers);
-    headers.set('Cache-Control', `public, max-age=${cacheTtl}`);
-    for (const [key, value] of Object.entries(overrides)) {
-      headers.set(key, value);
-    }
-    return headers;
-  };
-
-  // Helper to cache and return inline content
+  // Helper to return inline content
   const returnInline = (data: Uint8Array) => {
-    if (!cached && cacheTtl > 0) {
-      waitUntil(
-        cache.put(
-          downloadUrl,
-          new Response(data, {
-            status: 200,
-            headers: buildCacheHeaders({ 'Content-Length': data.length.toString() }),
-          }),
-        ),
-      );
-    }
     if (isText) {
       return createJsonResponse({ path, content: new TextDecoder().decode(data), type: 'text', mimeType: contentType, downloadUrl, expiresAt });
     }
     return createJsonResponse({ path, content: data.toBase64(), type: 'binary', mimeType: contentType, downloadUrl, expiresAt, encoding: 'base64' });
-  };
-
-  // Helper to cache stream and return URL only
-  const returnUrlOnly = (stream: ReadableStream<Uint8Array>) => {
-    if (!cached && cacheTtl > 0) {
-      waitUntil(
-        cache.put(
-          downloadUrl,
-          new Response(stream, {
-            status: response.status,
-            headers: buildCacheHeaders(),
-          }),
-        ),
-      );
-    }
-    return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
   };
 
   // Fast path: Content-Length tells us the size
@@ -194,17 +153,15 @@ async function readFileHandler(params: { path: string }) {
       const data = new Uint8Array(await response.arrayBuffer());
       return returnInline(data);
     }
-    return returnUrlOnly(response.body!);
+    return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
   }
 
-  // Slow path: No Content-Length, tee + limitedRead
-  const [readStream, cacheStream] = response.body!.tee();
-  const data = await limitedRead(readStream, MAX_INLINE_SIZE);
-
+  // Slow path: No Content-Length, try limitedRead
+  const data = await limitedRead(response.body!, MAX_INLINE_SIZE);
   if (data) {
     return returnInline(data);
   }
-  return returnUrlOnly(cacheStream);
+  return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
 }
 
 async function writeFileHandler(params: { path: string; content: string; isBase64?: boolean }) {
