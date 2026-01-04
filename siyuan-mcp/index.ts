@@ -63,25 +63,8 @@ export function hasContext(): boolean {
   return config !== null;
 }
 
-/** Generate a SiYuan-compatible node ID */
-export function generateNodeID(): string {
-  const now = new Date();
-  const timestamp =
-    now.getFullYear().toString() +
-    (now.getMonth() + 1).toString().padStart(2, '0') +
-    now.getDate().toString().padStart(2, '0') +
-    now.getHours().toString().padStart(2, '0') +
-    now.getMinutes().toString().padStart(2, '0') +
-    now.getSeconds().toString().padStart(2, '0');
-
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let random = '';
-  for (let i = 0; i < 7; i++) {
-    random += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-
-  return `${timestamp}-${random}`;
-}
+// Re-export generateBlockId as generateNodeID for backward compatibility
+export { generateBlockId as generateNodeID } from './syapi/custom';
 
 /** Get the app ID for dailynote creation */
 export function getAppId(): string {
