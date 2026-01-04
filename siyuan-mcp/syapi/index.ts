@@ -348,10 +348,10 @@ export async function unfoldBlockAPI(id: string): Promise<boolean> {
   return false;
 }
 
-/** Get block Kramdown source */
+/** Get block Kramdown source (cached for 60s) */
 export async function getKramdown(blockid: string, throwError = false): Promise<string | null> {
   const url = '/api/block/getBlockKramdown';
-  const response = await postRequest({ id: blockid }, url);
+  const response = await cachedPostRequest({ id: blockid }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0 && response.data?.kramdown) {
     return response.data.kramdown;
   }
@@ -411,10 +411,10 @@ export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
   return null;
 }
 
-/** Get document preview (exported HTML) */
+/** Get document preview (exported HTML, cached for 60s) */
 export async function getDocPreview(docid: string): Promise<string> {
   const url = '/api/export/preview';
-  const response = await postRequest({ id: docid }, url);
+  const response = await cachedPostRequest({ id: docid }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0 && response.data != null) {
     return response.data.html;
   }
@@ -448,7 +448,7 @@ export async function flushTransaction(): Promise<number> {
   return -1;
 }
 
-/** Export markdown content */
+/** Export markdown content (cached for 60s) */
 export async function exportMdContent({
   id,
   refMode,
@@ -461,7 +461,7 @@ export async function exportMdContent({
   yfm: boolean;
 }): Promise<any> {
   const url = '/api/export/exportMdContent';
-  const response = await postRequest({ id, refMode, embedMode, yfm }, url);
+  const response = await cachedPostRequest({ id, refMode, embedMode, yfm }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0) {
     return response.data;
   }
@@ -741,8 +741,45 @@ export function isTextExtension(path: string): boolean {
   return textExtensions.includes(ext);
 }
 
-/** Default cache TTL: 1 hour */
-const DEFAULT_CACHE_TTL = 3600;
+/** Default cache TTL: 1 hour for files, 60s for API responses */
+const DEFAULT_FILE_CACHE_TTL = 3600;
+const DEFAULT_API_CACHE_TTL = 60;
+
+/**
+ * Cached POST request for JSON APIs.
+ * Caches successful responses (code === 0) for the specified TTL.
+ * @param data - Request body
+ * @param url - API endpoint
+ * @param cacheTtl - Cache TTL in seconds (0 = no caching)
+ * @returns Parsed JSON response
+ */
+async function cachedPostRequest(data: any, url: string, cacheTtl: number): Promise<any> {
+  // Build cache key from URL and request body
+  const cacheKey = `${baseUrl}${url}?${JSON.stringify(data)}`;
+  const cache = caches.default;
+
+  // Check cache first
+  if (cacheTtl > 0) {
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      return cached.json();
+    }
+  }
+
+  // Fetch from kernel
+  const response = await postRequest(data, url);
+
+  // Cache successful responses
+  if (cacheTtl > 0 && response.code === 0) {
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      'Cache-Control': `public, max-age=${cacheTtl}`,
+    });
+    cache.put(cacheKey, new Response(JSON.stringify(response), { status: 200, headers }));
+  }
+
+  return response;
+}
 
 /**
  * Cache a response body and return a Response object.
@@ -784,7 +821,7 @@ function normalizePath(path: string): string {
 }
 
 /** Get file from workspace - returns Response directly for efficient streaming */
-export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<Response | null> {
+export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_FILE_CACHE_TTL): Promise<Response | null> {
   const normalizedPath = normalizePath(path);
   const cacheKey = `${baseUrl}/file${normalizedPath}`;
 
