@@ -10,6 +10,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
 import { getNodebookList, getDoc, getDocIDByHPath } from '../syapi';
+import YAML from 'yaml';
 
 export class PathResourceProvider extends McpResourceProvider {
   async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
@@ -55,8 +56,8 @@ export class PathResourceProvider extends McpResourceProvider {
           return {
             contents: [{
               uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(notebook, null, 2),
+              mimeType: 'text/yaml',
+              text: YAML.stringify(notebook),
             }],
           };
         }

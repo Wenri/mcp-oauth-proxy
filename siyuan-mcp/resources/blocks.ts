@@ -10,6 +10,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
 import { getNodebookList, getDoc, getKramdown } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
+import YAML from 'yaml';
 
 export class BlockResourceProvider extends McpResourceProvider {
   async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
@@ -24,7 +25,7 @@ export class BlockResourceProvider extends McpResourceProvider {
               uri: `syblk://${nb.id}`,
               name: nb.name,
               description: nb.closed ? 'notebook (closed)' : 'notebook (open)',
-              mimeType: 'application/json',
+              mimeType: 'text/yaml',
             })),
           };
         },
@@ -43,8 +44,8 @@ export class BlockResourceProvider extends McpResourceProvider {
           return {
             contents: [{
               uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(notebook, null, 2),
+              mimeType: 'text/yaml',
+              text: YAML.stringify(notebook),
             }],
           };
         }
