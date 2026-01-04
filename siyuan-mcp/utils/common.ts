@@ -63,6 +63,19 @@ export function generateUUID(): string {
 }
 
 /**
+ * Convert base64 string to Blob
+ */
+export function base64ToBlob(base64: string, mimeType: string = 'application/octet-stream'): Blob {
+  const base64Data = base64.replace(/^data:[^;]+;base64,/, '');
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+/**
  * Convert blob to base64 object (works in both browser and CF Worker)
  */
 export async function blobToBase64Object(blob: Blob): Promise<{

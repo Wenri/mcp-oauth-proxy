@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { waitUntil } from 'cloudflare:workers';
 import { createErrorResponse, createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI } from '../syapi';
+import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -114,19 +115,6 @@ export class FileSystemToolProvider extends McpToolsProvider<any> {
       },
     ];
   }
-}
-
-/**
- * Convert base64 string to Blob
- */
-function base64ToBlob(base64: string, mimeType: string = 'application/octet-stream'): Blob {
-  const base64Data = base64.replace(/^data:[^;]+;base64,/, '');
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return new Blob([bytes], { type: mimeType });
 }
 
 async function readFileHandler(params: { path: string }) {

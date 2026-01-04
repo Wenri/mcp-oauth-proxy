@@ -7,6 +7,7 @@ import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { getBlockDBItem, checkIdValid } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
+import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -70,20 +71,6 @@ export class AssetToolProvider extends McpToolsProvider<any> {
       },
     ];
   }
-}
-
-/**
- * Convert base64 string to Blob
- */
-function base64ToBlob(base64: string, mimeType: string = 'application/octet-stream'): Blob {
-  // Remove data URL prefix if present
-  const base64Data = base64.replace(/^data:[^;]+;base64,/, '');
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return new Blob([bytes], { type: mimeType });
 }
 
 /**
