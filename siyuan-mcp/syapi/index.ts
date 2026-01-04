@@ -754,7 +754,7 @@ const DEFAULT_API_CACHE_TTL = 180;
  * @param cacheTtl - Cache TTL in seconds (0 = no caching)
  * @returns Parsed JSON response
  */
-async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number): Promise<any> {
+export async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number): Promise<any> {
   // Build cache key using URL object - handles empty params correctly
   const cacheUrl = new URL(url, baseUrl);
   cacheUrl.search = new URLSearchParams(data as Record<string, string>).toString();

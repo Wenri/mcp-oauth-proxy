@@ -10,7 +10,7 @@ import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
-import { initKernel, postRequest, normalizePath } from './syapi';
+import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
@@ -104,7 +104,7 @@ export async function initializeSiyuanMCPServer(
   );
 
   // Fetch config from kernel
-  const result = await postRequest({}, '/api/system/getConf') as { code: number; data: { conf: SiyuanConfig } };
+  const result = await cachedPostRequest({}, '/api/system/getConf', 180) as { code: number; data: { conf: SiyuanConfig } };
   if (result.code !== 0 || !result.data?.conf) {
     throw new Error('Failed to get SiYuan config');
   }
