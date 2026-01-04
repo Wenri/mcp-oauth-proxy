@@ -731,13 +731,51 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
 
   const contentType = response.headers.get('Content-Type') || '';
 
-  // Check for JSON error response (404)
+  // Check for JSON error response (404) - but skip for large files
   if (contentType.includes('application/json')) {
-    const [checkStream, returnStream] = response.body!.tee();
-    const json = (await new Response(checkStream).json()) as { code?: number };
-    if (json.code === 404) {
-      return null;
+    const MAX_ERROR_SIZE = 1024; // Error responses are small
+
+    // Fast path: Content-Length tells us it's too big to be an error
+    const contentLength = response.headers.get('Content-Length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_ERROR_SIZE) {
+      return { response, contentType };
     }
+
+    // Read limited bytes to check for error
+    const [checkStream, returnStream] = response.body!.tee();
+    const reader = checkStream.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalSize = 0;
+
+    try {
+      while (totalSize < MAX_ERROR_SIZE) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        totalSize += value.length;
+      }
+    } finally {
+      reader.cancel();
+    }
+
+    // Only parse if small enough to be an error response
+    if (totalSize > 0 && totalSize < MAX_ERROR_SIZE) {
+      const combined = new Uint8Array(totalSize);
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+      }
+      try {
+        const json = JSON.parse(new TextDecoder().decode(combined)) as { code?: number };
+        if (json.code === 404) {
+          return null;
+        }
+      } catch {
+        // Not valid JSON, treat as file content
+      }
+    }
+
     return {
       response: new Response(returnStream, {
         status: response.status,
