@@ -5,16 +5,22 @@
  * running on Cloudflare Workers.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
-import { initKernel, cachedPostRequest, normalizePath } from './syapi';
+import { initKernel, cachedPostRequest, normalizePath, getNodebookList, getDoc, getKramdown } from './syapi';
+import { getDocDBitem, getBlockDBItem } from './syapi/custom';
 
 // Import prompts
 import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
 import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
+
+// Import static resources
+import databaseSchema from './static/siyuan-database-schema.md';
+import sqlCheatsheet from './static/siyuan-sql-cheatsheet.md';
+import querySyntax from './static/query_syntax.md';
 
 // Re-export types for convenience (canonical source is ../types)
 export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
@@ -118,9 +124,10 @@ export async function initializeSiyuanMCPServer(
     config.rag = { baseUrl: mcpConfig.RAG_BASE_URL, apiKey: mcpConfig.RAG_API_KEY };
   }
 
-  // Load tools and prompts
+  // Load tools, prompts, and resources
   await loadTools(server, mcpConfig.READ_ONLY_MODE || 'allow_all');
   await loadPrompts(server);
+  await loadResources(server);
   logPush('SiYuan MCP server initialized');
 }
 
@@ -143,7 +150,7 @@ export async function buildDownloadUrl(path: string): Promise<string> {
 export function createSiyuanMCPServer(): McpServer {
   return new McpServer(
     { name: 'siyuan-mcp', version: '1.0.0' },
-    { capabilities: { tools: {}, prompts: {} } }
+    { capabilities: { tools: {}, prompts: {}, resources: {} } }
   );
 }
 
@@ -200,4 +207,158 @@ async function loadPrompts(server: McpServer): Promise<void> {
       { role: 'assistant', content: { type: 'text', text: promptQuerySystemCN } },
     ],
   }));
+}
+
+/** Load and register resources with the MCP server */
+async function loadResources(server: McpServer): Promise<void> {
+  // ============================================================================
+  // Static Resources - Documentation
+  // ============================================================================
+
+  server.registerResource(
+    'database-schema',
+    'siyuan://docs/database-schema',
+    {
+      title: 'SiYuan Database Schema',
+      description: 'Database schema documentation including table names, field names, and relationships',
+      mimeType: 'text/markdown',
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, text: databaseSchema, mimeType: 'text/markdown' }],
+    })
+  );
+
+  server.registerResource(
+    'sql-cheatsheet',
+    'siyuan://docs/sql-cheatsheet',
+    {
+      title: 'SiYuan SQL Cheatsheet',
+      description: 'SQL query examples for SiYuan database including FTS5 full-text search, window functions, and common patterns',
+      mimeType: 'text/markdown',
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, text: sqlCheatsheet, mimeType: 'text/markdown' }],
+    })
+  );
+
+  server.registerResource(
+    'query-syntax',
+    'siyuan://docs/query-syntax',
+    {
+      title: 'SiYuan Query Syntax',
+      description: 'Full-text search query syntax reference for SiYuan',
+      mimeType: 'text/markdown',
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, text: querySyntax, mimeType: 'text/markdown' }],
+    })
+  );
+
+  // ============================================================================
+  // Dynamic Resources - Notebooks
+  // ============================================================================
+
+  server.registerResource(
+    'notebooks',
+    new ResourceTemplate('siyuan://notebooks/{notebookId}', {
+      list: async () => {
+        const notebooks = await getNodebookList();
+        return {
+          resources: notebooks.map((nb: any) => ({
+            uri: `siyuan://notebooks/${nb.id}`,
+            name: nb.name,
+            description: nb.closed ? '(closed)' : '(open)',
+            mimeType: 'application/json',
+          })),
+        };
+      },
+    }),
+    {
+      title: 'SiYuan Notebook',
+      description: 'Notebook metadata by ID',
+    },
+    async (uri, params) => {
+      const notebookId = Array.isArray(params.notebookId) ? params.notebookId[0] : params.notebookId;
+      const notebooks = await getNodebookList();
+      const notebook = notebooks.find((nb: any) => nb.id === notebookId);
+      if (!notebook) {
+        return { contents: [{ uri: uri.href, text: `Notebook not found: ${notebookId}` }] };
+      }
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(notebook, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ============================================================================
+  // Dynamic Resources - Documents
+  // ============================================================================
+
+  server.registerResource(
+    'document',
+    new ResourceTemplate('siyuan://doc/{docId}', {
+      list: undefined, // Too many docs to list
+    }),
+    {
+      title: 'SiYuan Document',
+      description: 'Document content in Markdown format by ID',
+    },
+    async (uri, params) => {
+      const docId = Array.isArray(params.docId) ? params.docId[0] : params.docId;
+      const docInfo = await getDocDBitem(docId);
+      if (!docInfo) {
+        return { contents: [{ uri: uri.href, text: `Document not found: ${docId}` }] };
+      }
+      const doc = await getDoc(docId);
+      if (!doc?.content) {
+        return { contents: [{ uri: uri.href, text: `Failed to read document: ${docId}` }] };
+      }
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'text/markdown',
+          text: doc.content,
+        }],
+      };
+    }
+  );
+
+  // ============================================================================
+  // Dynamic Resources - Blocks
+  // ============================================================================
+
+  server.registerResource(
+    'block',
+    new ResourceTemplate('siyuan://block/{blockId}', {
+      list: undefined, // Too many blocks to list
+    }),
+    {
+      title: 'SiYuan Block',
+      description: 'Block content in Kramdown format by ID',
+    },
+    async (uri, params) => {
+      const blockId = Array.isArray(params.blockId) ? params.blockId[0] : params.blockId;
+      const blockInfo = await getBlockDBItem(blockId);
+      if (!blockInfo) {
+        return { contents: [{ uri: uri.href, text: `Block not found: ${blockId}` }] };
+      }
+      const kramdown = await getKramdown(blockId);
+      if (!kramdown) {
+        return { contents: [{ uri: uri.href, text: `Failed to read block: ${blockId}` }] };
+      }
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'text/markdown',
+          text: kramdown,
+        }],
+      };
+    }
+  );
+
+  logPush('Resources registered: 3 static, 3 dynamic');
 }
