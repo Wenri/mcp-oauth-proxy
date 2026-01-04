@@ -1,46 +1,10 @@
 import type { z } from "zod";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
 declare global {
-    type McpTextContent = {
-        [x: string]: unknown;
-        type: "text";
-        text: string;
-    };
-
-    type McpImageContent = {
-        [x: string]: unknown;
-        type: "image";
-        data: string;
-        mimeType: string;
-    };
-
-    type McpResourceContent = {
-        [x: string]: unknown;
-        type: "resource";
-        resource: {
-            [x: string]: unknown;
-            text: string;
-            uri: string;
-            mimeType?: string;
-        } | {
-            [x: string]: unknown;
-            uri: string;
-            blob: string;
-            mimeType?: string;
-        };
-    };
-
-    type McpContent = McpTextContent | McpImageContent | McpResourceContent;
-
     /**
-     * Standard MCP response format
-     * Must match the MCP SDK expected format
+     * Tool definition for SiYuan MCP tools
      */
-    interface McpResponse {
-        [x: string]: unknown;
-        content: McpContent[];
-        isError?: boolean;
-        _meta?: Record<string, unknown>;
-    }
     interface McpTool<T> {
         /**
          * The name of the tool
@@ -62,7 +26,7 @@ declare global {
         /**
          * The handler function for the tool
          */
-        handler: (args: T, extra: any) => Promise<McpResponse>;
+        handler: (args: T, extra: any) => Promise<CallToolResult>;
         
         title?: string;      // Human-readable title for the tool
 
