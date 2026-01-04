@@ -8,14 +8,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
 import { getAllToolProviders } from './tools';
-import { getAllResourceProviders } from './resources';
+import { getAllResourceProviders, type ResourceContext } from './resources';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
 import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 
-// Import prompts
-import promptCreateCardsSystemCN from './static/prompt_create_cards_system_CN.md';
-import promptQuerySystemCN from './static/prompt_dynamic_query_system_CN.md';
+// Import prompts from static index
+import { promptCreateCardsCN, promptQueryCN } from './static';
 
 // Re-export types for convenience (canonical source is ../types)
 export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
@@ -194,12 +193,12 @@ async function loadPrompts(server: McpServer): Promise<void> {
   server.registerPrompt(
     'create_flashcards_system_cn',
     {
-      title: 'Create Flashcards (CN)',
+      title: 'Create Flashcards (zh-Hans)',
       description: 'Create flash cards for SiYuan',
     },
     () => ({
       messages: [
-        { role: 'user', content: { type: 'text', text: promptCreateCardsSystemCN } },
+        { role: 'user', content: { type: 'text', text: promptCreateCardsCN } },
       ],
     })
   );
@@ -207,12 +206,12 @@ async function loadPrompts(server: McpServer): Promise<void> {
   server.registerPrompt(
     'sql_query_prompt_cn',
     {
-      title: 'SQL Query (CN)',
+      title: 'SQL Query (zh-Hans)',
       description: 'SQL Query System Prompt for SiYuan',
     },
     () => ({
       messages: [
-        { role: 'assistant', content: { type: 'text', text: promptQuerySystemCN } },
+        { role: 'assistant', content: { type: 'text', text: promptQueryCN } },
       ],
     })
   );
@@ -220,9 +219,10 @@ async function loadPrompts(server: McpServer): Promise<void> {
 
 /** Load and register resources with the MCP server */
 async function loadResources(server: McpServer): Promise<void> {
+  const ctx: ResourceContext = { baseUrl: workerBaseUrl };
   const providers = getAllResourceProviders();
   for (const provider of providers) {
-    await provider.registerResources(server);
+    await provider.registerResources(server, ctx);
   }
   logPush(`Resources registered: ${providers.length} providers`);
 }

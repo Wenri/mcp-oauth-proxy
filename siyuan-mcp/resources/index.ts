@@ -3,6 +3,7 @@
  */
 
 export { McpResourceProvider } from './baseResourceProvider';
+export type { ResourceContext } from './baseResourceProvider';
 export { DocumentationResourceProvider } from './documentation';
 export { NotebookResourceProvider } from './notebooks';
 export { DocumentResourceProvider } from './documents';

@@ -3,11 +3,11 @@
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { McpResourceProvider } from './baseResourceProvider';
+import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
 import { getNodebookList } from '../syapi';
 
 export class NotebookResourceProvider extends McpResourceProvider {
-  async registerResources(server: McpServer): Promise<void> {
+  async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
     server.registerResource(
       'notebooks',
       new ResourceTemplate('siyuan://notebooks/{notebookId}', {

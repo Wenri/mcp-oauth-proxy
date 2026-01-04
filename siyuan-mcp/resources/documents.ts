@@ -3,12 +3,12 @@
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { McpResourceProvider } from './baseResourceProvider';
+import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
 import { getDoc } from '../syapi';
 import { getDocDBitem } from '../syapi/custom';
 
 export class DocumentResourceProvider extends McpResourceProvider {
-  async registerResources(server: McpServer): Promise<void> {
+  async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
     server.registerResource(
       'document',
       new ResourceTemplate('siyuan://doc/{docId}', {

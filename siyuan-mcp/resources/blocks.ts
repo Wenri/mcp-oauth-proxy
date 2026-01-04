@@ -3,12 +3,12 @@
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { McpResourceProvider } from './baseResourceProvider';
+import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
 import { getKramdown } from '../syapi';
 import { getBlockDBItem } from '../syapi/custom';
 
 export class BlockResourceProvider extends McpResourceProvider {
-  async registerResources(server: McpServer): Promise<void> {
+  async registerResources(server: McpServer, _ctx: ResourceContext): Promise<void> {
     server.registerResource(
       'block',
       new ResourceTemplate('siyuan://block/{blockId}', {

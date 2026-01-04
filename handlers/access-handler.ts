@@ -25,6 +25,9 @@ import {
 import { initKernel, getFileAPIv2, normalizePath } from "../siyuan-mcp/syapi";
 import { decryptGrant } from "../siyuan-mcp/utils/crypto";
 
+// Import static files map
+import { files as staticFiles } from "../siyuan-mcp/static";
+
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
 type HonoEnv = { Bindings: EnvWithOAuth };
 
@@ -46,6 +49,19 @@ app.onError((error, c) => {
 		return error.toResponse();
 	}
 	return c.text(`Error: ${error.message}`, 500);
+});
+
+// Static file routes (public, no auth required)
+app.get("/static/:name", (c) => {
+	const name = c.req.param("name");
+	const content = staticFiles[name];
+	if (!content) {
+		return c.text("Not found", 404);
+	}
+	return c.text(content, 200, {
+		"Content-Type": "text/markdown; charset=utf-8",
+		"Cache-Control": "public, max-age=86400",
+	});
 });
 
 // GET /download/:token/* - Proxy file downloads using encrypted grant token
