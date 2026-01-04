@@ -284,10 +284,9 @@ async function getAssets(id: string) {
   const allPaths = assetsInfo.map((item) => item.path);
 
   const fetchResults = await Promise.all(
-    allPaths.map(async (path) => ({
-      path,
-      response: await getFileAPIv2('/data/' + path),
-    }))
+    allPaths.map((path) =>
+      getFileAPIv2('/data/' + path).then((response) => ({ path, response }))
+    )
   );
 
   const contentBlocks: Promise<MediaContentBlock>[] = [];
