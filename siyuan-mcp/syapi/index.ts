@@ -381,30 +381,30 @@ export async function getNotebookConf(notebookId: string): Promise<any> {
   return null;
 }
 
-/** Get child blocks */
+/** Get child blocks (cached) */
 export async function getChildBlocks(id: string): Promise<any[]> {
   const url = '/api/block/getChildBlocks';
-  const response = await postRequest({ id }, url);
+  const response = await cachedPostRequest({ id }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0) {
     return response.data;
   }
   throw new Error(`getChildBlocks Failed: ${response.msg}`);
 }
 
-/** Get document content (HTML/DOM) */
+/** Get document content (HTML/DOM, cached) */
 export async function getDoc(blockid: string, size: number = 5, mode: number = 0): Promise<any> {
   const url = '/api/filetree/getDoc';
-  const response = await postRequest({ id: blockid, mode, size }, url);
+  const response = await cachedPostRequest({ id: blockid, mode, size }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0 && response.data != null) {
     return response.data;
   }
   return undefined;
 }
 
-/** Get document outline */
+/** Get document outline (cached) */
 export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
   const url = '/api/outline/getDocOutline';
-  const response = await postRequest({ id: docid }, url);
+  const response = await cachedPostRequest({ id: docid }, url, DEFAULT_API_CACHE_TTL);
   if (response.code === 0) {
     return response.data;
   }
