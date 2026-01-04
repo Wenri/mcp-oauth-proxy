@@ -747,9 +747,16 @@ export function isTextExtension(path: string): boolean {
 /** Default cache TTL: 1 hour */
 const DEFAULT_CACHE_TTL = 3600;
 
+/** Normalize file path for consistent cache keys */
+function normalizePath(path: string): string {
+  // Ensure leading slash, remove trailing slash, collapse double slashes
+  return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+}
+
 /** Get file from workspace - returns Response directly for efficient streaming */
 export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<FileAPIResult> {
-  const cacheKey = `https://siyuan.cache/file/${path}`;
+  const normalizedPath = normalizePath(path);
+  const cacheKey = `${baseUrl}/file${normalizedPath}`;
   const cache = caches.default;
 
   // Always check cache first
