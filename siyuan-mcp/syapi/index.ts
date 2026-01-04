@@ -14,6 +14,27 @@ let authToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 
+/** All API endpoints that use caching */
+const CACHED_ENDPOINTS = [
+  '/api/attr/getBlockAttrs',
+  '/api/notebook/lsNotebooks',
+  '/api/notebook/getNotebookConf',
+  '/api/block/getChildBlocks',
+  '/api/block/getBlockKramdown',
+  '/api/block/getDocInfo',
+  '/api/block/getTreeStat',
+  '/api/filetree/getDoc',
+  '/api/filetree/listDocsByPath',
+  '/api/filetree/listDocTree',
+  '/api/filetree/getHPathByID',
+  '/api/filetree/getIDsByHPath',
+  '/api/outline/getDocOutline',
+  '/api/export/preview',
+  '/api/export/exportMdContent',
+  '/api/riff/getRiffDecks',
+  '/api/file/readDir',
+];
+
 /**
  * Initialize kernel connection
  * @param url - Kernel base URL
@@ -439,11 +460,17 @@ export async function reindexDoc(docpath: string): Promise<number> {
   return 0;
 }
 
-/** Flush pending database transactions */
+/** Flush pending database transactions and invalidate API cache */
 export async function flushTransaction(): Promise<number> {
   const url = '/api/sqlite/flushTransaction';
   const response = await postRequest({}, url);
   if (response.code === 0) {
+    // Invalidate cached API responses
+    const cache = caches.default;
+    const deletePromises = CACHED_ENDPOINTS.map((endpoint) =>
+      cache.delete(`${baseUrl}${endpoint}`, { ignoreSearch: true } as CacheQueryOptions)
+    );
+    waitUntil(Promise.all(deletePromises));
     return 0;
   }
   return -1;
