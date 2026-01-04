@@ -131,10 +131,9 @@ export function decodeGrantKey(bytes: Uint8Array): { userId: string; grantId: st
   const packedUserIdLength = bytes.length - GRANT_ID_BYTES;
 
   // Calculate max possible userId chars from packed length
-  // Then unpack and trim trailing nulls
   const maxChars = Math.floor((packedUserIdLength * 8) / 7);
   const packedUserId = bytes.slice(0, packedUserIdLength);
-  const userId = unpack7bit(packedUserId, maxChars).replace(/\0+$/, '');
+  const userId = unpack7bit(packedUserId, maxChars);
 
   // Decode grantId back to base64url
   const decodedGrantId = bytes.slice(packedUserIdLength);
