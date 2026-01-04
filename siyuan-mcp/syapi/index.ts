@@ -2,6 +2,7 @@
  * SiYuan Kernel API wrapper
  */
 
+import { waitUntil } from 'cloudflare:workers';
 import { warnPush, errorPush } from '../logger';
 
 // ============================================================================
@@ -777,7 +778,7 @@ async function cachedPostRequest(data: Record<string, string | number | boolean>
       'Content-Type': 'application/json',
       'Cache-Control': `public, max-age=${cacheTtl}`,
     });
-    cache.put(cacheKey, new Response(JSON.stringify(response), { status: 200, headers }));
+    waitUntil(cache.put(cacheKey, new Response(JSON.stringify(response), { status: 200, headers })));
   }
 
   return response;
@@ -804,12 +805,12 @@ export function cacheResponse(
     cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
 
     if (body instanceof Uint8Array) {
-      cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders }));
+      waitUntil(cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders })));
       return new Response(body, { status: 200, headers });
     }
 
     const [cacheStream, returnStream] = body.tee();
-    cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders }));
+    waitUntil(cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders })));
     return new Response(returnStream, { status: 200, headers });
   }
 
