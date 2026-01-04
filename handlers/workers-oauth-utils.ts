@@ -400,19 +400,15 @@ async function signData(data: string, secret: string): Promise<string> {
 	const key = await importKey(secret);
 	const enc = new TextEncoder();
 	const signatureBuffer = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-	return Array.from(new Uint8Array(signatureBuffer))
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("");
+	return new Uint8Array(signatureBuffer).toHex();
 }
 
 async function verifySignature(signatureHex: string, data: string, secret: string): Promise<boolean> {
 	const key = await importKey(secret);
 	const enc = new TextEncoder();
 	try {
-		const signatureBytes = new Uint8Array(
-			signatureHex.match(/.{1,2}/g)!.map((byte) => Number.parseInt(byte, 16)),
-		);
-		return await crypto.subtle.verify("HMAC", key, signatureBytes.buffer, enc.encode(data));
+		const signatureBytes = Uint8Array.fromHex(signatureHex);
+		return await crypto.subtle.verify("HMAC", key, signatureBytes, enc.encode(data));
 	} catch {
 		return false;
 	}
@@ -436,7 +432,7 @@ async function importKey(secret: string): Promise<CryptoKey> {
 export function generateCodeVerifier(): string {
 	const array = new Uint8Array(32);
 	crypto.getRandomValues(array);
-	return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+	return array.toHex();
 }
 
 // Generate PKCE code challenge (S256)

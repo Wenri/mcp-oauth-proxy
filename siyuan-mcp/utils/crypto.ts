@@ -63,10 +63,7 @@ export function pack7bit(str: string): Uint8Array {
  * Trims trailing @ from zero padding (safe for emails/UUIDs)
  */
 export function unpack7bit(bytes: Uint8Array, charCount: number): string {
-  const hex = Array.from(bytes)
-    .map((b) => utils.Helper.toStringHex(b, 2))
-    .join('');
-  return utils.Helper.decode7Bit(hex, charCount).replace(/@+$/, '');
+  return utils.Helper.decode7Bit(bytes.toHex(), charCount).replace(/@+$/, '');
 }
 
 // ============================================================================
