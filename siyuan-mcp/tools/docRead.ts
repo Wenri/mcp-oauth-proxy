@@ -277,13 +277,11 @@ async function blobToContentBlock(blob: Blob, mimeType: string): Promise<{
 async function getAssets(id: string) {
   const assetsInfo = await getBlockAssets(id);
 
-  // Pre-filter by extension, fetch in parallel with path info
-  const mediaPaths = assetsInfo
-    .map((item) => item.path)
-    .filter((path) => getMimeFromExtension(path) !== null);
+  // Fetch all assets in parallel, then filter by MIME type or extension
+  const allPaths = assetsInfo.map((item) => item.path);
 
   const fetchResults = await Promise.all(
-    mediaPaths.map(async (path) => ({
+    allPaths.map(async (path) => ({
       path,
       response: await getFileAPIv2('/data/' + path),
     }))
