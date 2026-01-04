@@ -798,17 +798,13 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
     return { response: new Response(body, { status: 200, headers }), contentType };
   };
 
-  // Check for JSON error response (404) - but skip for large files
-  if (contentType.includes('application/json')) {
-    const MAX_ERROR_SIZE = 1024; // Error responses are small
+  // Check for JSON error response (404) - skip for large or non-JSON files
+  const MAX_ERROR_SIZE = 1024;
+  const contentLength = response.headers.get('Content-Length');
+  const mayBeErrorJson = contentType.includes('application/json') &&
+    (!contentLength || parseInt(contentLength, 10) <= MAX_ERROR_SIZE);
 
-    // Fast path: Content-Length tells us it's too big to be an error
-    const contentLength = response.headers.get('Content-Length');
-    if (contentLength && parseInt(contentLength, 10) > MAX_ERROR_SIZE) {
-      return cacheAndReturn(response.body!, response.headers);
-    }
-
-    // Check for error with size-limited read
+  if (mayBeErrorJson) {
     const [checkStream, returnStream] = response.body!.tee();
     const data = await limitedRead(checkStream, MAX_ERROR_SIZE);
 
@@ -828,11 +824,11 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
       return cacheAndReturn(data, headers);
     }
 
-    // Too big - cache and return the stream
+    // limitedRead returned null (exceeded size) - cache and return the stream
     return cacheAndReturn(returnStream, response.headers);
   }
 
-  // Non-JSON response - cache and return
+  // Non-JSON or large JSON - cache and return directly
   return cacheAndReturn(response.body!, response.headers);
 }
 
