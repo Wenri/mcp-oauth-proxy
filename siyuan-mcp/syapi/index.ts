@@ -746,23 +746,24 @@ export function isTextExtension(path: string): boolean {
 
 /** Options for getFileAPIv2 */
 export interface GetFileOptions {
-  /** Cache TTL in seconds. If > 0, enables caching. */
+  /** Cache TTL in seconds for new entries. Default: 3600 (1 hour). Set to 0 to skip writing. */
   cacheTtl?: number;
 }
 
+/** Default cache TTL: 1 hour */
+const DEFAULT_CACHE_TTL = 3600;
+
 /** Get file from workspace - returns Response directly for efficient streaming */
 export async function getFileAPIv2(path: string, options?: GetFileOptions): Promise<FileAPIResult> {
-  const { cacheTtl = 0 } = options || {};
+  const { cacheTtl = DEFAULT_CACHE_TTL } = options || {};
   const cacheKey = `https://siyuan.cache/file/${path}`;
+  const cache = caches.default;
 
-  // Check cache first
-  if (cacheTtl > 0) {
-    const cache = caches.default;
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      const contentType = cached.headers.get('Content-Type') || '';
-      return { response: cached, contentType };
-    }
+  // Always check cache first
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const contentType = cached.headers.get('Content-Type') || '';
+    return { response: cached, contentType };
   }
 
   const url = '/api/file/getFile';
@@ -826,7 +827,6 @@ export async function getFileAPIv2(path: string, options?: GetFileOptions): Prom
 
   // Cache the response if TTL > 0
   if (cacheTtl > 0) {
-    const cache = caches.default;
     const [cacheStream, returnStream] = response.body!.tee();
     const headers = new Headers(response.headers);
     headers.set('Cache-Control', `public, max-age=${cacheTtl}`);
