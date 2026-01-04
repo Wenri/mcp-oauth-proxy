@@ -773,7 +773,9 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
     // Check for error with size-limited read
     const [checkStream, returnStream] = response.body!.tee();
     const data = await limitedRead(checkStream, MAX_ERROR_SIZE);
+
     if (data) {
+      // Small response - check if it's a 404 error
       try {
         const json = JSON.parse(new TextDecoder().decode(data)) as { code?: number };
         if (json.code === 404) {
@@ -782,8 +784,17 @@ export async function getFileAPIv2(path: string): Promise<FileAPIResult> {
       } catch {
         // Invalid JSON - treat as file content
       }
+      // Return the data we already read
+      return {
+        response: new Response(data, {
+          status: response.status,
+          headers: response.headers,
+        }),
+        contentType,
+      };
     }
 
+    // Too big - return the untouched stream
     return {
       response: new Response(returnStream, {
         status: response.status,
