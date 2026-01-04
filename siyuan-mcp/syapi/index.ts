@@ -14,6 +14,11 @@ let authToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 
+/** Get the current kernel base URL */
+export function getBaseUrl(): string {
+  return baseUrl;
+}
+
 /** All API endpoints that use caching */
 const CACHED_ENDPOINTS = [
   '/api/attr/getBlockAttrs',

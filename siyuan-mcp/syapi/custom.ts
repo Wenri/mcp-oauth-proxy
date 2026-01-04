@@ -5,9 +5,47 @@
  * CHANGE FROM UPSTREAM: Removed DOM-dependent functions (getActiveEditorIds, etc.)
  */
 
-import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks } from './index';
+import { waitUntil } from 'cloudflare:workers';
+import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getBaseUrl } from './index';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush } from '../logger';
+
+/** Cache TTL for SQL query results (3 minutes) */
+const SQL_CACHE_TTL = 180;
+
+/**
+ * Cache helper for SQL query results.
+ * Uses CF Cache API with custom cache keys.
+ */
+async function cachedQuery<T>(
+  cacheKey: string,
+  queryFn: () => Promise<T>,
+  ttl: number = SQL_CACHE_TTL
+): Promise<T> {
+  const cache = caches.default;
+  const baseUrl = getBaseUrl();
+  const fullKey = `${baseUrl}/cache/${cacheKey}`;
+
+  // Check cache first
+  const cached = await cache.match(fullKey);
+  if (cached) {
+    return cached.json() as Promise<T>;
+  }
+
+  // Execute query
+  const result = await queryFn();
+
+  // Cache the result
+  if (ttl > 0 && result !== null) {
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      'Cache-Control': `public, max-age=${ttl}`,
+    });
+    waitUntil(cache.put(fullKey, new Response(JSON.stringify(result), { status: 200, headers })));
+  }
+
+  return result;
+}
 
 /**
  * Get word count for child documents
@@ -170,39 +208,42 @@ export async function isADocId(id: string): Promise<boolean> {
   if (!isValidIdFormat(id)) {
     return false;
   }
-  const queryResponse = await queryAPI(`SELECT type FROM blocks WHERE id = '${id}'`);
-  if (queryResponse == null || queryResponse.length == 0) {
-    return false;
-  }
-  if (queryResponse[0].type == 'd') {
-    return true;
-  }
-  return false;
+  return cachedQuery(`isDoc:${id}`, async () => {
+    const queryResponse = await queryAPI(`SELECT type FROM blocks WHERE id = '${id}'`);
+    if (queryResponse == null || queryResponse.length == 0) {
+      return false;
+    }
+    return queryResponse[0].type === 'd';
+  });
 }
 
 export async function getDocDBitem(id: string) {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
-  const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}' and type = 'd'`);
-  if (queryResponse == null || queryResponse.length == 0) {
-    return null;
-  }
-  return queryResponse[0];
+  return cachedQuery(`doc:${id}`, async () => {
+    const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}' and type = 'd'`);
+    if (queryResponse == null || queryResponse.length == 0) {
+      return null;
+    }
+    return queryResponse[0];
+  });
 }
 
 /**
- * Get block item from database by ID
+ * Get block item from database by ID (cached)
  */
 export async function getBlockDBItem(id: string) {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
-  const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}'`);
-  if (queryResponse == null || queryResponse.length == 0) {
-    return null;
-  }
-  return queryResponse[0];
+  return cachedQuery(`block:${id}`, async () => {
+    const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}'`);
+    if (queryResponse == null || queryResponse.length == 0) {
+      return null;
+    }
+    return queryResponse[0];
+  });
 }
 
 export interface IAssetsDBItem {
@@ -218,14 +259,16 @@ export interface IAssetsDBItem {
 }
 
 /**
- * Get block assets
+ * Get block assets (cached)
  */
 export async function getBlockAssets(id: string): Promise<IAssetsDBItem[]> {
-  const queryResponse = await queryAPI(`SELECT * FROM assets WHERE block_id = '${id}'`);
-  if (queryResponse == null || queryResponse.length == 0) {
-    return [];
-  }
-  return queryResponse;
+  return cachedQuery(`assets:${id}`, async () => {
+    const queryResponse = await queryAPI(`SELECT * FROM assets WHERE block_id = '${id}'`);
+    if (queryResponse == null || queryResponse.length == 0) {
+      return [];
+    }
+    return queryResponse;
+  });
 }
 
 /**
