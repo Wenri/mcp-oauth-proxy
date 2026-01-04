@@ -548,7 +548,7 @@ export async function fullTextSearchBlock({
   throw new Error(`fullTextSearchBlock Failed: ${response.msg}`);
 }
 
-/** Get backlinks */
+/** Get backlinks (cached) */
 export async function getBackLink2T(
   id: string,
   sort = '3',
@@ -557,7 +557,7 @@ export async function getBackLink2T(
   mk = ''
 ): Promise<any> {
   const url = '/api/ref/getBacklink2';
-  return getResponseData(postRequest({ id, sort, msort, k, mk }, url));
+  return getResponseData(cachedPostRequest({ id, sort, msort, k, mk }, url));
 }
 
 /** List document tree (cached) */
@@ -921,10 +921,10 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_FILE_CACHE_T
   return cacheResponse(response.body!, response.headers, cacheKey, cacheTtl);
 }
 
-/** Get JSON file from workspace */
+/** Get JSON file from workspace (cached) */
 export async function getJSONFile(path: string): Promise<any> {
   const url = '/api/file/getFile';
-  const response = await postRequest({ path }, url);
+  const response = await cachedPostRequest({ path }, url);
   if (response.code === 404) {
     return null;
   }
