@@ -18,17 +18,15 @@ export class PathResourceProvider extends McpResourceProvider {
       'path',
       new ResourceTemplate('sypath://{+path}', {
         list: async () => {
-          // List notebooks as entry points
+          // List all notebooks as entry points
           const notebooks = await getNodebookList();
           return {
-            resources: notebooks
-              .filter((nb: any) => !nb.closed)
-              .map((nb: any) => ({
-                uri: `sypath://${encodeURIComponent(nb.name)}`,
-                name: nb.name,
-                description: 'notebook',
-                mimeType: 'text/markdown',
-              })),
+            resources: notebooks.map((nb: any) => ({
+              uri: `sypath://${encodeURIComponent(nb.name)}`,
+              name: nb.name,
+              description: nb.closed ? 'notebook (closed)' : 'notebook',
+              mimeType: 'text/markdown',
+            })),
           };
         },
       }),
