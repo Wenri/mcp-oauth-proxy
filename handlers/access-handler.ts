@@ -96,11 +96,10 @@ app.get("/download/:token/*", async (c) => {
 	);
 
 	// Fetch file using syapi (caching handled by getFileAPIv2)
-	const result = await getFileAPIv2(filePath.slice(1), cacheTtl);
-	if (!result) {
+	const response = await getFileAPIv2(filePath.slice(1), cacheTtl);
+	if (!response) {
 		return c.text("File not found", 404);
 	}
-	const { response } = result;
 
 	// Build response headers from upstream
 	const filename = filePath.split("/").pop() || "download";

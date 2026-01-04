@@ -172,12 +172,10 @@ function isMediaExtension(path: string): boolean {
 }
 
 /** Check if response is supported image/audio and return blob promise, or null */
-function getSupportedMediaBlob(
-  result: { response: Response; contentType: string } | null
-): Promise<Blob> | null {
-  if (!result) return null;
+function getSupportedMediaBlob(response: Response | null): Promise<Blob> | null {
+  if (!response) return null;
 
-  const { response, contentType } = result;
+  const contentType = response.headers.get('Content-Type') || '';
   const baseType = contentType.split(';')[0].trim().toLowerCase();
 
   // Check MIME type (extension already filtered before fetch)

@@ -125,12 +125,12 @@ async function readFileHandler(params: { path: string }) {
   }
 
   const cacheTtl = getTokenTtl();
-  const result = await getFileAPIv2(path, cacheTtl);
-  if (result === null) {
+  const response = await getFileAPIv2(path, cacheTtl);
+  if (response === null) {
     return createErrorResponse('File not found or failed to read.');
   }
 
-  const { response, contentType } = result;
+  const contentType = response.headers.get('Content-Type') || '';
   const downloadUrl = await buildDownloadUrl(path);
   const isText = isTextMimeType(contentType) || isTextExtension(path);
   const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;

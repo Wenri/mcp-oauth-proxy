@@ -684,9 +684,6 @@ export async function createDocWithPath(
   throw new Error(response.msg);
 }
 
-/** Response type for getFileAPIv2 */
-export type FileAPIResult = { response: Response; contentType: string } | null;
-
 /** Read stream with size limit. Returns null if exceeded, Uint8Array if complete. */
 export async function limitedRead(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array | null> {
   const reader = stream.getReader();
@@ -787,15 +784,14 @@ function normalizePath(path: string): string {
 }
 
 /** Get file from workspace - returns Response directly for efficient streaming */
-export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<FileAPIResult> {
+export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): Promise<Response | null> {
   const normalizedPath = normalizePath(path);
   const cacheKey = `${baseUrl}/file${normalizedPath}`;
 
   // Always check cache first
   const cached = await caches.default.match(cacheKey);
   if (cached) {
-    const contentType = cached.headers.get('Content-Type') || '';
-    return { response: cached, contentType };
+    return cached;
   }
 
   const url = '/api/file/getFile';
@@ -809,17 +805,10 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
     throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
   }
 
-  const contentType = response.headers.get('Content-Type') || '';
-
-  // Helper to cache and return FileAPIResult
-  const toResult = (body: Uint8Array | ReadableStream<Uint8Array>, headers: Headers): FileAPIResult => ({
-    response: cacheResponse(body, headers, cacheKey, cacheTtl),
-    contentType,
-  });
-
   // Check for JSON error response (404) - skip for large or non-JSON files
-  const MAX_ERROR_SIZE = 1024;
+  const contentType = response.headers.get('Content-Type') || '';
   const contentLength = response.headers.get('Content-Length');
+  const MAX_ERROR_SIZE = 1024;
   const mayBeErrorJson = contentType.includes('application/json') &&
     (!contentLength || parseInt(contentLength, 10) <= MAX_ERROR_SIZE);
 
@@ -840,15 +829,15 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_CACHE_TTL): 
       // Cache and return the data we already read
       const headers = new Headers(response.headers);
       headers.set('Content-Length', data.length.toString());
-      return toResult(data, headers);
+      return cacheResponse(data, headers, cacheKey, cacheTtl);
     }
 
     // limitedRead returned null (exceeded size) - cache and return the stream
-    return toResult(returnStream, response.headers);
+    return cacheResponse(returnStream, response.headers, cacheKey, cacheTtl);
   }
 
   // Non-JSON or large JSON - cache and return directly
-  return toResult(response.body!, response.headers);
+  return cacheResponse(response.body!, response.headers, cacheKey, cacheTtl);
 }
 
 /** Get JSON file from workspace */
