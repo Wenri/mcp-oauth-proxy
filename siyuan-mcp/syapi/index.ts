@@ -748,14 +748,14 @@ const DEFAULT_API_CACHE_TTL = 60;
 /**
  * Cached POST request for JSON APIs.
  * Caches successful responses (code === 0) for the specified TTL.
- * @param data - Request body
+ * @param data - Request body (must be flat object with primitive values)
  * @param url - API endpoint
  * @param cacheTtl - Cache TTL in seconds (0 = no caching)
  * @returns Parsed JSON response
  */
-async function cachedPostRequest(data: any, url: string, cacheTtl: number): Promise<any> {
-  // Build cache key from URL and request body
-  const cacheKey = `${baseUrl}${url}?${JSON.stringify(data)}`;
+async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number): Promise<any> {
+  // Build cache key - URLSearchParams sorts keys for deterministic ordering
+  const cacheKey = `${baseUrl}${url}?${new URLSearchParams(data as Record<string, string>)}`;
   const cache = caches.default;
 
   // Check cache first
