@@ -9,7 +9,7 @@ import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from 
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { getDocDBitem } from '../syapi/custom';
-import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
 
 export class RelationToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {

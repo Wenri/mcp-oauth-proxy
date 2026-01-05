@@ -11,7 +11,7 @@ import { lang } from '../utils/lang';
 import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr } from '../utils/commonCheck';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
-import { validateBlockAccess } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/resultFilter';
 import { getConfig } from '..';
 
 export class BlockWriteToolProvider extends McpToolsProvider {

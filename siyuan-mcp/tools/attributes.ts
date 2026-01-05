@@ -9,7 +9,7 @@ import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
-import { validateBlockAccess } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/resultFilter';
 
 export class AttributeToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {

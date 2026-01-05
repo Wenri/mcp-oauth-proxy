@@ -4,28 +4,15 @@
 
 import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
-
-/** JSON-serializable value type */
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-/** Zod schema for JSON-serializable values (recursive) */
-const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValue),
-    z.record(z.string(), jsonValue),
-  ])
-);
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
-import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
+import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl, getTokenTtl } from '..';
+import { jsonValueSchema, type JsonValue } from '../utils/types';
+import { getContentCategory } from '../utils/contentType';
 
 export class FileSystemToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -58,8 +45,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
           path: z.string().describe('Path to write the file (e.g., "/data/widgets/config.json")'),
           content: z.union([
             z.string().describe('Text, base64/hex-encoded binary, or URL (see type parameter)'),
-            z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
-            z.array(jsonValue).describe('JSON array (auto-serialized)'),
+            z.record(z.string(), jsonValueSchema).describe('JSON object (auto-serialized)'),
+            z.array(jsonValueSchema).describe('JSON array (auto-serialized)'),
           ]).describe('File content to write'),
           type: z.enum(['text', 'base64', 'hex', 'json', 'url']).optional().describe('Content type: text (default for strings), base64, hex, json (auto for objects/arrays), url (fetch from URL)'),
         },
@@ -163,24 +150,6 @@ export class FileSystemToolProvider extends McpToolsProvider {
   }
 }
 
-/** Check if MIME type is an image */
-function isImageMime(mimeType: string): boolean {
-  return mimeType.startsWith('image/');
-}
-
-/** Check if MIME type is audio */
-function isAudioMime(mimeType: string): boolean {
-  return mimeType.startsWith('audio/');
-}
-
-/** Determine content type category */
-function getContentType(mimeType: string, path: string): 'text' | 'image' | 'audio' | 'binary' {
-  if (isTextMimeType(mimeType) || isTextExtension(path)) return 'text';
-  if (isImageMime(mimeType)) return 'image';
-  if (isAudioMime(mimeType)) return 'audio';
-  return 'binary';
-}
-
 async function readFileHandler(params: { path: string }) {
   const { path } = params;
   debugPush('Read file API called');
@@ -198,7 +167,7 @@ async function readFileHandler(params: { path: string }) {
   const mimeType = response.headers.get('Content-Type')?.split(';')[0].trim() || 'application/octet-stream';
   const downloadUrl = await buildDownloadUrl(path);
   const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
-  const contentType = getContentType(mimeType, path);
+  const contentType = getContentCategory(mimeType, path);
 
   const MAX_INLINE_SIZE = 512 * 1024; // 512KB
   const contentLength = response.headers.get('Content-Length');

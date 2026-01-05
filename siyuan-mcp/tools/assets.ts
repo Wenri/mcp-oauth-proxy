@@ -6,32 +6,18 @@ import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { createJsonResponse, createImageContent, createAudioContent } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
-import { validateBlockAccess } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/resultFilter';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-
-/** JSON-serializable value type */
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-/** Zod schema for JSON-serializable values (recursive) */
-const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValue),
-    z.record(z.string(), jsonValue),
-  ])
-);
+import { jsonValueSchema } from '../utils/types';
 
 /** Schema for file content */
 const fileContentSchema = z.union([
   z.string().describe('Base64/hex encoded binary, or URL (see type parameter)'),
-  z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
-  z.array(jsonValue).describe('JSON array (auto-serialized)'),
+  z.record(z.string(), jsonValueSchema).describe('JSON object (auto-serialized)'),
+  z.array(jsonValueSchema).describe('JSON array (auto-serialized)'),
 ]);
 
 /** Schema for a single file to upload */

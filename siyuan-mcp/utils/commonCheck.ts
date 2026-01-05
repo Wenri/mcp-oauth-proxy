@@ -63,41 +63,30 @@ export function isSelectQuery(sql: string): boolean {
   return sql.trim().toUpperCase().startsWith('SELECT');
 }
 
-export function isNonContainerBlockType(type: string): boolean {
-  const nonContainerTypes = [
-    'audio',
-    'av',
-    'c',
-    'html',
-    'iframe',
-    'm',
-    'p',
-    't',
-    'tb',
-    'video',
-    'widget',
-    'h',
-    'query_embed',
-  ];
-  return nonContainerTypes.includes(type);
+/** Block types that cannot contain other blocks */
+const NON_PARENT_BLOCK_TYPES = [
+  'audio',
+  'av',
+  'c',
+  'html',
+  'iframe',
+  'm',
+  'p',
+  't',
+  'tb',
+  'video',
+  'widget',
+  'query_embed',
+] as const;
+
+/** Check if block type cannot be a parent (cannot contain children) */
+export function isNonParentBlockType(type: string): boolean {
+  return (NON_PARENT_BLOCK_TYPES as readonly string[]).includes(type);
 }
 
-export function isNonParentBlockType(type: string): boolean {
-  const nonContainerTypes = [
-    'audio',
-    'av',
-    'c',
-    'html',
-    'iframe',
-    'm',
-    'p',
-    't',
-    'tb',
-    'video',
-    'widget',
-    'query_embed',
-  ];
-  return nonContainerTypes.includes(type);
+/** Check if block type is not a container (non-parent + heading) */
+export function isNonContainerBlockType(type: string): boolean {
+  return isNonParentBlockType(type) || type === 'h';
 }
 
 /**

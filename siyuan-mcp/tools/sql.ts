@@ -10,7 +10,7 @@ import { debugPush } from '../logger';
 import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
 import { getBlockDBItem, cachedQuery } from '../syapi/custom';
-import { filterBlock } from '../utils/filterCheck';
+import { filterBlock } from '../utils/resultFilter';
 import databaseSchema from '../static/siyuan-database-schema.md';
 import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
 

@@ -11,7 +11,7 @@ import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
 
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {

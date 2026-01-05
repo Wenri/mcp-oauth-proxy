@@ -18,7 +18,7 @@ import { lang } from '../utils/lang';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, warnPush } from '../logger';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { filterNotebook } from '../utils/filterCheck';
+import { filterNotebook } from '../utils/resultFilter';
 import { getAppId } from '..';
 
 export class DailyNoteToolProvider extends McpToolsProvider {

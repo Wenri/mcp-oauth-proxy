@@ -3,16 +3,15 @@
  */
 
 import { z } from 'zod';
-import mime from 'mime-types';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
 import { createJsonResponse, createResourceLink, createBlobResource } from '../utils/mcpResponse';
-import { isTextMimeType, isTextExtension } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
+import { getContentCategory, getEffectiveMimeType } from '../utils/contentType';
 import { getConfig } from '..';
 import { getBlockAssets } from '../syapi/custom';
-import { validateBlockAccess } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/resultFilter';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
@@ -194,46 +193,13 @@ async function kramdownReadHandler(params: { id: BlockId }) {
   );
 }
 
-/** Asset content type categories */
-type AssetType = 'image' | 'audio' | 'text' | 'binary';
-
-/** Determine asset type from MIME */
-function getAssetType(mimeType: string, path: string): AssetType {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (isTextMimeType(mimeType) || isTextExtension(path)) return 'text';
-  return 'binary';
-}
-
-/**
- * Get effective MIME type for a response.
- * Priority: response MIME > extension-based MIME (via mime-types) > fallback
- */
-function getEffectiveMimeType(response: Response, path: string): string {
-  const contentType = response.headers.get('Content-Type') || '';
-  const responseMime = contentType.split(';')[0].trim().toLowerCase();
-
-  // Trust response MIME if it's not generic
-  if (responseMime && responseMime !== 'application/octet-stream') {
-    return responseMime;
-  }
-
-  // Fall back to extension-based MIME using mime-types library
-  const extMime = mime.lookup(path);
-  if (extMime) {
-    return extMime;
-  }
-
-  return 'application/octet-stream';
-}
-
-/** Convert blob to MCP ContentBlock based on asset type */
+/** Convert blob to MCP ContentBlock based on content category */
 async function blobToContentBlock(blob: Blob, mimeType: string, path: string): Promise<ContentBlock> {
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
-  const assetType = getAssetType(mimeType, path);
+  const category = getContentCategory(mimeType, path);
 
-  if (assetType === 'text') {
+  if (category === 'text') {
     // Text: return as TextContent
     const text = new TextDecoder().decode(bytes);
     return { type: 'text', text };
@@ -242,11 +208,11 @@ async function blobToContentBlock(blob: Blob, mimeType: string, path: string): P
   // Binary data needs base64 encoding
   const base64Data = bytes.toBase64();
 
-  if (assetType === 'image') {
+  if (category === 'image') {
     return { type: 'image', data: base64Data, mimeType };
   }
 
-  if (assetType === 'audio') {
+  if (category === 'audio') {
     return { type: 'audio', data: base64Data, mimeType };
   }
 
