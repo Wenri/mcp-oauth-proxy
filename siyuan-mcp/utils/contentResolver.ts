@@ -3,6 +3,9 @@
  * Handles content conversion (text, base64, hex, json) and URL fetching
  */
 
+import isPlainObject from 'lodash-es/isPlainObject';
+import isArray from 'lodash-es/isArray';
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -346,7 +349,7 @@ export function inferContentType(
   content: string | object,
   defaultType: ContentType = 'text'
 ): ContentType {
-  if (typeof content === 'object') {
+  if (isPlainObject(content) || isArray(content)) {
     return 'json';
   }
   return defaultType;
