@@ -23,12 +23,12 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           'Insert a new block at a specified position. Content must be in markdown format. Position is anchored by one of: `nextID` (ID of block after), `previousID` (ID of block before), or `parentID` (parent block ID). `nextID` has highest priority.',
         inputSchema: {
           data: z.string().describe('The markdown content to insert'),
-          nextID: z.string().optional().describe('Block ID or hpath of the block after the insertion point'),
-          previousID: z.string().optional().describe('Block ID or hpath of the block before the insertion point'),
+          nextID: z.string().optional().describe('Block ID of the block after the insertion point'),
+          previousID: z.string().optional().describe('Block ID of the block before the insertion point'),
           parentID: z
             .string()
             .optional()
-            .describe('Block ID or hpath of the parent block (must be a container block like quote or document)'),
+            .describe('Block ID or document hpath of the parent (must be a container like document or quote)'),
         },
         outputSchema: {
           id: z.string().describe('ID of the newly inserted block'),
@@ -94,7 +94,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           'Update an existing block\'s content by ID. Content should be in Kramdown format. Using markdown format will lose block attributes.',
         inputSchema: {
           data: z.string().describe('The new content in Kramdown format'),
-          id: z.string().describe('Block ID or hpath of the block to update'),
+          id: z.string().describe('Block ID of the block to update'),
         },
         handler: updateBlockHandler,
         title: lang('tool_title_update_block'),
@@ -106,9 +106,9 @@ export class BlockWriteToolProvider extends McpToolsProvider {
       },
       {
         name: 'siyuan_delete_block',
-        description: 'Delete a block by its ID or path. This action is irreversible.',
+        description: 'Delete a block by its ID. This action is irreversible.',
         inputSchema: {
-          id: z.string().describe('Block ID or hpath of the block to delete'),
+          id: z.string().describe('Block ID of the block to delete'),
         },
         handler: deleteBlockHandler,
         title: lang('tool_title_delete_block'),
@@ -123,9 +123,9 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         description:
           'Move a block to a new position. Specify either parentID (to move as child of a container) or previousID (to move after a specific block). If both are provided, previousID takes precedence.',
         inputSchema: {
-          id: z.string().describe('Block ID or hpath of the block to move'),
-          parentID: z.string().optional().describe('Block ID or hpath of the new parent block (must be a container block)'),
-          previousID: z.string().optional().describe('Block ID or hpath of the block after which to place the moved block'),
+          id: z.string().describe('Block ID of the block to move'),
+          parentID: z.string().optional().describe('Block ID or document hpath of the new parent (must be a container)'),
+          previousID: z.string().optional().describe('Block ID of the block after which to place the moved block'),
         },
         handler: moveBlockHandler,
         title: lang('tool_title_move_block'),
@@ -139,7 +139,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_fold_block',
         description: 'Fold (collapse) a block to hide its children. Works on headings and other container blocks.',
         inputSchema: {
-          id: z.string().describe('Block ID or hpath of the block to fold'),
+          id: z.string().describe('Block ID of the block to fold'),
         },
         handler: foldBlockHandler,
         title: lang('tool_title_fold_block'),
@@ -153,7 +153,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_unfold_block',
         description: 'Unfold (expand) a block to show its children.',
         inputSchema: {
-          id: z.string().describe('Block ID or hpath of the block to unfold'),
+          id: z.string().describe('Block ID of the block to unfold'),
         },
         handler: unfoldBlockHandler,
         title: lang('tool_title_unfold_block'),

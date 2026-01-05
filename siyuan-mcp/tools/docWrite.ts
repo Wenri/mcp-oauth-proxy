@@ -18,11 +18,11 @@ export class DocWriteToolProvider extends McpToolsProvider {
     return [
       {
         name: 'siyuan_append_markdown_to_doc',
-        description: 'Append Markdown content to the end of a document in SiYuan by its ID.',
+        description: 'Append Markdown content to the end of a document in SiYuan.',
         inputSchema: {
           id: z
             .string()
-            .describe('The unique identifier of the document to which the Markdown content will be appended.'),
+            .describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
           markdownContent: z
             .string()
             .describe('The Markdown-formatted text to append to the end of the specified document.'),
@@ -43,7 +43,7 @@ export class DocWriteToolProvider extends McpToolsProvider {
           parentId: z
             .string()
             .describe(
-              'The unique identifier (ID) of the parent document or notebook where the new note will be created.'
+              'Parent document/notebook ID or hpath (e.g., "/NotebookName" or "/NotebookName/ParentDoc")'
             ),
           title: z.string().describe('The title of the new note to be created.'),
           markdownContent: z.string().describe('The Markdown content of the new note.'),
@@ -58,9 +58,9 @@ export class DocWriteToolProvider extends McpToolsProvider {
       },
       {
         name: 'siyuan_rename_doc',
-        description: 'Rename a document by its ID.',
+        description: 'Rename a document.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document to rename'),
+          id: z.string().describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
           title: z.string().describe('The new title for the document'),
         },
         handler: renameDocHandler,
@@ -73,9 +73,9 @@ export class DocWriteToolProvider extends McpToolsProvider {
       },
       {
         name: 'siyuan_remove_doc',
-        description: 'Delete a document by its ID. This action moves the document to trash and is irreversible.',
+        description: 'Delete a document. This action moves the document to trash and is irreversible.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document to delete'),
+          id: z.string().describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
         },
         handler: removeDocHandler,
         title: lang('tool_title_remove_doc'),
