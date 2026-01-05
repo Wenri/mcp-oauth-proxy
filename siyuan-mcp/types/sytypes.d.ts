@@ -19,16 +19,28 @@ type Notebook = {
     closed: boolean;
 }
 
+/** BoxConf from kernel/conf/box.go */
 type NotebookConf = {
     name: string;
+    sort: number;
+    icon: string;
     closed: boolean;
+    refCreateSaveBox: string;
     refCreateSavePath: string;
-    createDocNameTemplate: string;
+    docCreateSaveBox: string;
+    docCreateSavePath: string;
     dailyNoteSavePath: string;
     dailyNoteTemplatePath: string;
+    sortMode: number;
 }
 
-type BlockType = "d" | "s" | "h" | "t" | "i" | "p" | "f" | "audio" | "video" | "other";
+type NotebookConfResponse = {
+    box: string;
+    conf: NotebookConf;
+    name: string;
+}
+
+type BlockType = "d" | "s" | "h" | "t" | "i" | "p" | "f" | "l" | "c" | "m" | "tb" | "html" | "av" | "audio" | "video" | "other";
 
 type BlockSubType = "d1" | "d2" | "s1" | "s2" | "s3" | "t1" | "t2" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "table" | "task" | "toggle" | "latex" | "quote" | "html" | "code" | "footnote" | "cite" | "collection" | "bookmark" | "attachment" | "comment" | "mindmap" | "spreadsheet" | "calendar" | "image" | "audio" | "video" | "other";
 
@@ -76,4 +88,35 @@ interface IFile {
     id: string;
     count: number;
     subFileCount: number;
+}
+
+/** Block attributes (IAL) */
+type BlockAttrs = Record<string, string>;
+
+/** Block operation result from insert/update/delete APIs */
+type BlockOperation = {
+    id: BlockId;
+    action: string;
+    data: string;
+    parentID?: BlockId;
+}
+
+/** Tree statistics from getTreeStat API */
+type TreeStat = {
+    imageCount: number;
+    linkCount: number;
+    refCount: number;
+    runeCount: number;
+    wordCount: number;
+}
+
+/** Document info from getDocInfo API */
+type DocInfo = {
+    id: DocumentId;
+    rootID: DocumentId;
+    name: string;
+    refCount: number;
+    subFileCount: number;
+    refIDs: string[];
+    icon: string;
 }

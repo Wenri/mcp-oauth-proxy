@@ -178,8 +178,8 @@ async function uploadAssetHandler(params: {
     const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
 
     const insertResult = await insertBlockAPI(markdown, insertAfterBlock, 'insertAfter');
-    if (insertResult && insertResult.length > 0) {
-      insertedBlockId = insertResult[0].doOperations?.[0]?.id || null;
+    if (insertResult) {
+      insertedBlockId = insertResult.id;
     }
   }
 

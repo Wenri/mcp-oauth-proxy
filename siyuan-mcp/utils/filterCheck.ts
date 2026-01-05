@@ -8,24 +8,24 @@ import { logPush } from '../logger';
 
 /**
  * Validate block/doc access: checks ID format, existence, and filter settings.
- * Throws on error, returns { dbItem } on success.
+ * Throws on error, returns dbItem on success.
  */
 export async function validateBlockAccess(
   id: string,
-  opts?: { requireDoc?: boolean }
-): Promise<{ dbItem: any }> {
+  requireDoc?: boolean
+): Promise<Block> {
   try {
     checkIdValid(id);
   } catch {
     throw new Error('Invalid ID format.');
   }
 
-  const dbItem = opts?.requireDoc
+  const dbItem = requireDoc
     ? await getDocDBitem(id)
     : await getBlockDBItem(id);
 
   if (dbItem == null) {
-    const type = opts?.requireDoc ? 'document' : 'block';
+    const type = requireDoc ? 'document' : 'block';
     throw new Error(`Invalid ${type} ID. Please check if the ID exists.`);
   }
 
@@ -33,7 +33,7 @@ export async function validateBlockAccess(
     throw new Error('The specified block is excluded by user settings.');
   }
 
-  return { dbItem };
+  return dbItem;
 }
 
 function getFilterSettings() {

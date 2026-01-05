@@ -55,6 +55,14 @@ const CACHED_ENDPOINTS = [
   '/custom/block',
   '/custom/assets',
   '/custom/fts',
+  '/custom/childWordCount',
+  '/custom/childDocExist',
+  '/custom/docHasAv',
+  '/custom/docBlockCount',
+  '/custom/docEmpty',
+  '/custom/headingIds',
+  '/custom/superBlockIds',
+  '/custom/highlightBlockIds',
 ];
 
 /**
@@ -196,7 +204,7 @@ export async function listDocsByPathT({
 }
 
 /** Get block attributes (cached) */
-export async function getblockAttr(blockid: string): Promise<any> {
+export async function getblockAttr(blockid: string): Promise<BlockAttrs> {
   const url = '/api/attr/getBlockAttrs';
   const response = await cachedPostRequest({ id: blockid }, url);
   if (response.code !== 0) {
@@ -227,7 +235,7 @@ export async function updateBlockAPI(
   text: string,
   blockid: string,
   textType: 'markdown' | 'dom' = 'markdown'
-): Promise<any> {
+): Promise<BlockOperation | null> {
   const url = '/api/block/updateBlock';
   const response = await postRequest({ dataType: textType, data: text, id: blockid }, url);
   try {
@@ -251,7 +259,7 @@ export async function insertBlockAPI(
   blockid: string,
   addType: string = 'previousID',
   textType: 'markdown' | 'dom' = 'markdown'
-): Promise<any> {
+): Promise<BlockOperation | null> {
   const url = '/api/block/insertBlock';
   const data: any = { dataType: textType, data: text };
 
@@ -313,7 +321,7 @@ export async function prependBlockAPI(
   text: string,
   parentId: string,
   textType: 'markdown' | 'dom' = 'markdown'
-): Promise<any> {
+): Promise<BlockOperation | null> {
   const url = '/api/block/prependBlock';
   const response = await postRequest({ dataType: textType, data: text, parentID: parentId }, url);
   try {
@@ -331,7 +339,7 @@ export async function appendBlockAPI(
   text: string,
   parentId: string,
   textType: 'markdown' | 'dom' = 'markdown'
-): Promise<any> {
+): Promise<BlockOperation | null> {
   const url = '/api/block/appendBlock';
   const response = await postRequest({ dataType: textType, data: text, parentID: parentId }, url);
   try {
@@ -416,7 +424,7 @@ export async function getNodebookList(): Promise<any[]> {
 }
 
 /** Get notebook config (cached) */
-export async function getNotebookConf(notebookId: string): Promise<any> {
+export async function getNotebookConf(notebookId: string): Promise<NotebookConfResponse | null> {
   const url = '/api/notebook/getNotebookConf';
   const response = await cachedPostRequest({ notebook: notebookId }, url);
   if (response.code === 0 && response.data) {
@@ -725,12 +733,12 @@ export async function getRiffDecks(): Promise<any[]> {
 }
 
 /** Get document info (cached) */
-export async function getDocInfo(id: string): Promise<any> {
+export async function getDocInfo(id: string): Promise<DocInfo | null> {
   return getResponseData(cachedPostRequest({ id }, '/api/block/getDocInfo'));
 }
 
 /** Get tree statistics (cached) */
-export async function getTreeStat(id: string): Promise<any> {
+export async function getTreeStat(id: string): Promise<TreeStat> {
   return getResponseData(cachedPostRequest({ id }, '/api/block/getTreeStat'));
 }
 

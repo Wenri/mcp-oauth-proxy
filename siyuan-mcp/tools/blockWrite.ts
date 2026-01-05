@@ -199,7 +199,7 @@ async function insertBlockHandler(params: {
     throw new Error('Please provide one of nextID, previousID or parentID to anchor the insertion.');
   }
 
-  const { dbItem } = await validateBlockAccess(anchorID);
+  const dbItem = await validateBlockAccess(anchorID);
 
   if (anchorType === 'parentID' && isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
@@ -222,7 +222,7 @@ async function prependBlockHandler(params: { data: string; parentID: string }) {
     throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
-  const { dbItem } = await validateBlockAccess(parentID);
+  const dbItem = await validateBlockAccess(parentID);
 
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
@@ -245,7 +245,7 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
     throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
-  const { dbItem } = await validateBlockAccess(parentID);
+  const dbItem = await validateBlockAccess(parentID);
 
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
@@ -275,7 +275,7 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
 async function updateBlockHandler(params: { data: string; id: string }) {
   const { data, id } = params;
 
-  const { dbItem: blockDbItem } = await validateBlockAccess(id);
+  const blockDbItem = await validateBlockAccess(id);
 
   if (blockDbItem.type === 'av') {
     throw new Error('Cannot update attribute view (i.e. Database) blocks.');
@@ -302,7 +302,7 @@ async function deleteBlockHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Delete block API called');
 
-  const { dbItem: blockDbItem } = await validateBlockAccess(id);
+  const blockDbItem = await validateBlockAccess(id);
 
   if (blockDbItem.type === 'd') {
     throw new Error('Cannot delete document blocks. Use siyuan_remove_doc instead.');

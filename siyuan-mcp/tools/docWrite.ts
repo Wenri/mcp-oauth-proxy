@@ -115,7 +115,7 @@ async function appendBlockHandler(params: { id: string; markdownContent: string 
   if (!(await isADocId(id))) {
     throw new Error("Failed to append to document: The provided ID is not a document ID.");
   }
-  await validateBlockAccess(id, { requireDoc: true });
+  await validateBlockAccess(id, true);
 
   const result = await appendBlockAPI(markdownContent, id);
   if (result == null) {
@@ -150,7 +150,7 @@ async function renameDocHandler(params: { id: string; title: string }) {
   const { id, title } = params;
   debugPush('Rename document API called');
 
-  const { dbItem: docInfo } = await validateBlockAccess(id, { requireDoc: true });
+  const docInfo = await validateBlockAccess(id, true);
 
   const result = await renameDocAPI(docInfo.box, docInfo.path, title);
   if (!result) {
@@ -164,7 +164,7 @@ async function removeDocHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Remove document API called');
 
-  const { dbItem: docInfo } = await validateBlockAccess(id, { requireDoc: true });
+  const docInfo = await validateBlockAccess(id, true);
 
   const result = await removeDocAPI(docInfo.box, docInfo.path);
   if (!result) {
@@ -192,7 +192,7 @@ async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string;
       fromPaths.push(doc);
     } else {
       // It's a document ID - look up the path
-      const { dbItem: docInfo } = await validateBlockAccess(doc, { requireDoc: true });
+      const docInfo = await validateBlockAccess(doc, true);
       // Full path format: notebook/path
       fromPaths.push(`${docInfo.box}${docInfo.path}`);
     }

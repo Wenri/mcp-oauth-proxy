@@ -132,7 +132,7 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
   const { id, offset = 0, limit = 10000 } = params;
   debugPush('Reading document content');
 
-  const { dbItem } = await validateBlockAccess(id);
+  const dbItem = await validateBlockAccess(id);
 
   let otherImg: any[] = [];
   if (dbItem.type !== 'd') {
@@ -170,7 +170,7 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
 async function kramdownReadHandler(params: { id: string }) {
   const { id } = params;
 
-  const { dbItem } = await validateBlockAccess(id);
+  const dbItem = await validateBlockAccess(id);
 
   let otherImg: any[] = [];
   if (dbItem.type !== 'd') {
@@ -288,7 +288,7 @@ async function getHPathHandler(params: { id: string; includeOutline?: boolean })
   const { id, includeOutline = false } = params;
   debugPush('Get hpath API called');
 
-  const { dbItem } = await validateBlockAccess(id);
+  const dbItem = await validateBlockAccess(id);
 
   const hpath = await getHPathByIDAPI(id);
   if (hpath == null) {
@@ -315,7 +315,7 @@ async function getDocOutlineHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Get doc outline API called');
 
-  const { dbItem } = await validateBlockAccess(id);
+  const dbItem = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
   const docId = dbItem.type === 'd' ? id : dbItem.root_id;
@@ -335,7 +335,7 @@ async function exportHtmlHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Export HTML API called');
 
-  const { dbItem } = await validateBlockAccess(id);
+  const dbItem = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
   const docId = dbItem.type === 'd' ? id : dbItem.root_id;

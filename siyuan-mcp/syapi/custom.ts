@@ -42,17 +42,18 @@ export async function cachedQuery(
 }
 
 /**
- * Get word count for child documents
+ * Get word count for child documents (cached)
  */
 export async function getChildDocumentsWordCount(docId: string) {
-  const sqlResult = await queryAPI(`
+  const stmt = `
     SELECT SUM(length) AS count
     FROM blocks
     WHERE
       path like "%/${docId}/%"
       AND
       type in ("p", "h", "c", "t")
-  `);
+  `;
+  const sqlResult = await cachedQuery('/custom/childWordCount', { docId }, stmt);
   if (sqlResult[0]?.count) {
     return sqlResult[0].count;
   }
@@ -78,24 +79,15 @@ export async function getChildDocumentIds(sqlResult: any, maxListCount: number):
 }
 
 export async function isChildDocExist(id: string) {
-  const sqlResponse = await queryAPI(`
-    SELECT * FROM blocks WHERE path like '%${id}/%' LIMIT 3
-  `);
-  if (sqlResponse && sqlResponse.length > 0) {
-    return true;
-  }
-  return false;
+  const stmt = `SELECT * FROM blocks WHERE path like '%${id}/%' LIMIT 3`;
+  const sqlResponse = await cachedQuery('/custom/childDocExist', { id }, stmt);
+  return sqlResponse && sqlResponse.length > 0;
 }
 
 export async function isDocHasAv(docId: string) {
-  const sqlResult = await queryAPI(`
-    SELECT count(*) as avcount FROM blocks WHERE root_id = '${docId}'
-    AND type = 'av'
-  `);
-  if (sqlResult.length > 0 && sqlResult[0].avcount > 0) {
-    return true;
-  }
-  return false;
+  const stmt = `SELECT count(*) as avcount FROM blocks WHERE root_id = '${docId}' AND type = 'av'`;
+  const sqlResult = await cachedQuery('/custom/docHasAv', { docId }, stmt);
+  return sqlResult.length > 0 && sqlResult[0].avcount > 0;
 }
 
 export async function isDocEmpty(docId: string, blockCountThreshold = 0) {
@@ -105,25 +97,15 @@ export async function isDocEmpty(docId: string, blockCountThreshold = 0) {
     return false;
   }
   if (blockCountThreshold != 0) {
-    const blockCountSqlResult = await queryAPI(
-      `SELECT count(*) as bcount FROM blocks WHERE root_id like '${docId}' AND type in ('p', 'c', 'iframe', 'html', 'video', 'audio', 'widget', 'query_embed', 't')`
-    );
+    const stmt = `SELECT count(*) as bcount FROM blocks WHERE root_id like '${docId}' AND type in ('p', 'c', 'iframe', 'html', 'video', 'audio', 'widget', 'query_embed', 't')`;
+    const blockCountSqlResult = await cachedQuery('/custom/docBlockCount', { docId }, stmt);
     if (blockCountSqlResult.length > 0) {
-      if (blockCountSqlResult[0].bcount > blockCountThreshold) {
-        return false;
-      } else {
-        return true;
-      }
+      return blockCountSqlResult[0].bcount <= blockCountThreshold;
     }
   }
 
-  const sqlResult = await queryAPI(`SELECT markdown FROM blocks WHERE
-    root_id like '${docId}'
-    AND type != 'd'
-    AND (type != 'p'
-       OR (type = 'p' AND length != 0)
-       )
-    LIMIT 5`);
+  const stmt = `SELECT markdown FROM blocks WHERE root_id like '${docId}' AND type != 'd' AND (type != 'p' OR (type = 'p' AND length != 0)) LIMIT 5`;
+  const sqlResult = await cachedQuery('/custom/docEmpty', { docId }, stmt);
   if (sqlResult.length <= 0) {
     return true;
   } else {
@@ -209,7 +191,7 @@ export async function isADocId(id: string): Promise<boolean> {
   return queryResponse[0].type === 'd';
 }
 
-export async function getDocDBitem(id: string) {
+export async function getDocDBitem(id: string): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
@@ -223,7 +205,7 @@ export async function getDocDBitem(id: string) {
 /**
  * Get block item from database by ID (cached)
  */
-export async function getBlockDBItem(id: string) {
+export async function getBlockDBItem(id: string): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");

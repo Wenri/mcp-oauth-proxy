@@ -2,8 +2,8 @@
  * Flashcard tools
  */
 
-import { addRiffCards, queryAPI, removeRiffCards } from '../syapi';
-import { getBlockDBItem, isValidDeck, QUICK_DECK_ID } from '../syapi/custom';
+import { addRiffCards, removeRiffCards } from '../syapi';
+import { getBlockDBItem, isValidDeck, QUICK_DECK_ID, cachedQuery } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
@@ -226,26 +226,20 @@ function getIdFromSqlItem(sqlResponse: any[]): string[] {
 }
 
 async function provideHeadingIds(docId: string, headingType: string): Promise<string[]> {
-  const queryResult = await queryAPI(
-    `select id from blocks where root_id = '${docId}' and type = 'h' and subtype = '${headingType}';`
-  );
+  const stmt = `select id from blocks where root_id = '${docId}' and type = 'h' and subtype = '${headingType}';`;
+  const queryResult = await cachedQuery('/custom/headingIds', { docId, headingType }, stmt);
   return getIdFromSqlItem(queryResult);
 }
 
 async function provideSuperBlockIds(docId: string): Promise<string[]> {
-  const queryResult = await queryAPI(
-    `select * from blocks where root_id = '${docId}' and type = 's'`
-  );
+  const stmt = `select * from blocks where root_id = '${docId}' and type = 's'`;
+  const queryResult = await cachedQuery('/custom/superBlockIds', { docId }, stmt);
   return getIdFromSqlItem(queryResult);
 }
 
 async function provideHighlightBlockIds(docId: string): Promise<string[]> {
-  const queryResult = await queryAPI(`SELECT * FROM blocks WHERE
-    root_id = '${docId}'
-    AND
-    type = "p"
-    AND
-    markdown regexp '==.*=='`);
+  const stmt = `SELECT * FROM blocks WHERE root_id = '${docId}' AND type = "p" AND markdown regexp '==.*=='`;
+  const queryResult = await cachedQuery('/custom/highlightBlockIds', { docId }, stmt);
 
   const finalResult: any[] = [];
   queryResult.forEach((oneResult: any) => {
