@@ -8,7 +8,7 @@ import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, 
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr } from '../utils/commonCheck';
+import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr, assertApiResult } from '../utils/commonCheck';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
 import { validateBlockAccess } from '../utils/resultFilter';
@@ -208,11 +208,10 @@ async function insertBlockHandler(params: {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
-  const response = await insertBlockOriginAPI({ data, dataType: 'markdown', nextID, previousID, parentID });
-  if (response == null) {
-    throw new Error('Failed to insert the block');
-  }
-
+  const response = assertApiResult(
+    await insertBlockOriginAPI({ data, dataType: 'markdown', nextID, previousID, parentID }),
+    'insert the block'
+  );
   taskManager.insert(response[0].doOperations[0].id, data, 'insertBlock', { parentID }, TASK_STATUS.APPROVED);
   return createJsonResponse(response[0].doOperations[0]);
 }
@@ -231,11 +230,7 @@ async function prependBlockHandler(params: { data: string; parentID: BlockId }) 
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
-  const response = await prependBlockAPI(data, parentID);
-  if (response == null) {
-    throw new Error('Failed to prepend the block');
-  }
-
+  const response = assertApiResult(await prependBlockAPI(data, parentID), 'prepend the block');
   taskManager.insert(response.id, data, 'prependBlock', { parentID }, TASK_STATUS.APPROVED);
   return createJsonResponse(response);
 }
@@ -254,10 +249,7 @@ async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
-  const result = await appendBlockAPI(data, parentID);
-  if (result == null) {
-    throw new Error('Failed to append to the block');
-  }
+  const result = assertApiResult(await appendBlockAPI(data, parentID), 'append to the block');
 
   const paragraphIds: BlockId[] = [];
   if (dbItem.type === 'l') {
@@ -289,10 +281,7 @@ async function updateBlockHandler(params: { data: string; id: BlockId }) {
   const autoApprove = config.autoApproveLocalChange !== false;
 
   if (autoApprove) {
-    const response = await updateBlockAPI(data, id);
-    if (response == null) {
-      throw new Error('Failed to update the block');
-    }
+    assertApiResult(await updateBlockAPI(data, id), 'update the block');
     taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.APPROVED);
     return createSuccessResponse('Block updated');
   } else {
@@ -311,11 +300,7 @@ async function deleteBlockHandler(params: { id: BlockId }) {
     throw new Error('Cannot delete document blocks. Use siyuan_remove_doc instead.');
   }
 
-  const result = await removeBlockAPI(id);
-  if (!result) {
-    throw new Error('Failed to delete the block');
-  }
-
+  assertApiResult(await removeBlockAPI(id), 'delete the block');
   taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
   return createSuccessResponse('Block deleted');
 }
@@ -338,11 +323,7 @@ async function moveBlockHandler(params: { id: BlockId; parentID?: BlockId; previ
     await validateBlockAccess(parentID);
   }
 
-  const result = await moveBlockAPI(id, parentID, previousID);
-  if (!result) {
-    throw new Error('Failed to move the block');
-  }
-
+  assertApiResult(await moveBlockAPI(id, parentID, previousID), 'move the block');
   return createSuccessResponse('Block moved');
 }
 
@@ -351,12 +332,7 @@ async function foldBlockHandler(params: { id: BlockId }) {
   debugPush('Fold block API called');
 
   await validateBlockAccess(id);
-
-  const result = await foldBlockAPI(id);
-  if (!result) {
-    throw new Error('Failed to fold the block');
-  }
-
+  assertApiResult(await foldBlockAPI(id), 'fold the block');
   return createSuccessResponse('Block folded');
 }
 
@@ -365,11 +341,6 @@ async function unfoldBlockHandler(params: { id: BlockId }) {
   debugPush('Unfold block API called');
 
   await validateBlockAccess(id);
-
-  const result = await unfoldBlockAPI(id);
-  if (!result) {
-    throw new Error('Failed to unfold the block');
-  }
-
+  assertApiResult(await unfoldBlockAPI(id), 'unfold the block');
   return createSuccessResponse('Block unfolded');
 }

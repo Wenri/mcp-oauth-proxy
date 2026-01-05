@@ -13,6 +13,7 @@ import { lang } from '../utils/lang';
 import { buildDownloadUrl, getTokenTtl } from '..';
 import { jsonValueSchema, type JsonValue } from '../types';
 import { getContentCategory } from '../utils/contentType';
+import { assertNonEmptyArray, assertApiResult } from '../utils/commonCheck';
 
 export class FileSystemToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -321,13 +322,11 @@ async function createArchiveHandler(params: { paths: string[]; name?: string }) 
   const { paths, name } = params;
   debugPush('Create archive API called');
 
-  if (!paths || paths.length === 0) {
-    throw new Error('At least one path is required.');
-  }
+  assertNonEmptyArray(paths, 'path');
 
   // Create the zip archive on SiYuan server
-  const result = await exportResourcesAPI(paths, name);
-  if (!result || !result.path) {
+  const result = assertApiResult(await exportResourcesAPI(paths, name), 'create archive');
+  if (!result.path) {
     throw new Error('Failed to create archive.');
   }
 

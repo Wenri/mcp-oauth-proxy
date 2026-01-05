@@ -12,6 +12,7 @@ import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
+import { assertApiResult, assertNonEmptyArray } from '../utils/commonCheck';
 
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -117,11 +118,7 @@ async function appendBlockHandler(params: { id: DocumentId; markdownContent: str
   }
   await validateBlockAccess(id, true);
 
-  const result = await appendBlockAPI(markdownContent, id);
-  if (result == null) {
-    throw new Error('Failed to append to the document');
-  }
-
+  const result = assertApiResult(await appendBlockAPI(markdownContent, id), 'append to the document');
   taskManager.insert(result.id, markdownContent, 'appendToDocEnd', { docId: id }, TASK_STATUS.APPROVED);
   return createSuccessResponse(result.id);
 }
@@ -152,11 +149,7 @@ async function renameDocHandler(params: { id: DocumentId; title: string }) {
 
   const docInfo = await validateBlockAccess(id, true);
 
-  const result = await renameDocAPI(docInfo.box, docInfo.path, title);
-  if (!result) {
-    throw new Error('Failed to rename the document');
-  }
-
+  assertApiResult(await renameDocAPI(docInfo.box, docInfo.path, title), 'rename the document');
   return createSuccessResponse(title);
 }
 
@@ -166,11 +159,7 @@ async function removeDocHandler(params: { id: DocumentId }) {
 
   const docInfo = await validateBlockAccess(id, true);
 
-  const result = await removeDocAPI(docInfo.box, docInfo.path);
-  if (!result) {
-    throw new Error('Failed to remove the document');
-  }
-
+  assertApiResult(await removeDocAPI(docInfo.box, docInfo.path), 'remove the document');
   taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
   return createSuccessResponse('Document removed');
 }
@@ -179,29 +168,19 @@ async function moveDocsHandler(params: { fromDocs: (DocumentId | string)[]; toNo
   const { fromDocs, toNotebook, toPath } = params;
   debugPush('Move documents API called');
 
-  if (!fromDocs || fromDocs.length === 0) {
-    throw new Error('Please provide at least one document ID or path to move.');
-  }
+  assertNonEmptyArray(fromDocs, 'document ID or path to move');
 
   // Process each entry - could be an ID or a full path
   const fromPaths: string[] = [];
   for (const doc of fromDocs) {
-    // Check if it looks like a full path (contains /) or an ID
     if (doc.includes('/')) {
-      // It's already a full path (notebook/path format)
       fromPaths.push(doc);
     } else {
-      // It's a document ID - look up the path
       const docInfo = await validateBlockAccess(doc, true);
-      // Full path format: notebook/path
       fromPaths.push(`${docInfo.box}${docInfo.path}`);
     }
   }
 
-  const result = await moveDocsAPI(fromPaths, toNotebook, toPath);
-  if (!result) {
-    throw new Error('Failed to move the documents');
-  }
-
+  assertApiResult(await moveDocsAPI(fromPaths, toNotebook, toPath), 'move the documents');
   return createSuccessResponse(`Moved ${fromDocs.length} documents`);
 }

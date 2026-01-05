@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
-import { isValidStr } from '../utils/commonCheck';
+import { isValidStr, assertNonEmptyArray, assertApiResult } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { validateBlockAccess } from '../utils/resultFilter';
 
@@ -133,9 +133,7 @@ async function getBlockAttributesHandler(params: { blockId: BlockId }) {
 async function batchSetAttributesHandler(params: { blocks: { id: BlockId; attrs: BlockAttrs }[] }) {
   const { blocks } = params;
 
-  if (!blocks || blocks.length === 0) {
-    throw new Error('blocks array cannot be empty.');
-  }
+  assertNonEmptyArray(blocks, 'block');
 
   // Validate all blocks first
   for (const block of blocks) {
@@ -146,13 +144,7 @@ async function batchSetAttributesHandler(params: { blocks: { id: BlockId; attrs:
   }
 
   // Format for batchSetBlockAttrs API: JSON string of array
-  // Each item: { id: string, attrs: Record<string, string> }
   const blockAttrs = JSON.stringify(blocks);
-
-  const result = await batchSetBlockAttrs(blockAttrs);
-  if (result !== null) {
-    return createSuccessResponse(`Updated ${blocks.length} blocks`);
-  } else {
-    throw new Error('Failed to batch update attributes');
-  }
+  assertApiResult(await batchSetBlockAttrs(blockAttrs), 'batch update attributes');
+  return createSuccessResponse(`Updated ${blocks.length} blocks`);
 }

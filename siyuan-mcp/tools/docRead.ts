@@ -7,7 +7,7 @@ import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
 import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MAX_INLINE_ASSET_SIZE } from '../utils/mcpResponse';
-import { isValidStr } from '../utils/commonCheck';
+import { isValidStr, extractDocumentId, assertApiResult } from '../utils/commonCheck';
 import { getEffectiveMimeType } from '../utils/contentType';
 import { getConfig } from '..';
 import { getBlockAssets } from '../syapi/custom';
@@ -194,11 +194,7 @@ async function kramdownReadHandler(params: { id: BlockId; offset?: number; limit
     }
   }
 
-  const result = await getKramdown(id);
-  if (!result) {
-    throw new Error('Failed to get block kramdown content.');
-  }
-
+  const result = assertApiResult(await getKramdown(id), 'get block kramdown content');
   const content = result.kramdown;
   const sliced = limit !== undefined ? content.slice(offset, offset + limit) : content.slice(offset);
   const hasMore = limit !== undefined ? offset + limit < content.length : false;
@@ -266,21 +262,15 @@ async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }
   const dbItem = await validateBlockAccess(id);
   const resolvedId = dbItem.id;
 
-  const hpath = await getHPathByIDAPI(resolvedId);
-  if (hpath == null) {
-    throw new Error('Failed to get the human-readable path.');
-  }
+  const hpath = assertApiResult(await getHPathByIDAPI(resolvedId), 'get the human-readable path');
 
   const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id: resolvedId, hpath };
 
   if (includeOutline) {
-    // Get the root document ID for outline
-    const docId = dbItem.type === 'd' ? resolvedId : dbItem.root_id;
-    if (docId) {
-      const outline = await getDocOutlineAPI(docId);
-      if (outline) {
-        result.outline = outline;
-      }
+    const docId = extractDocumentId(dbItem);
+    const outline = await getDocOutlineAPI(docId);
+    if (outline) {
+      result.outline = outline;
     }
   }
 
@@ -292,17 +282,8 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
   debugPush('Get doc outline API called');
 
   const dbItem = await validateBlockAccess(id);
-
-  // Get the root document ID if a block ID was provided
-  const docId = dbItem.type === 'd' ? dbItem.id : dbItem.root_id;
-  if (!docId) {
-    throw new Error('Could not determine the document ID.');
-  }
-
-  const outline = await getDocOutlineAPI(docId);
-  if (outline == null) {
-    throw new Error('Failed to get document outline.');
-  }
+  const docId = extractDocumentId(dbItem);
+  const outline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
 
   return createJsonResponse({ id: docId, outline });
 }
@@ -312,17 +293,8 @@ async function exportHtmlHandler(params: { id: BlockId }) {
   debugPush('Export HTML API called');
 
   const dbItem = await validateBlockAccess(id);
-
-  // Get the root document ID if a block ID was provided
-  const docId = dbItem.type === 'd' ? dbItem.id : dbItem.root_id;
-  if (!docId) {
-    throw new Error('Could not determine the document ID.');
-  }
-
-  const html = await getDocPreview(docId);
-  if (!html) {
-    throw new Error('Failed to export document as HTML.');
-  }
+  const docId = extractDocumentId(dbItem);
+  const html = assertApiResult(await getDocPreview(docId), 'export document as HTML');
 
   return createJsonResponse({ id: docId, html });
 }

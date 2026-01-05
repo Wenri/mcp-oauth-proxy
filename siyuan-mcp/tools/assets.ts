@@ -12,6 +12,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { jsonValueSchema } from '../types';
+import { assertNonEmptyArray } from '../utils/commonCheck';
 
 /** Schema for file content */
 const fileContentSchema = z.union([
@@ -80,9 +81,7 @@ async function uploadAssetsHandler(params: {
   const { files, assetsDirPath = '/data/assets/', insertAfterBlock, altText } = params;
   debugPush('Upload assets API called');
 
-  if (!files || files.length === 0) {
-    throw new Error('At least one file is required.');
-  }
+  assertNonEmptyArray(files, 'file');
 
   // Validate insertAfterBlock if provided
   if (insertAfterBlock) {

@@ -178,6 +178,17 @@ export function isValidIdFormat(id: string): boolean {
   return idRegex.test(id);
 }
 
+/**
+ * Escape a string for use in SQL queries.
+ * Escapes single quotes by doubling them.
+ *
+ * @param value - The string to escape
+ * @returns Escaped string safe for SQL
+ */
+export function escapeSqlString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 export function checkIdValid(id: string): void {
   if (!isValidIdFormat(id)) {
     throw new Error("The `id` format is incorrect, please check if it is a valid `id`.");
@@ -199,7 +210,7 @@ export async function isADocId(id: BlockId): Promise<boolean> {
 export async function getDocDBitem(id: DocumentId): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
-  const safeId = id.replace(/'/g, "''");
+  const safeId = escapeSqlString(id);
   const queryResponse = await cachedQuery('/custom/doc', { id }, `SELECT * FROM blocks WHERE id = '${safeId}' and type = 'd'`);
   if (queryResponse == null || queryResponse.length == 0) {
     return null;
@@ -213,7 +224,7 @@ export async function getDocDBitem(id: DocumentId): Promise<Block | null> {
 export async function getBlockDBItem(id: BlockId): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
-  const safeId = id.replace(/'/g, "''");
+  const safeId = escapeSqlString(id);
   const queryResponse = await cachedQuery('/custom/block', { id }, `SELECT * FROM blocks WHERE id = '${safeId}'`);
   if (queryResponse == null || queryResponse.length == 0) {
     return null;

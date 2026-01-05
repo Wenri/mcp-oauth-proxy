@@ -126,3 +126,66 @@ export function isCurrentVersionLessThan(version: string): boolean {
   }
   return false;
 }
+
+// ============================================================================
+// Assertion & Validation Utilities
+// ============================================================================
+
+/**
+ * Assert that an API result is not null/undefined, throwing if it is.
+ * Use this to reduce repetitive null checking after API calls.
+ *
+ * @param result - The API result to check
+ * @param operation - Description of the operation (for error message)
+ * @returns The result, guaranteed to be non-null
+ * @throws Error if result is null or undefined
+ *
+ * @example
+ * const result = assertApiResult(await appendBlockAPI(data, parentID), 'append block');
+ */
+export function assertApiResult<T>(result: T | null | undefined, operation: string): T {
+  if (result == null) {
+    throw new Error(`Failed to ${operation}.`);
+  }
+  return result;
+}
+
+/**
+ * Check if an array is empty or falsy.
+ * Standardizes empty array checks with consistent behavior.
+ */
+export function isEmptyArray<T>(arr: T[] | null | undefined): arr is null | undefined | [] {
+  return !arr || arr.length === 0;
+}
+
+/**
+ * Assert that an array is not empty, throwing if it is.
+ *
+ * @param arr - The array to check
+ * @param itemType - Description of the item type (for error message)
+ * @returns The array, guaranteed to be non-empty
+ * @throws Error if array is empty or falsy
+ */
+export function assertNonEmptyArray<T>(arr: T[] | null | undefined, itemType: string): T[] {
+  if (isEmptyArray(arr)) {
+    throw new Error(`At least one ${itemType} is required.`);
+  }
+  return arr;
+}
+
+/**
+ * Extract the document ID from a block database item.
+ * For document blocks, returns the block's own ID.
+ * For other blocks, returns the root_id (parent document).
+ *
+ * @param dbItem - Block database item
+ * @returns Document ID
+ * @throws Error if document ID cannot be determined
+ */
+export function extractDocumentId(dbItem: Block): DocumentId {
+  const docId = dbItem.type === 'd' ? dbItem.id : dbItem.root_id;
+  if (!docId) {
+    throw new Error('Could not determine the document ID.');
+  }
+  return docId;
+}

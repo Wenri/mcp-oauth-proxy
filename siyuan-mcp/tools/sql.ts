@@ -9,7 +9,7 @@ import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
 import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
-import { getBlockDBItem, cachedQuery } from '../syapi/custom';
+import { getBlockDBItem, cachedQuery, escapeSqlString } from '../syapi/custom';
 import { filterBlock } from '../utils/resultFilter';
 import databaseSchema from '../static/siyuan-database-schema.md';
 import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
@@ -159,7 +159,7 @@ async function fulltextSearchHandler(params: {
   // Column 5 is 'content' in the FTS5 table (0-indexed: id, parent_id, root_id, hash, box, path, hpath, name, alias, memo, tag, content=11)
   const contentColumn = 11;
 
-  const safeQuery = query.replace(/'/g, "''");
+  const safeQuery = escapeSqlString(query);
   const stmt = `
     SELECT
       id,
