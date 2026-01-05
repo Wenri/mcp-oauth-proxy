@@ -11,7 +11,7 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl, getTokenTtl } from '..';
-import { jsonValueSchema, type JsonValue } from '../utils/types';
+import { jsonValueSchema, type JsonValue } from '../types';
 import { getContentCategory } from '../utils/contentType';
 
 export class FileSystemToolProvider extends McpToolsProvider {

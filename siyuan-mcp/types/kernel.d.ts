@@ -473,3 +473,47 @@ type DocTreeNode = {
   icon: string;
   children: DocTreeNode[];
 };
+
+// ============================================================================
+// Search Filter Types (from kernel/model/search.go)
+// ============================================================================
+
+/**
+ * Block type filter for search queries.
+ * Source: kernel/model/search.go TypeFilter struct
+ */
+type BlockTypeFilter = {
+  audioBlock: boolean;
+  blockquote: boolean;
+  codeBlock: boolean;
+  databaseBlock: boolean;
+  document: boolean;
+  embedBlock: boolean;
+  heading: boolean;
+  htmlBlock: boolean;
+  iframeBlock: boolean;
+  list: boolean;
+  listItem: boolean;
+  mathBlock: boolean;
+  paragraph: boolean;
+  superBlock: boolean;
+  table: boolean;
+  videoBlock: boolean;
+  widgetBlock: boolean;
+};
+
+/**
+ * Full-text search query parameters.
+ * Source: kernel/model/search.go fullTextSearchBlock params
+ */
+type FullTextSearchQuery = {
+  query: string;
+  method?: number;
+  types?: BlockTypeFilter;
+  paths?: string[];
+  groupBy?: number;
+  orderBy?: number;
+  page?: number;
+  reqId?: number;
+  pageSize?: number;
+};

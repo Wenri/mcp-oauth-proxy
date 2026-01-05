@@ -11,7 +11,7 @@ import { ResolvedContent, inferContentType, type ContentType } from '../utils/co
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { jsonValueSchema } from '../utils/types';
+import { jsonValueSchema } from '../types';
 
 /** Schema for file content */
 const fileContentSchema = z.union([
