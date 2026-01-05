@@ -27,22 +27,19 @@ const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
   ])
 );
 
-/** Schema for file content (base64 string or JSON) */
+/** Schema for file content */
 const fileContentSchema = z.union([
-  z.string().describe('Base64 encoded binary content'),
+  z.string().describe('Base64 encoded binary, or URL (see type parameter)'),
   z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
   z.array(jsonValue).describe('JSON array (auto-serialized)'),
 ]);
 
-/** Schema for a single file to upload (content or URL) */
+/** Schema for a single file to upload */
 const fileSchema = z.object({
-  fileName: z.string().optional().describe('File name (required for content, optional for URL - auto-detected from URL if omitted)'),
-  content: fileContentSchema.optional().describe('File content (base64 or JSON)'),
-  url: z.string().url().optional().describe('URL to fetch file from (alternative to content, max 50MB)'),
-}).refine(
-  (data) => (data.content !== undefined) !== (data.url !== undefined),
-  { message: 'Provide exactly one of content or url' }
-);
+  fileName: z.string().optional().describe('File name (required for base64/json, optional for URL - auto-detected if omitted)'),
+  content: fileContentSchema.describe('File content: base64 binary, JSON object/array, or URL string'),
+  type: z.enum(['base64', 'json', 'url']).optional().describe('Content type: base64 (default for strings), json (auto for objects/arrays), url (fetch from URL)'),
+});
 
 export class AssetToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -154,7 +151,7 @@ interface ProcessedFile {
 }
 
 async function uploadAssetsHandler(params: {
-  files: { fileName?: string; content?: string | object; url?: string }[];
+  files: { fileName?: string; content: string | object; type?: 'base64' | 'json' | 'url' }[];
   assetsDirPath?: string;
   insertAfterBlock?: string;
   altText?: string;
@@ -171,31 +168,51 @@ async function uploadAssetsHandler(params: {
     await validateBlockAccess(insertAfterBlock);
   }
 
-  // Process all files: fetch URLs or convert content to blobs
+  // Process all files based on type
   const processedFiles: ProcessedFile[] = [];
   for (const file of files) {
-    if (file.url) {
-      // Fetch from URL
-      const result = await fetchFromUrl(file.url, file.fileName);
-      processedFiles.push({
-        name: result.fileName,
-        data: result.blob,
-        mimeType: result.mimeType,
-      });
-    } else if (file.content !== undefined) {
-      // Content-based upload (existing logic)
-      if (!file.fileName) {
-        throw new Error('fileName is required when using content.');
-      }
-      const mimeType = typeof file.content === 'object' ? 'application/json' : getMimeType(file.fileName);
-      const blob = contentToBlob(file.content, file.fileName);
-      processedFiles.push({
-        name: file.fileName,
-        data: blob,
-        mimeType,
-      });
-    } else {
-      throw new Error('Each file must have either content or url.');
+    // Infer type if not provided
+    const resolvedType = file.type ?? (typeof file.content === 'object' ? 'json' : 'base64');
+
+    switch (resolvedType) {
+      case 'url':
+        if (typeof file.content !== 'string') {
+          throw new Error('URL must be a string.');
+        }
+        const result = await fetchFromUrl(file.content, file.fileName);
+        processedFiles.push({
+          name: result.fileName,
+          data: result.blob,
+          mimeType: result.mimeType,
+        });
+        break;
+      case 'json':
+        if (!file.fileName) {
+          throw new Error('fileName is required for JSON content.');
+        }
+        const jsonBlob = contentToBlob(file.content, file.fileName);
+        processedFiles.push({
+          name: file.fileName,
+          data: jsonBlob,
+          mimeType: 'application/json',
+        });
+        break;
+      case 'base64':
+      default:
+        if (typeof file.content !== 'string') {
+          throw new Error('Base64 content must be a string.');
+        }
+        if (!file.fileName) {
+          throw new Error('fileName is required for base64 content.');
+        }
+        const mimeType = getMimeType(file.fileName);
+        const blob = base64ToBlob(file.content, mimeType);
+        processedFiles.push({
+          name: file.fileName,
+          data: blob,
+          mimeType,
+        });
+        break;
     }
   }
 

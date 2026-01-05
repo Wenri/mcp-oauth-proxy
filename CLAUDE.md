@@ -404,91 +404,85 @@ const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
 );
 ```
 
-### JSON Content Support for Uploads
+### Unified Content Schema for Uploads
 
-Tools that accept file content (`siyuan_upload_assets`, `siyuan_write_file`) support direct JSON objects:
+Both `siyuan_upload_assets` and `siyuan_write_file` use a unified content schema:
 
 ```typescript
-// Define recursive JSON value type for type-safe schemas
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValue),
-    z.record(z.string(), jsonValue),
-  ])
-);
-
-// Content schema accepts string (text/base64) or JSON (auto-serialized)
+// Content: string | object | array
 content: z.union([
-  z.string().describe('Text or base64-encoded binary'),
-  z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
-  z.array(jsonValue).describe('JSON array (auto-serialized)'),
+  z.string(),                          // text, base64, or URL
+  z.record(z.string(), jsonValue),     // JSON object (auto-serialized)
+  z.array(jsonValue),                  // JSON array (auto-serialized)
 ])
+
+// Type: optional, auto-inferred from content
+type: z.enum(['text', 'base64', 'json', 'url']).optional()
 ```
+
+**Type inference:**
+- Objects/arrays → `json` (auto-serialized to pretty JSON)
+- Strings → `text` (for write_file) or `base64` (for upload_assets)
+- Must specify `type: 'url'` for URL fetch
 
 **Usage examples:**
 ```typescript
-// Upload JSON config as asset
+// Upload base64 image (type inferred as 'base64')
+siyuan_upload_assets({
+  files: [{ fileName: "photo.png", content: "iVBORw0KGgo..." }]
+})
+
+// Upload JSON config (type inferred as 'json')
 siyuan_upload_assets({
   files: [{ fileName: "config.json", content: { theme: "dark", version: 2 } }]
 })
 
-// Write JSON file directly
+// Upload from URL (type must be specified)
+siyuan_upload_assets({
+  files: [{ content: "https://example.com/photo.jpg", type: "url" }]
+})
+
+// Mix types in batch
+siyuan_upload_assets({
+  files: [
+    { content: "https://example.com/a.png", type: "url" },
+    { fileName: "config.json", content: { key: "value" } }
+  ]
+})
+
+// Write text file (type inferred as 'text')
+siyuan_write_file({
+  path: "/data/widgets/note.txt",
+  content: "Hello, World!"
+})
+
+// Write JSON file (type inferred as 'json')
 siyuan_write_file({
   path: "/data/widgets/settings.json",
   content: { enabled: true, options: ["a", "b"] }
 })
 
-// Binary files still use base64
+// Write binary file
 siyuan_write_file({
   path: "/data/assets/image.png",
   content: "iVBORw0KGgo...",
-  isBase64: true
-})
-```
-
-### URL Fetch Support for Uploads
-
-Both `siyuan_upload_assets` and `siyuan_write_file` support fetching files from URLs instead of providing content directly. This is useful for uploading files from the web without passing large base64 content through the LLM.
-
-**Constraints:**
-- Maximum file size: 50 MB
-- Timeout: 30 seconds
-- Protocols: HTTP/HTTPS only
-
-**Usage examples:**
-```typescript
-// Upload image from URL (filename auto-detected)
-siyuan_upload_assets({
-  files: [{ url: "https://example.com/photo.jpg" }]
-})
-
-// Upload with custom filename
-siyuan_upload_assets({
-  files: [{ url: "https://example.com/image", fileName: "custom.png" }]
-})
-
-// Mix URL and content in batch
-siyuan_upload_assets({
-  files: [
-    { url: "https://example.com/a.png" },
-    { fileName: "config.json", content: { key: "value" } }
-  ]
+  type: "base64"
 })
 
 // Write file from URL
 siyuan_write_file({
   path: "/data/assets/downloaded.pdf",
-  url: "https://example.com/document.pdf"
+  content: "https://example.com/document.pdf",
+  type: "url"
 })
 ```
 
-**Error handling:**
+**URL fetch constraints:**
+- Maximum file size: 50 MB
+- Timeout: 30 seconds
+- Protocols: HTTP/HTTPS only
+
+**URL fetch error codes:**
 - `INVALID_URL` - Malformed URL or unsupported protocol
 - `TIMEOUT` - Request exceeded 30s
 - `TOO_LARGE` - File exceeds 50MB limit
