@@ -13,7 +13,7 @@
  * Used by initializeSiyuanMCPServer() - can pass full Env or just these fields
  * Uses string types (not literals) for CLI compatibility
  */
-export interface SiyuanMCPConfig {
+export type SiyuanMCPConfig = {
   SIYUAN_KERNEL_URL?: string;
   SIYUAN_KERNEL_TOKEN?: string;
   RAG_BASE_URL?: string;
@@ -25,20 +25,20 @@ export interface SiyuanMCPConfig {
   // CF Access Service Token for kernel API authentication
   CF_ACCESS_SERVICE_CLIENT_ID?: string;
   CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
-}
+};
 
 /**
  * Cloudflare Access OAuth configuration
  * Based on: https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access
  */
-interface AccessOAuthConfig {
+type AccessOAuthConfig = {
   ACCESS_CLIENT_ID: string;
   ACCESS_CLIENT_SECRET: string;
   ACCESS_TOKEN_URL: string;
   ACCESS_AUTHORIZATION_URL: string;
   ACCESS_JWKS_URL: string;
   COOKIE_ENCRYPTION_KEY: string;
-}
+};
 
 /**
  * Cloudflare Workers environment bindings

@@ -13,7 +13,7 @@ export { jsonValueSchema, type JsonValue } from './schemas';
  * Runtime config fetched from SiYuan kernel + merged user options
  * This is what getConfig() returns
  */
-export interface SiyuanConfig {
+export type SiyuanConfig = {
   system: {
     id: string;
     os: string;
@@ -43,4 +43,4 @@ export interface SiyuanConfig {
     baseUrl: string;
     apiKey?: string;
   };
-}
+};
