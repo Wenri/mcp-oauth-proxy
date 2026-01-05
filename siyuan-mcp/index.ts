@@ -6,7 +6,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { SiyuanConfig, SiyuanMCPConfig } from '../types';
+import type { SiyuanConfig, SiyuanMCPConfig } from '..';
 import { getAllToolProviders } from './tools';
 import { getAllResourceProviders, type ResourceContext } from './resources';
 import { logPush, debugPush } from './logger';
@@ -17,8 +17,8 @@ import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 // Import prompts from static index
 import { promptCreateCardsCN, promptQueryCN } from './static';
 
-// Re-export types for convenience (canonical source is ../types)
-export type { Env, SiyuanConfig, SiyuanMCPConfig } from '../types';
+// Re-export types for convenience (canonical source is root index.ts)
+export type { Env, SiyuanConfig, SiyuanMCPConfig } from '..';
 
 // Re-export for external use (handlers)
 export { logPush } from './logger';

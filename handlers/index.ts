@@ -9,11 +9,8 @@ import { McpAgent } from 'agents/mcp';
 import type { Connection, ConnectionContext } from 'agents';
 import { accessApp } from './access-handler';
 import { initializeSiyuanMCPServer, setOAuthTokenExpiry, setGrantKey, logPush } from '../siyuan-mcp';
-import type { Env } from '../types';
+import type { Env } from '..';
 import type { Props } from './workers-oauth-utils';
-
-// Re-export Env for convenience
-export type { Env } from '../types';
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers

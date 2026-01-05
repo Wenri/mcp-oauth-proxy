@@ -6,7 +6,7 @@
 import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
-import type { Env } from "../types";
+import type { Env } from "..";
 import {
 	addApprovedClient,
 	createOAuthState,
