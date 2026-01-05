@@ -7,7 +7,7 @@ import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { createJsonResponse, createImageContent, createAudioContent } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/filterCheck';
-import { resolveContentAuto, ResolvedContent, type ContentType } from '../utils/contentResolver';
+import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -103,7 +103,7 @@ async function uploadAssetsHandler(params: {
     await validateBlockAccess(insertAfterBlock);
   }
 
-  // Process all files using unified resolver
+  // Process all files using ResolvedContent.from()
   const processedFiles: ProcessedFile[] = [];
   for (const file of files) {
     // For non-URL types, fileName is required
@@ -111,10 +111,9 @@ async function uploadAssetsHandler(params: {
       throw new Error('fileName is required for non-URL content.');
     }
 
-    const resolved = await resolveContentAuto(file.content, file.type, {
-      fileName: file.fileName,
-      defaultType: 'base64', // Default for assets is base64 (binary)
-    });
+    // Infer type with 'base64' as default for assets (binary)
+    const type = file.type ?? inferContentType(file.content, 'base64');
+    const resolved = await ResolvedContent.from(file.content, type, file.fileName);
 
     // Add name to resolved content (ProcessedFile = ResolvedContent & { name })
     const processed = resolved as ProcessedFile;

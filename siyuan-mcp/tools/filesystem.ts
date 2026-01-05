@@ -21,7 +21,7 @@ const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
 );
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
-import { resolveContentAuto, type ContentType } from '../utils/contentResolver';
+import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -270,12 +270,10 @@ async function writeFileHandler(params: {
     throw new Error('Path is required.');
   }
 
-  // Resolve content using unified resolver (ResolvedContent extends Blob)
+  // Resolve content using ResolvedContent.from()
   const fileName = path.split('/').pop();
-  const resolved = await resolveContentAuto(content, type, {
-    fileName,
-    defaultType: 'text',
-  });
+  const resolvedType = type ?? inferContentType(content, 'text');
+  const resolved = await ResolvedContent.from(content, resolvedType, fileName);
 
   const result = await putFileAPI(path, resolved);
   if (!result) {

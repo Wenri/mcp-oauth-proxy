@@ -29,34 +29,97 @@ export const CONTENT_RESOLVER_CONFIG = {
 /** Supported content types */
 export type ContentType = 'text' | 'base64' | 'hex' | 'json' | 'url';
 
-/** Options for ResolvedContent constructor */
-export interface ResolvedContentOptions {
-  type?: string;      // MIME type
-  fileName?: string;  // For URL type, auto-detected filename
-  remote?: boolean;   // True if fetched from URL (for LLM preview)
-}
-
 /**
  * Extended Blob with additional metadata for content resolution.
  * Inherits all Blob properties: type (mimeType), size, arrayBuffer(), etc.
+ *
+ * Use the static `from()` method to create instances.
  */
 export class ResolvedContent extends Blob {
   fileName?: string;
   remote?: boolean;
 
-  constructor(parts: (string | ArrayBuffer | Uint8Array | Blob)[], options?: ResolvedContentOptions) {
-    super(parts, options);
-    this.fileName = options?.fileName;
-    this.remote = options?.remote;
+  constructor(
+    parts: (string | ArrayBuffer | Uint8Array | Blob)[],
+    mimeType: string,
+    fileName?: string,
+    remote?: boolean
+  ) {
+    super(parts, { type: mimeType });
+    this.fileName = fileName;
+    this.remote = remote;
   }
-}
 
-/** Options for content resolution */
-export interface ResolveOptions {
-  /** File name (used for MIME type detection) */
-  fileName?: string;
-  /** Default type if not specified and can't be inferred */
-  defaultType?: ContentType;
+  /**
+   * Create ResolvedContent from various content types
+   *
+   * @param content - The content to resolve (string or object)
+   * @param type - Content type (text, base64, hex, json, url)
+   * @param fileName - Optional file name (used for MIME type detection, auto-detected for URL)
+   * @returns ResolvedContent instance
+   *
+   * @example
+   * // Text content
+   * ResolvedContent.from("Hello, World!", 'text', 'hello.txt')
+   *
+   * // Base64 binary
+   * ResolvedContent.from("iVBORw0KGgo...", 'base64', 'image.png')
+   *
+   * // Hex binary
+   * ResolvedContent.from("89504e470d0a1a0a", 'hex', 'image.png')
+   *
+   * // JSON object (auto-serialized)
+   * ResolvedContent.from({ key: "value" }, 'json')
+   *
+   * // URL fetch (fileName auto-detected)
+   * ResolvedContent.from("https://example.com/file.pdf", 'url')
+   */
+  static async from(
+    content: string | object,
+    type: ContentType,
+    fileName?: string
+  ): Promise<ResolvedContent> {
+    switch (type) {
+      case 'url': {
+        if (typeof content !== 'string') {
+          throw new Error('URL content must be a string');
+        }
+        return fetchFromUrl(content, fileName);
+      }
+
+      case 'hex': {
+        if (typeof content !== 'string') {
+          throw new Error('Hex content must be a string');
+        }
+        const hexMime = fileName ? getMimeType(fileName) : 'application/octet-stream';
+        return new ResolvedContent([hexToBytes(content)], hexMime, fileName);
+      }
+
+      case 'base64': {
+        if (typeof content !== 'string') {
+          throw new Error('Base64 content must be a string');
+        }
+        const b64Mime = fileName ? getMimeType(fileName) : 'application/octet-stream';
+        return new ResolvedContent([base64ToBytes(content)], b64Mime, fileName);
+      }
+
+      case 'json': {
+        const jsonString = typeof content === 'string'
+          ? content
+          : JSON.stringify(content, null, 2);
+        return new ResolvedContent([jsonString], 'application/json', fileName);
+      }
+
+      case 'text':
+      default: {
+        if (typeof content !== 'string') {
+          throw new Error('Text content must be a string');
+        }
+        const textMime = fileName ? getMimeType(fileName) : 'text/plain';
+        return new ResolvedContent([content], textMime, fileName);
+      }
+    }
+  }
 }
 
 /** URL fetch error codes */
@@ -341,15 +404,19 @@ async function fetchFromUrl(
     fileName = `download-${Date.now()}.${ext}`;
   }
 
-  return new ResolvedContent([data], { type: mimeType, fileName, remote: true });
+  return new ResolvedContent([data], mimeType, fileName, true);
 }
 
 // ============================================================================
-// Content Resolution
+// Type Inference Helper
 // ============================================================================
 
 /**
  * Infer content type from content value
+ *
+ * @param content - The content to check
+ * @param defaultType - Default type for strings (default: 'text')
+ * @returns 'json' for objects/arrays, defaultType for strings
  */
 export function inferContentType(
   content: string | object,
@@ -359,89 +426,4 @@ export function inferContentType(
     return 'json';
   }
   return defaultType;
-}
-
-/**
- * Resolve content to a binary blob
- *
- * @param content - The content to resolve (string or object)
- * @param type - Content type (text, base64, hex, json, url)
- * @param options - Resolution options
- * @returns Resolved content with blob and MIME type
- *
- * @example
- * // Text content
- * resolveContent("Hello, World!", 'text', { fileName: 'hello.txt' })
- *
- * // Base64 binary
- * resolveContent("iVBORw0KGgo...", 'base64', { fileName: 'image.png' })
- *
- * // Hex binary
- * resolveContent("89504e470d0a1a0a", 'hex', { fileName: 'image.png' })
- *
- * // JSON object (auto-serialized)
- * resolveContent({ key: "value" }, 'json', { fileName: 'config.json' })
- *
- * // URL fetch
- * resolveContent("https://example.com/file.pdf", 'url')
- */
-export async function resolveContent(
-  content: string | object,
-  type: ContentType,
-  options: ResolveOptions = {}
-): Promise<ResolvedContent> {
-  const { fileName } = options;
-
-  switch (type) {
-    case 'url': {
-      if (typeof content !== 'string') {
-        throw new Error('URL content must be a string');
-      }
-      return fetchFromUrl(content, fileName);
-    }
-
-    case 'hex': {
-      if (typeof content !== 'string') {
-        throw new Error('Hex content must be a string');
-      }
-      const hexMime = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return new ResolvedContent([hexToBytes(content)], { type: hexMime });
-    }
-
-    case 'base64': {
-      if (typeof content !== 'string') {
-        throw new Error('Base64 content must be a string');
-      }
-      const b64Mime = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return new ResolvedContent([base64ToBytes(content)], { type: b64Mime });
-    }
-
-    case 'json': {
-      const jsonString = typeof content === 'string'
-        ? content
-        : JSON.stringify(content, null, 2);
-      return new ResolvedContent([jsonString], { type: 'application/json' });
-    }
-
-    case 'text':
-    default: {
-      if (typeof content !== 'string') {
-        throw new Error('Text content must be a string');
-      }
-      const textMime = fileName ? getMimeType(fileName) : 'text/plain';
-      return new ResolvedContent([content], { type: textMime });
-    }
-  }
-}
-
-/**
- * Convenience function that auto-infers type
- */
-export async function resolveContentAuto(
-  content: string | object,
-  type: ContentType | undefined,
-  options: ResolveOptions = {}
-): Promise<ResolvedContent> {
-  const resolvedType = type ?? inferContentType(content, options.defaultType);
-  return resolveContent(content, resolvedType, options);
 }
