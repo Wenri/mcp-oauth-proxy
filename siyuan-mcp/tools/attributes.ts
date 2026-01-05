@@ -11,8 +11,8 @@ import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { validateBlockAccess } from '../utils/filterCheck';
 
-export class AttributeToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class AttributeToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_set_block_attributes',
@@ -75,7 +75,7 @@ export class AttributeToolProvider extends McpToolsProvider<any> {
   }
 }
 
-async function setBlockAttributesHandler(params: { blockId: string; attributes: Record<string, string> }) {
+async function setBlockAttributesHandler(params: { blockId: BlockId; attributes: BlockAttrs }) {
   const { blockId, attributes } = params;
 
   if (!isValidStr(blockId)) {
@@ -117,7 +117,7 @@ async function setBlockAttributesHandler(params: { blockId: string; attributes: 
   }
 }
 
-async function getBlockAttributesHandler(params: { blockId: string }) {
+async function getBlockAttributesHandler(params: { blockId: BlockId }) {
   const { blockId } = params;
 
   if (!isValidStr(blockId)) {
@@ -130,7 +130,7 @@ async function getBlockAttributesHandler(params: { blockId: string }) {
   return createJsonResponse({ attributes: attributes ?? {} });
 }
 
-async function batchSetAttributesHandler(params: { blocks: { id: string; attrs: Record<string, string> }[] }) {
+async function batchSetAttributesHandler(params: { blocks: { id: BlockId; attrs: BlockAttrs }[] }) {
   const { blocks } = params;
 
   if (!blocks || blocks.length === 0) {

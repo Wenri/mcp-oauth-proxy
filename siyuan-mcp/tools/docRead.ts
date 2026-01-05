@@ -35,8 +35,8 @@ const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
   })
 );
 
-export class DocReadToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class DocReadToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_read_doc_content_markdown',
@@ -128,13 +128,13 @@ export class DocReadToolProvider extends McpToolsProvider<any> {
   }
 }
 
-async function blockReadHandler(params: { id: string; offset?: number; limit?: number }) {
+async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: number }) {
   const { id, offset = 0, limit = 10000 } = params;
   debugPush('Reading document content');
 
   const dbItem = await validateBlockAccess(id);
 
-  let otherImg: any[] = [];
+  let otherImg: MediaContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
       otherImg = await getAssets(id);
@@ -167,12 +167,12 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
   );
 }
 
-async function kramdownReadHandler(params: { id: string }) {
+async function kramdownReadHandler(params: { id: BlockId }) {
   const { id } = params;
 
   const dbItem = await validateBlockAccess(id);
 
-  let otherImg: any[] = [];
+  let otherImg: MediaContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
       otherImg = await getAssets(id);
@@ -243,7 +243,7 @@ async function blobToContentBlock(blob: Blob, mimeType: string): Promise<MediaCo
   };
 }
 
-async function getAssets(id: string) {
+async function getAssets(id: BlockId): Promise<MediaContentBlock[]> {
   const assetsInfo = await getBlockAssets(id);
 
   // Fetch all assets in parallel, then filter by MIME type or extension
@@ -284,7 +284,7 @@ async function getAssets(id: string) {
   return await Promise.all(contentBlocks);
 }
 
-async function getHPathHandler(params: { id: string; includeOutline?: boolean }) {
+async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }) {
   const { id, includeOutline = false } = params;
   debugPush('Get hpath API called');
 
@@ -295,7 +295,7 @@ async function getHPathHandler(params: { id: string; includeOutline?: boolean })
     throw new Error('Failed to get the human-readable path.');
   }
 
-  const result: any = { id, hpath };
+  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id, hpath };
 
   if (includeOutline) {
     // Get the root document ID for outline
@@ -311,7 +311,7 @@ async function getHPathHandler(params: { id: string; includeOutline?: boolean })
   return createJsonResponse(result);
 }
 
-async function getDocOutlineHandler(params: { id: string }) {
+async function getDocOutlineHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Get doc outline API called');
 
@@ -331,7 +331,7 @@ async function getDocOutlineHandler(params: { id: string }) {
   return createJsonResponse({ id: docId, outline });
 }
 
-async function exportHtmlHandler(params: { id: string }) {
+async function exportHtmlHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Export HTML API called');
 

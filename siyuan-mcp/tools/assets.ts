@@ -11,8 +11,8 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 
-export class AssetToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class AssetToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_upload_asset',

@@ -12,16 +12,21 @@ import { debugPush, logPush } from '../logger';
 /** Cache TTL for SQL query results (3 minutes) */
 export const SQL_CACHE_TTL = 180;
 
+/** Aggregate query result types */
+type CountResult = { count: number };
+type AvCountResult = { avcount: number };
+type BlockCountResult = { bcount: number };
+
 /**
  * Cache helper for SQL query results.
  * Uses CF Cache API with custom cache keys.
  */
-export async function cachedQuery(
+export async function cachedQuery<T = Block>(
   path: string,
-  params: Record<string, any>,
+  params: Record<string, string | number | boolean>,
   stmt: string,
   ttl: number = SQL_CACHE_TTL
-): Promise<any[]> {
+): Promise<T[]> {
   const cacheKey = getCacheKey(path, params);
 
   // Check cache first
@@ -30,8 +35,8 @@ export async function cachedQuery(
     return cached.json();
   }
 
-  // Use queryAPI
-  const result = await queryAPI(stmt);
+  // Use queryAPI - cast result since SQL can return different row structures
+  const result = await queryAPI(stmt) as unknown as T[];
 
   // Cache using cacheResponse helper
   if (ttl > 0) {
@@ -44,7 +49,7 @@ export async function cachedQuery(
 /**
  * Get word count for child documents (cached)
  */
-export async function getChildDocumentsWordCount(docId: string) {
+export async function getChildDocumentsWordCount(docId: DocumentId): Promise<number> {
   const stmt = `
     SELECT SUM(length) AS count
     FROM blocks
@@ -53,14 +58,14 @@ export async function getChildDocumentsWordCount(docId: string) {
       AND
       type in ("p", "h", "c", "t")
   `;
-  const sqlResult = await cachedQuery('/custom/childWordCount', { docId }, stmt);
+  const sqlResult = await cachedQuery<CountResult>('/custom/childWordCount', { docId }, stmt);
   if (sqlResult[0]?.count) {
     return sqlResult[0].count;
   }
   return 0;
 }
 
-export async function getChildDocuments(sqlResult: any, maxListCount: number): Promise<any[]> {
+export async function getChildDocuments(sqlResult: Block, maxListCount: number): Promise<IFile[]> {
   const childDocs = await listDocsByPathT({
     path: sqlResult.path,
     notebook: sqlResult.box,
@@ -69,28 +74,28 @@ export async function getChildDocuments(sqlResult: any, maxListCount: number): P
   return childDocs;
 }
 
-export async function getChildDocumentIds(sqlResult: any, maxListCount: number): Promise<string[]> {
+export async function getChildDocumentIds(sqlResult: Block, maxListCount: number): Promise<DocumentId[]> {
   const childDocs = await listDocsByPathT({
     path: sqlResult.path,
     notebook: sqlResult.box,
     maxListCount: maxListCount,
   });
-  return childDocs.map((item: any) => item.id);
+  return childDocs.map((item) => item.id);
 }
 
-export async function isChildDocExist(id: string) {
+export async function isChildDocExist(id: BlockId): Promise<boolean> {
   const stmt = `SELECT * FROM blocks WHERE path like '%${id}/%' LIMIT 3`;
   const sqlResponse = await cachedQuery('/custom/childDocExist', { id }, stmt);
   return sqlResponse && sqlResponse.length > 0;
 }
 
-export async function isDocHasAv(docId: string) {
+export async function isDocHasAv(docId: DocumentId): Promise<boolean> {
   const stmt = `SELECT count(*) as avcount FROM blocks WHERE root_id = '${docId}' AND type = 'av'`;
-  const sqlResult = await cachedQuery('/custom/docHasAv', { docId }, stmt);
+  const sqlResult = await cachedQuery<AvCountResult>('/custom/docHasAv', { docId }, stmt);
   return sqlResult.length > 0 && sqlResult[0].avcount > 0;
 }
 
-export async function isDocEmpty(docId: string, blockCountThreshold = 0) {
+export async function isDocEmpty(docId: DocumentId, blockCountThreshold = 0): Promise<boolean> {
   const treeStat = await getTreeStat(docId);
   if (blockCountThreshold == 0 && treeStat.wordCount != 0 && treeStat.imageCount != 0) {
     debugPush('treeStat判定文档非空');
@@ -98,7 +103,7 @@ export async function isDocEmpty(docId: string, blockCountThreshold = 0) {
   }
   if (blockCountThreshold != 0) {
     const stmt = `SELECT count(*) as bcount FROM blocks WHERE root_id like '${docId}' AND type in ('p', 'c', 'iframe', 'html', 'video', 'audio', 'widget', 'query_embed', 't')`;
-    const blockCountSqlResult = await cachedQuery('/custom/docBlockCount', { docId }, stmt);
+    const blockCountSqlResult = await cachedQuery<BlockCountResult>('/custom/docBlockCount', { docId }, stmt);
     if (blockCountSqlResult.length > 0) {
       return blockCountSqlResult[0].bcount <= blockCountThreshold;
     }
@@ -179,7 +184,7 @@ export function checkIdValid(id: string): void {
   }
 }
 
-export async function isADocId(id: string): Promise<boolean> {
+export async function isADocId(id: BlockId): Promise<boolean> {
   if (!isValidStr(id)) return false;
   if (!isValidIdFormat(id)) {
     return false;
@@ -191,7 +196,7 @@ export async function isADocId(id: string): Promise<boolean> {
   return queryResponse[0].type === 'd';
 }
 
-export async function getDocDBitem(id: string): Promise<Block | null> {
+export async function getDocDBitem(id: DocumentId): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
@@ -205,7 +210,7 @@ export async function getDocDBitem(id: string): Promise<Block | null> {
 /**
  * Get block item from database by ID (cached)
  */
-export async function getBlockDBItem(id: string): Promise<Block | null> {
+export async function getBlockDBItem(id: BlockId): Promise<Block | null> {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
@@ -216,23 +221,16 @@ export async function getBlockDBItem(id: string): Promise<Block | null> {
   return queryResponse[0];
 }
 
-export interface IAssetsDBItem {
-  id: string;
-  block_id: string;
-  root_id: string;
-  box: string;
-  docpath: string;
-  path: string;
-  name: string;
-  title: string;
-  hash: string;
-}
+/**
+ * @deprecated Use AssetDBItem from sytypes.d.ts instead
+ */
+export type IAssetsDBItem = AssetDBItem;
 
 /**
  * Get block assets (cached)
  */
-export async function getBlockAssets(id: string): Promise<IAssetsDBItem[]> {
-  const queryResponse = await cachedQuery('/custom/assets', { id }, `SELECT * FROM assets WHERE block_id = '${id}'`);
+export async function getBlockAssets(id: BlockId): Promise<AssetDBItem[]> {
+  const queryResponse = await cachedQuery<AssetDBItem>('/custom/assets', { id }, `SELECT * FROM assets WHERE block_id = '${id}'`);
   if (queryResponse == null || queryResponse.length == 0) {
     return [];
   }
@@ -242,26 +240,26 @@ export async function getBlockAssets(id: string): Promise<IAssetsDBItem[]> {
 /**
  * Get all sub-document IDs recursively
  */
-export async function getSubDocIds(id: string): Promise<string[]> {
+export async function getSubDocIds(id: DocumentId): Promise<DocumentId[]> {
   const docInfo = await getDocDBitem(id);
   if (!docInfo) return [];
 
-  const treeList = await listDocTree(docInfo['box'], docInfo['path'].replace('.sy', ''));
-  const subIdsSet = new Set<string>();
+  const treeList = await listDocTree(docInfo.box, docInfo.path.replace('.sy', ''));
+  const subIdsSet = new Set<DocumentId>();
 
-  function addToSet(obj: any) {
-    if (obj instanceof Array) {
+  function addToSet(obj: DocTreeNode | DocTreeNode[] | null): void {
+    if (Array.isArray(obj)) {
       obj.forEach((item) => addToSet(item));
       return;
     }
     if (obj == null) {
       return;
     }
-    if (isValidStr(obj['id'])) {
-      subIdsSet.add(obj['id']);
+    if (isValidStr(obj.id)) {
+      subIdsSet.add(obj.id);
     }
-    if (obj['children'] != undefined) {
-      for (const item of obj['children']) {
+    if (obj.children && obj.children.length > 0) {
+      for (const item of obj.children) {
         addToSet(item);
       }
     }
@@ -273,8 +271,8 @@ export async function getSubDocIds(id: string): Promise<string[]> {
 
 export const QUICK_DECK_ID = '20230218211946-2kw8jgx';
 
-export async function isValidDeck(deckId: string) {
+export async function isValidDeck(deckId: string): Promise<boolean> {
   if (deckId === QUICK_DECK_ID) return true;
   const deckResponse = await getRiffDecks();
-  return !!deckResponse.find((item: any) => item.id == deckId);
+  return !!deckResponse.find((item) => item.id === deckId);
 }

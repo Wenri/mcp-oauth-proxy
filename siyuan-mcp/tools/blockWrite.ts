@@ -14,8 +14,8 @@ import { extractNodeParagraphIds } from '../utils/common';
 import { validateBlockAccess } from '../utils/filterCheck';
 import { getConfig } from '..';
 
-export class BlockWriteToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class BlockWriteToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_insert_block',
@@ -169,9 +169,9 @@ export class BlockWriteToolProvider extends McpToolsProvider<any> {
 
 async function insertBlockHandler(params: {
   data: string;
-  nextID?: string;
-  previousID?: string;
-  parentID?: string;
+  nextID?: BlockId;
+  previousID?: BlockId;
+  parentID?: BlockId;
 }) {
   const { data, nextID, previousID, parentID } = params;
   debugPush('Insert block API called');
@@ -184,7 +184,7 @@ async function insertBlockHandler(params: {
     throw new Error('nextID, previousID, and parentID must be block IDs, not notebook IDs.');
   }
 
-  let anchorID: string | undefined;
+  let anchorID: BlockId | undefined;
   let anchorType: 'nextID' | 'previousID' | 'parentID' | undefined;
 
   if (isValidStr(nextID)) {
@@ -217,7 +217,7 @@ async function insertBlockHandler(params: {
   return createJsonResponse(response[0].doOperations[0]);
 }
 
-async function prependBlockHandler(params: { data: string; parentID: string }) {
+async function prependBlockHandler(params: { data: string; parentID: BlockId }) {
   const { data, parentID } = params;
   debugPush('Prepend block API called');
 
@@ -240,7 +240,7 @@ async function prependBlockHandler(params: { data: string; parentID: string }) {
   return createJsonResponse(response);
 }
 
-async function appendBlockHandler(params: { data: string; parentID: string }) {
+async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
   const { data, parentID } = params;
   debugPush('Append block API called');
 
@@ -259,7 +259,7 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
     throw new Error('Failed to append to the block');
   }
 
-  const paragraphIds: string[] = [];
+  const paragraphIds: BlockId[] = [];
   if (dbItem.type === 'l') {
     const listItems = extractNodeParagraphIds(result.data);
     if (listItems.length > 0) {
@@ -275,7 +275,7 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
   return createJsonResponse(result);
 }
 
-async function updateBlockHandler(params: { data: string; id: string }) {
+async function updateBlockHandler(params: { data: string; id: BlockId }) {
   const { data, id } = params;
 
   const blockDbItem = await validateBlockAccess(id);
@@ -301,7 +301,7 @@ async function updateBlockHandler(params: { data: string; id: string }) {
   }
 }
 
-async function deleteBlockHandler(params: { id: string }) {
+async function deleteBlockHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Delete block API called');
 
@@ -320,7 +320,7 @@ async function deleteBlockHandler(params: { id: string }) {
   return createSuccessResponse('Block deleted');
 }
 
-async function moveBlockHandler(params: { id: string; parentID?: string; previousID?: string }) {
+async function moveBlockHandler(params: { id: BlockId; parentID?: BlockId; previousID?: BlockId }) {
   const { id, parentID, previousID } = params;
   debugPush('Move block API called');
 
@@ -346,7 +346,7 @@ async function moveBlockHandler(params: { id: string; parentID?: string; previou
   return createSuccessResponse('Block moved');
 }
 
-async function foldBlockHandler(params: { id: string }) {
+async function foldBlockHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Fold block API called');
 
@@ -360,7 +360,7 @@ async function foldBlockHandler(params: { id: string }) {
   return createSuccessResponse('Block folded');
 }
 
-async function unfoldBlockHandler(params: { id: string }) {
+async function unfoldBlockHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Unfold block API called');
 

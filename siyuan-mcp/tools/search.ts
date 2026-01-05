@@ -12,8 +12,8 @@ import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import searchSyntax from '../static/query_syntax.md';
 
-export class SearchToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class SearchToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     // Note: Original upstream returns empty array with "// # 16" comment
     // We keep the tools available for CF Worker implementation
     return [

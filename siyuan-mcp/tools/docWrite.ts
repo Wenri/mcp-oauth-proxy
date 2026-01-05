@@ -13,8 +13,8 @@ import { lang } from '../utils/lang';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
 
-export class DocWriteToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class DocWriteToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_append_markdown_to_doc',
@@ -108,7 +108,7 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
   }
 }
 
-async function appendBlockHandler(params: { id: string; markdownContent: string }) {
+async function appendBlockHandler(params: { id: DocumentId; markdownContent: string }) {
   const { id, markdownContent } = params;
   debugPush('Append to document API called');
 
@@ -126,7 +126,7 @@ async function appendBlockHandler(params: { id: string; markdownContent: string 
   return createSuccessResponse(result.id);
 }
 
-async function createNewNoteUnder(params: { parentId: string; title: string; markdownContent: string }) {
+async function createNewNoteUnder(params: { parentId: NotebookId | DocumentId; title: string; markdownContent: string }) {
   const { parentId, title, markdownContent } = params;
 
   if (await filterBlock(parentId, null)) {
@@ -146,7 +146,7 @@ async function createNewNoteUnder(params: { parentId: string; title: string; mar
   throw new Error('An Error Occurred');
 }
 
-async function renameDocHandler(params: { id: string; title: string }) {
+async function renameDocHandler(params: { id: DocumentId; title: string }) {
   const { id, title } = params;
   debugPush('Rename document API called');
 
@@ -160,7 +160,7 @@ async function renameDocHandler(params: { id: string; title: string }) {
   return createSuccessResponse(title);
 }
 
-async function removeDocHandler(params: { id: string }) {
+async function removeDocHandler(params: { id: DocumentId }) {
   const { id } = params;
   debugPush('Remove document API called');
 
@@ -175,7 +175,7 @@ async function removeDocHandler(params: { id: string }) {
   return createSuccessResponse('Document removed');
 }
 
-async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string; toPath: string }) {
+async function moveDocsHandler(params: { fromDocs: (DocumentId | string)[]; toNotebook: NotebookId; toPath: string }) {
   const { fromDocs, toNotebook, toPath } = params;
   debugPush('Move documents API called');
 

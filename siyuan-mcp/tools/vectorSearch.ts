@@ -9,10 +9,21 @@ import { debugPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 import { getConfig } from '..';
 
+// RAG query result type
+interface RAGQueryResult {
+  result: unknown;
+}
+
+// RAG health check result
+interface RAGHealthResult {
+  status: string;
+  [key: string]: unknown;
+}
+
 // RAG provider interface
 interface RAGProvider {
-  query(question: string, topK?: number): Promise<any>;
-  health(): Promise<any>;
+  query(question: string, topK?: number): Promise<unknown>;
+  health(): Promise<RAGHealthResult | null>;
 }
 
 // Create RAG provider from config
@@ -35,7 +46,7 @@ function createRAGProvider(): RAGProvider | null {
   };
 
   return {
-    async query(question: string, topK = 5): Promise<any> {
+    async query(question: string, topK = 5): Promise<unknown> {
       const url = `${baseUrl}/query`;
       const resp = await fetch(url, {
         method: 'POST',
@@ -46,11 +57,11 @@ function createRAGProvider(): RAGProvider | null {
         const msg = await resp.text();
         throw new Error(`RAG query failed: ${resp.status} - ${msg}`);
       }
-      const result = (await resp.json()) as { result: unknown };
+      const result = (await resp.json()) as RAGQueryResult;
       return result.result;
     },
 
-    async health(): Promise<any> {
+    async health(): Promise<RAGHealthResult | null> {
       const url = `${baseUrl}/health`;
       try {
         const resp = await fetch(url, {
@@ -60,7 +71,7 @@ function createRAGProvider(): RAGProvider | null {
         if (!resp.ok) {
           return null;
         }
-        return await resp.json();
+        return (await resp.json()) as RAGHealthResult;
       } catch {
         return null;
       }
@@ -68,8 +79,8 @@ function createRAGProvider(): RAGProvider | null {
   };
 }
 
-export class DocVectorSearchProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class DocVectorSearchProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     const provider = createRAGProvider();
     if (!provider) {
       logPush('RAG not configured: RAG tools will not be loaded');
@@ -93,8 +104,8 @@ export class DocVectorSearchProvider extends McpToolsProvider<any> {
         outputSchema: {
           answer: z.any().describe('RAG-generated answer based on indexed documents'),
         },
-        handler: (params: { question: string }, extra: any) =>
-          answerWithRAG(params, extra, provider),
+        handler: (params: { question: string }) =>
+          answerWithRAG(params, provider),
         title: lang('tool_title_generate_answer_with_doc'),
         annotations: {
           readOnlyHint: true,
@@ -108,7 +119,6 @@ export class DocVectorSearchProvider extends McpToolsProvider<any> {
 
 async function answerWithRAG(
   params: { question: string },
-  _extra: any,
   provider: RAGProvider
 ) {
   const { question } = params;

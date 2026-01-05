@@ -7,26 +7,26 @@ import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { checkIdValid, getDocDBitem } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';
 
-export abstract class McpToolsProvider<T> {
-    abstract getTools(): Promise<McpTool<T>[]>;
+export abstract class McpToolsProvider {
+    abstract getTools(): Promise<McpTool[]>;
 }
 
 export async function createNewDoc(
-  notebookId: string,
-  parentDocId: string,
+  notebookId: NotebookId,
+  parentDocId: DocumentId,
   title: string,
   content: string
-): Promise<string | null> {
+): Promise<DocumentId | null> {
   const hpath = `/${parentDocId}/${title}`;
   const docId = await createDocWithMdAPI(notebookId, hpath, content);
   return docId;
 }
 
 export async function createNewDocWithParentId(
-  parentId: string,
+  parentId: NotebookId | DocumentId,
   title: string,
   markdownContent: string
-): Promise<{ result: boolean; newDocId: string }> {
+): Promise<{ result: boolean; newDocId: DocumentId }> {
   checkIdValid(parentId);
 
   const notebookIdFlag = isValidNotebookId(parentId);

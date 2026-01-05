@@ -11,8 +11,8 @@ import { debugPush } from '../logger';
 import { getDocDBitem } from '../syapi/custom';
 import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
 
-export class RelationToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class RelationToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_get_doc_backlinks',
@@ -132,7 +132,7 @@ async function getDocBacklink(params: { id: string }) {
     return createArrayResponse([], 'backlinks');
   }
 
-  const result: any[] = [];
+  const result: { name: string; id: BlockId; notebookId: NotebookId; hpath: string }[] = [];
   for (let i = 0; i < backlinkResponse.backlinks.length; i++) {
     const oneBacklinkItem = backlinkResponse.backlinks[i];
     if (oneBacklinkItem.nodeType === 'NodeDocument') {
@@ -140,7 +140,7 @@ async function getDocBacklink(params: { id: string }) {
         name: oneBacklinkItem.name,
         id: oneBacklinkItem.id,
         notebookId: oneBacklinkItem.box,
-        hpath: oneBacklinkItem.hpath,
+        hpath: oneBacklinkItem.hPath,
       };
       result.push(tempDocItem);
     }
@@ -153,7 +153,7 @@ async function getChildrenDocs(params: { id: string }) {
   const { id } = params;
 
   const notebookList = await getNodebookList();
-  const notebookIds = notebookList.map((item: any) => item.id);
+  const notebookIds = notebookList.map((item) => item.id);
   const sqlResult = await getDocDBitem(id);
 
   if (await filterBlock(id, sqlResult)) {

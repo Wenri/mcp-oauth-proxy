@@ -11,7 +11,7 @@ import { logPush } from '../logger';
  * Throws on error, returns dbItem on success.
  */
 export async function validateBlockAccess(
-  id: string,
+  id: BlockId,
   requireDoc?: boolean
 ): Promise<Block> {
   try {
@@ -44,7 +44,7 @@ function getFilterSettings() {
   };
 }
 
-export async function filterBlock(blockId: string, dbItem: any | null): Promise<boolean> {
+export async function filterBlock(blockId: BlockId, dbItem: Block | null): Promise<boolean> {
   const settings = getFilterSettings();
   const filterNotebooks = settings.filterNotebooks
     .split('\n')
@@ -78,7 +78,7 @@ export async function filterBlock(blockId: string, dbItem: any | null): Promise<
   return false;
 }
 
-export function filterNotebook(notebookId: string): boolean {
+export function filterNotebook(notebookId: NotebookId): boolean {
   const settings = getFilterSettings();
   const filterNotebooks = settings.filterNotebooks
     .split('\n')

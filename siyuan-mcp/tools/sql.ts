@@ -14,8 +14,8 @@ import { filterBlock } from '../utils/filterCheck';
 import databaseSchema from '../static/siyuan-database-schema.md';
 import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
 
-export class SqlToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class SqlToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_database_schema',

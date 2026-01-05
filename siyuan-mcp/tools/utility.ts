@@ -10,8 +10,8 @@ import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isValidStr } from '../utils/commonCheck';
 
-export class UtilityToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class UtilityToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'get_current_time',

@@ -21,8 +21,8 @@ import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/filterCheck';
 import { getAppId } from '..';
 
-export class DailyNoteToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class DailyNoteToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_append_to_dailynote',
@@ -83,7 +83,7 @@ export class DailyNoteToolProvider extends McpToolsProvider<any> {
   }
 }
 
-async function appendToDailynoteHandler(params: { notebookId: string; markdownContent: string }) {
+async function appendToDailynoteHandler(params: { notebookId: NotebookId; markdownContent: string }) {
   const { notebookId, markdownContent } = params;
   debugPush('Append to dailynote API called', params);
 
@@ -95,7 +95,7 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
   const appId = getAppId();
   const id = await createDailyNote(notebookId, appId);
 
-  let newBlockId = '';
+  let newBlockId: BlockId = '';
   if (isValidStr(id)) {
     const queryResult = await queryAPI(`SELECT * FROM blocks WHERE id = "${id}"`);
     const result = await appendBlockAPI(markdownContent, id);
@@ -138,7 +138,7 @@ async function listNotebookHandler() {
   }
 
   const augmentedNotebooks = await Promise.all(
-    notebooks.map(async (notebook: any) => {
+    notebooks.map(async (notebook) => {
       try {
         const confData = await getNotebookConf(notebook.id);
         if (confData && confData.conf) {

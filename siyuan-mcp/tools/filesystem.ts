@@ -11,8 +11,8 @@ import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl, getTokenTtl } from '..';
 
-export class FileSystemToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class FileSystemToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_read_file',

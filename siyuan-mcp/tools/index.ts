@@ -35,7 +35,7 @@ import { UtilityToolProvider } from './utility';
 /**
  * Get all tool providers
  */
-export function getAllToolProviders(): McpToolsProvider<any>[] {
+export function getAllToolProviders(): McpToolsProvider[] {
   return [
     new DocReadToolProvider(),
     new DocWriteToolProvider(),

@@ -14,8 +14,8 @@ import { getConfig } from '..';
 
 const TYPE_VALID_LIST = ['h1', 'h2', 'h3', 'h4', 'h5', 'highlight', 'superBlock'] as const;
 
-export class FlashcardToolProvider extends McpToolsProvider<any> {
-  async getTools(): Promise<McpTool<any>[]> {
+export class FlashcardToolProvider extends McpToolsProvider {
+  async getTools(): Promise<McpTool[]> {
     return [
       {
         name: 'siyuan_create_flashcards_with_new_doc',
@@ -98,13 +98,12 @@ export class FlashcardToolProvider extends McpToolsProvider<any> {
 
 async function addFlashCardMarkdown(
   params: {
-    parentId: string;
+    parentId: NotebookId | DocumentId;
     docTitle: string;
     type: (typeof TYPE_VALID_LIST)[number];
     deckId?: string;
     markdownContent: string;
-  },
-  _extra: any
+  }
 ) {
   let { parentId, docTitle, type, deckId, markdownContent } = params;
 
@@ -145,8 +144,7 @@ async function addFlashCardMarkdown(
 }
 
 async function createFlashcardsHandler(
-  params: { blockIds: string[]; deckId?: string },
-  _extra: any
+  params: { blockIds: BlockId[]; deckId?: string }
 ) {
   let { blockIds, deckId } = params;
 
@@ -159,7 +157,7 @@ async function createFlashcardsHandler(
     );
   }
 
-  const filteredIds: string[] = [];
+  const filteredIds: BlockId[] = [];
   for (let i = 0; i < blockIds.length; i++) {
     const blockId = blockIds[i];
     const dbItem = await getBlockDBItem(blockId);
@@ -181,7 +179,7 @@ async function createFlashcardsHandler(
   return createSuccessResponse(`Created ${filteredIds.length} flashcards`);
 }
 
-async function deleteFlashcardsHandler(params: { blockIds: string[]; deckId?: string }) {
+async function deleteFlashcardsHandler(params: { blockIds: BlockId[]; deckId?: string }) {
   let { blockIds, deckId } = params;
 
   if (!isValidStr(deckId)) {
@@ -201,11 +199,11 @@ async function deleteFlashcardsHandler(params: { blockIds: string[]; deckId?: st
 }
 
 async function parseDocAddCards(
-  docId: string,
+  docId: DocumentId,
   addType: string,
   deckId: string
 ): Promise<number> {
-  const functionDict: Record<string, () => Promise<string[]>> = {
+  const functionDict: Record<string, () => Promise<BlockId[]>> = {
     h1: () => provideHeadingIds(docId, addType),
     h2: () => provideHeadingIds(docId, addType),
     h3: () => provideHeadingIds(docId, addType),
@@ -220,29 +218,29 @@ async function parseDocAddCards(
   return blockIds.length;
 }
 
-function getIdFromSqlItem(sqlResponse: any[]): string[] {
+function getIdFromSqlItem(sqlResponse: Block[]): BlockId[] {
   sqlResponse = sqlResponse ?? [];
   return sqlResponse.map((item) => item.id);
 }
 
-async function provideHeadingIds(docId: string, headingType: string): Promise<string[]> {
+async function provideHeadingIds(docId: DocumentId, headingType: string): Promise<BlockId[]> {
   const stmt = `select id from blocks where root_id = '${docId}' and type = 'h' and subtype = '${headingType}';`;
   const queryResult = await cachedQuery('/custom/headingIds', { docId, headingType }, stmt);
   return getIdFromSqlItem(queryResult);
 }
 
-async function provideSuperBlockIds(docId: string): Promise<string[]> {
+async function provideSuperBlockIds(docId: DocumentId): Promise<BlockId[]> {
   const stmt = `select * from blocks where root_id = '${docId}' and type = 's'`;
   const queryResult = await cachedQuery('/custom/superBlockIds', { docId }, stmt);
   return getIdFromSqlItem(queryResult);
 }
 
-async function provideHighlightBlockIds(docId: string): Promise<string[]> {
+async function provideHighlightBlockIds(docId: DocumentId): Promise<BlockId[]> {
   const stmt = `SELECT * FROM blocks WHERE root_id = '${docId}' AND type = "p" AND markdown regexp '==.*=='`;
   const queryResult = await cachedQuery('/custom/highlightBlockIds', { docId }, stmt);
 
-  const finalResult: any[] = [];
-  queryResult.forEach((oneResult: any) => {
+  const finalResult: Block[] = [];
+  queryResult.forEach((oneResult) => {
     let oneContent = oneResult.markdown;
     oneContent = oneContent.replace(new RegExp("(?!<\\\\)`[^`]*`(?!`)", 'g'), '');
     const regExp = new RegExp('(?<!\\\\)==[^=]*[^\\\\]==');

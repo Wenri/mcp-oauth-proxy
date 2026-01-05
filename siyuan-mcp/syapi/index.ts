@@ -152,10 +152,10 @@ export async function checkResponse(response: any): Promise<number> {
   return -1;
 }
 
-/** SQL query API */
-export async function queryAPI(sqlstmt: string): Promise<any[]> {
+/** SQL query API - returns array of Block or other row types */
+export async function queryAPI(sqlstmt: string): Promise<Block[]> {
   const url = '/api/query/sql';
-  const response = await postRequest({ stmt: sqlstmt }, url);
+  const response = await postRequest({ stmt: sqlstmt }, url) as APIResponse<Block[]>;
   if (response.code === 0 && response.data != null) {
     return response.data;
   }
@@ -174,13 +174,13 @@ export async function listDocsByPathT({
   ignore = true,
   showHidden = null,
 }: {
-  notebook: string;
+  notebook: NotebookId;
   path: string;
   maxListCount?: number;
   sort?: number;
   ignore?: boolean;
   showHidden?: boolean | null;
-}): Promise<any[]> {
+}): Promise<IFile[]> {
   const url = '/api/filetree/listDocsByPath';
   const body: Record<string, string | number | boolean> = { notebook, path };
   if (maxListCount !== undefined && maxListCount >= 0) {
@@ -204,9 +204,9 @@ export async function listDocsByPathT({
 }
 
 /** Get block attributes (cached) */
-export async function getblockAttr(blockid: string): Promise<BlockAttrs> {
+export async function getblockAttr(blockid: BlockId): Promise<BlockAttrs> {
   const url = '/api/attr/getBlockAttrs';
-  const response = await cachedPostRequest({ id: blockid }, url);
+  const response = await cachedPostRequest({ id: blockid }, url) as APIResponse<BlockAttrs>;
   if (response.code !== 0) {
     throw new Error('Failed to get block attributes');
   }
@@ -214,16 +214,16 @@ export async function getblockAttr(blockid: string): Promise<BlockAttrs> {
 }
 
 /** Set block attributes */
-export async function addblockAttrAPI(attrs: Record<string, string>, blockid: string): Promise<number> {
+export async function addblockAttrAPI(attrs: BlockAttrs, blockid: BlockId): Promise<number> {
   const url = '/api/attr/setBlockAttrs';
   const result = await postRequest({ id: blockid, attrs }, url);
   return checkResponse(result);
 }
 
 /** Batch set block attributes */
-export async function batchSetBlockAttrs(blockAttrs: string): Promise<any> {
+export async function batchSetBlockAttrs(blockAttrs: string): Promise<null> {
   const url = '/api/attr/batchSetBlockAttrs';
-  const response = await postRequest({ blockAttrs }, url);
+  const response = await postRequest({ blockAttrs }, url) as APIResponse<null>;
   if (response.code === 0 && response.data != null) {
     return response.data;
   }
@@ -233,7 +233,7 @@ export async function batchSetBlockAttrs(blockAttrs: string): Promise<any> {
 /** Update block content */
 export async function updateBlockAPI(
   text: string,
-  blockid: string,
+  blockid: BlockId,
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/updateBlock';
@@ -256,8 +256,8 @@ export async function updateBlockAPI(
 /** Insert block */
 export async function insertBlockAPI(
   text: string,
-  blockid: string,
-  addType: string = 'previousID',
+  blockid: BlockId,
+  addType: 'previousID' | 'nextID' | 'parentID' | 'PREVIOUS' | 'NEXT' | 'PARENT' | 'previousId' | 'nextId' | 'parentId' | 'insertAfter' | 'insertBefore' = 'previousID',
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/insertBlock';
@@ -304,10 +304,10 @@ export async function insertBlockOriginAPI({
 }: {
   dataType: 'markdown' | 'dom';
   data: string;
-  nextID?: string;
-  previousID?: string;
-  parentID?: string;
-}): Promise<any> {
+  nextID?: BlockId;
+  previousID?: BlockId;
+  parentID?: BlockId;
+}): Promise<Transaction[]> {
   const payload = { dataType, data, nextID, previousID, parentID };
   const response = await postRequest(payload, '/api/block/insertBlock');
   if (!response.data?.[0]?.doOperations?.[0]?.id) {
@@ -319,7 +319,7 @@ export async function insertBlockOriginAPI({
 /** Prepend block as first child */
 export async function prependBlockAPI(
   text: string,
-  parentId: string,
+  parentId: BlockId,
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/prependBlock';
@@ -337,7 +337,7 @@ export async function prependBlockAPI(
 /** Append block as last child */
 export async function appendBlockAPI(
   text: string,
-  parentId: string,
+  parentId: BlockId,
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/appendBlock';
@@ -353,7 +353,7 @@ export async function appendBlockAPI(
 }
 
 /** Delete block */
-export async function removeBlockAPI(blockid: string): Promise<boolean> {
+export async function removeBlockAPI(blockid: BlockId): Promise<boolean> {
   const url = '/api/block/deleteBlock';
   const response = await postRequest({ id: blockid }, url);
   if (response.code === 0) {
@@ -365,9 +365,9 @@ export async function removeBlockAPI(blockid: string): Promise<boolean> {
 
 /** Move block to new position */
 export async function moveBlockAPI(
-  id: string,
-  parentID?: string,
-  previousID?: string
+  id: BlockId,
+  parentID?: BlockId,
+  previousID?: BlockId
 ): Promise<boolean> {
   const url = '/api/block/moveBlock';
   const response = await postRequest({ id, parentID, previousID }, url);
@@ -379,7 +379,7 @@ export async function moveBlockAPI(
 }
 
 /** Fold block */
-export async function foldBlockAPI(id: string): Promise<boolean> {
+export async function foldBlockAPI(id: BlockId): Promise<boolean> {
   const url = '/api/block/foldBlock';
   const response = await postRequest({ id }, url);
   if (response.code === 0) {
@@ -390,7 +390,7 @@ export async function foldBlockAPI(id: string): Promise<boolean> {
 }
 
 /** Unfold block */
-export async function unfoldBlockAPI(id: string): Promise<boolean> {
+export async function unfoldBlockAPI(id: BlockId): Promise<boolean> {
   const url = '/api/block/unfoldBlock';
   const response = await postRequest({ id }, url);
   if (response.code === 0) {
@@ -401,9 +401,9 @@ export async function unfoldBlockAPI(id: string): Promise<boolean> {
 }
 
 /** Get block Kramdown source (cached for 60s) */
-export async function getKramdown(blockid: string, throwError = false): Promise<string | null> {
+export async function getKramdown(blockid: BlockId, throwError = false): Promise<string | null> {
   const url = '/api/block/getBlockKramdown';
-  const response = await cachedPostRequest({ id: blockid }, url);
+  const response = await cachedPostRequest({ id: blockid }, url) as APIResponse<KramdownResult>;
   if (response.code === 0 && response.data?.kramdown) {
     return response.data.kramdown;
   }
@@ -414,9 +414,9 @@ export async function getKramdown(blockid: string, throwError = false): Promise<
 }
 
 /** Get notebook list (cached) */
-export async function getNodebookList(): Promise<any[]> {
+export async function getNodebookList(): Promise<Notebook[]> {
   const url = '/api/notebook/lsNotebooks';
-  const response = await cachedPostRequest({}, url);
+  const response = await cachedPostRequest({}, url) as APIResponse<{ notebooks: Notebook[] }>;
   if (response.code === 0 && response.data?.notebooks) {
     return response.data.notebooks;
   }
@@ -424,9 +424,9 @@ export async function getNodebookList(): Promise<any[]> {
 }
 
 /** Get notebook config (cached) */
-export async function getNotebookConf(notebookId: string): Promise<NotebookConfResponse | null> {
+export async function getNotebookConf(notebookId: NotebookId): Promise<NotebookConfResponse | null> {
   const url = '/api/notebook/getNotebookConf';
-  const response = await cachedPostRequest({ notebook: notebookId }, url);
+  const response = await cachedPostRequest({ notebook: notebookId }, url) as APIResponse<NotebookConfResponse>;
   if (response.code === 0 && response.data) {
     return response.data;
   }
@@ -434,9 +434,9 @@ export async function getNotebookConf(notebookId: string): Promise<NotebookConfR
 }
 
 /** Get child blocks (cached) */
-export async function getChildBlocks(id: string): Promise<any[]> {
+export async function getChildBlocks(id: BlockId): Promise<ChildBlock[]> {
   const url = '/api/block/getChildBlocks';
-  const response = await cachedPostRequest({ id }, url);
+  const response = await cachedPostRequest({ id }, url) as APIResponse<ChildBlock[]>;
   if (response.code === 0) {
     return response.data;
   }
@@ -444,7 +444,7 @@ export async function getChildBlocks(id: string): Promise<any[]> {
 }
 
 /** Get document content (HTML/DOM, cached) */
-export async function getDoc(blockid: string, size: number = 5, mode: number = 0): Promise<any> {
+export async function getDoc(blockid: BlockId, size: number = 5, mode: number = 0): Promise<{ content: string; [key: string]: unknown } | undefined> {
   const url = '/api/filetree/getDoc';
   const response = await cachedPostRequest({ id: blockid, mode, size }, url);
   if (response.code === 0 && response.data != null) {
@@ -454,9 +454,9 @@ export async function getDoc(blockid: string, size: number = 5, mode: number = 0
 }
 
 /** Get document outline (cached) */
-export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
+export async function getDocOutlineAPI(docid: DocumentId): Promise<OutlinePath[] | null> {
   const url = '/api/outline/getDocOutline';
-  const response = await cachedPostRequest({ id: docid }, url);
+  const response = await cachedPostRequest({ id: docid }, url) as APIResponse<OutlinePath[]>;
   if (response.code === 0) {
     return response.data;
   }
@@ -464,9 +464,9 @@ export async function getDocOutlineAPI(docid: string): Promise<any[] | null> {
 }
 
 /** Get document preview (exported HTML, cached for 60s) */
-export async function getDocPreview(docid: string): Promise<string> {
+export async function getDocPreview(docid: DocumentId): Promise<string> {
   const url = '/api/export/preview';
-  const response = await cachedPostRequest({ id: docid }, url);
+  const response = await cachedPostRequest({ id: docid }, url) as APIResponse<{ html: string }>;
   if (response.code === 0 && response.data != null) {
     return response.data.html;
   }
@@ -513,13 +513,13 @@ export async function exportMdContent({
   embedMode,
   yfm,
 }: {
-  id: string;
+  id: DocumentId;
   refMode: number;
   embedMode: number;
   yfm: boolean;
-}): Promise<any> {
+}): Promise<ExportMdResult> {
   const url = '/api/export/exportMdContent';
-  const response = await cachedPostRequest({ id, refMode, embedMode, yfm }, url);
+  const response = await cachedPostRequest({ id, refMode, embedMode, yfm }, url) as APIResponse<ExportMdResult>;
   if (response.code === 0) {
     return response.data;
   }
@@ -527,9 +527,9 @@ export async function exportMdContent({
 }
 
 /** Create daily note */
-export async function createDailyNote(notebook: string, app: string): Promise<string> {
+export async function createDailyNote(notebook: NotebookId, app: string): Promise<DocumentId> {
   const url = '/api/filetree/createDailyNote';
-  const response = await postRequest({ app, notebook }, url);
+  const response = await postRequest({ app, notebook }, url) as APIResponse<{ id: DocumentId }>;
   if (response.code === 0) {
     return response.data.id;
   }
@@ -552,8 +552,8 @@ export async function fullTextSearchBlock({
   groupBy?: number;
   orderBy?: number;
   page?: number;
-  types?: any;
-}): Promise<any> {
+  types?: { document?: boolean; heading?: boolean; list?: boolean; listItem?: boolean; codeBlock?: boolean; mathBlock?: boolean; table?: boolean; blockquote?: boolean; superBlock?: boolean; paragraph?: boolean; htmlBlock?: boolean; embedBlock?: boolean; databaseBlock?: boolean; audioBlock?: boolean; videoBlock?: boolean; iframeBlock?: boolean; widgetBlock?: boolean; };
+}): Promise<FullTextSearchResult> {
   const url = '/api/search/fullTextSearchBlock';
   // Cache key excludes reqId (timestamp) since it changes every request
   const cacheParams = { query, method, page, paths: paths.join(','), groupBy, orderBy, types: JSON.stringify(types) };
@@ -585,20 +585,20 @@ export async function fullTextSearchBlock({
 
 /** Get backlinks (cached) */
 export async function getBackLink2T(
-  id: string,
+  id: BlockId,
   sort = '3',
   msort = '3',
   k = '',
   mk = ''
-): Promise<any> {
+): Promise<BacklinkResult> {
   const url = '/api/ref/getBacklink2';
   return getResponseData(cachedPostRequest({ id, sort, msort, k, mk }, url));
 }
 
 /** List document tree (cached) */
-export async function listDocTree(notebook: string, path: string): Promise<any> {
+export async function listDocTree(notebook: NotebookId, path: string): Promise<DocTreeNode[]> {
   const url = '/api/filetree/listDocTree';
-  const response = await cachedPostRequest({ notebook, path }, url);
+  const response = await cachedPostRequest({ notebook, path }, url) as APIResponse<{ tree: DocTreeNode[] }>;
   if (response.code === 0) {
     return response.data.tree;
   }
@@ -607,12 +607,12 @@ export async function listDocTree(notebook: string, path: string): Promise<any> 
 
 /** Create document with markdown */
 export async function createDocWithMdAPI(
-  notebookid: string,
+  notebookid: NotebookId,
   hpath: string,
   md: string
-): Promise<string | null> {
+): Promise<DocumentId | null> {
   const url = '/api/filetree/createDocWithMd';
-  const response = await postRequest({ notebook: notebookid, path: hpath, markdown: md }, url);
+  const response = await postRequest({ notebook: notebookid, path: hpath, markdown: md }, url) as APIResponse<{ id: DocumentId }>;
   if (response.code === 0 && response.data?.id) {
     return response.data.id;
   }
@@ -621,7 +621,7 @@ export async function createDocWithMdAPI(
 
 /** Rename document */
 export async function renameDocAPI(
-  notebook: string,
+  notebook: NotebookId,
   path: string,
   title: string
 ): Promise<boolean> {
@@ -636,7 +636,7 @@ export async function renameDocAPI(
 
 /** Remove document */
 export async function removeDocAPI(
-  notebook: string,
+  notebook: NotebookId,
   path: string
 ): Promise<boolean> {
   const url = '/api/filetree/removeDoc';
@@ -651,7 +651,7 @@ export async function removeDocAPI(
 /** Move documents to new location */
 export async function moveDocsAPI(
   fromPaths: string[],
-  toNotebook: string,
+  toNotebook: NotebookId,
   toPath: string
 ): Promise<boolean> {
   const url = '/api/filetree/moveDocs';
@@ -664,9 +664,9 @@ export async function moveDocsAPI(
 }
 
 /** Get human-readable path by ID (cached) */
-export async function getHPathByIDAPI(id: string): Promise<string | null> {
+export async function getHPathByIDAPI(id: BlockId): Promise<string | null> {
   const url = '/api/filetree/getHPathByID';
-  const response = await cachedPostRequest({ id }, url);
+  const response = await cachedPostRequest({ id }, url) as APIResponse<string>;
   if (response.code === 0 && response.data) {
     return response.data;
   }
@@ -674,9 +674,9 @@ export async function getHPathByIDAPI(id: string): Promise<string | null> {
 }
 
 /** Get document ID by human-readable path (cached) */
-export async function getDocIDByHPath(notebook: string, hpath: string): Promise<string | null> {
+export async function getDocIDByHPath(notebook: NotebookId, hpath: string): Promise<DocumentId | null> {
   const url = '/api/filetree/getIDsByHPath';
-  const response = await cachedPostRequest({ notebook, path: hpath }, url);
+  const response = await cachedPostRequest({ notebook, path: hpath }, url) as APIResponse<DocumentId[]>;
   if (response.code === 0 && response.data?.length > 0) {
     return response.data[0]; // Return first matching ID
   }
@@ -685,12 +685,12 @@ export async function getDocIDByHPath(notebook: string, hpath: string): Promise<
 
 /** Add flashcards */
 export async function addRiffCards(
-  ids: string[],
+  ids: BlockId[],
   deckId: string,
   oldCardsNum = -1
 ): Promise<number | null> {
   const url = '/api/riff/addRiffCards';
-  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url);
+  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
   if (response.code === 0 && response.data?.size !== undefined) {
     if (oldCardsNum < 0) {
       return response.data.size;
@@ -703,12 +703,12 @@ export async function addRiffCards(
 
 /** Remove flashcards */
 export async function removeRiffCards(
-  ids: string[],
+  ids: BlockId[],
   deckId: string,
   oldCardsNum = -1
 ): Promise<number | null> {
   const url = '/api/riff/removeRiffCards';
-  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url);
+  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
   if (response.code === 0 && response.data?.size !== undefined) {
     if (oldCardsNum < 0) {
       return response.data.size;
@@ -723,9 +723,9 @@ export async function removeRiffCards(
 }
 
 /** Get all decks (cached) */
-export async function getRiffDecks(): Promise<any[]> {
+export async function getRiffDecks(): Promise<RiffDeck[]> {
   const url = '/api/riff/getRiffDecks';
-  const response = await cachedPostRequest({}, url);
+  const response = await cachedPostRequest({}, url) as APIResponse<RiffDeck[]>;
   if (response.code === 0 && response.data) {
     return response.data;
   }
@@ -733,18 +733,18 @@ export async function getRiffDecks(): Promise<any[]> {
 }
 
 /** Get document info (cached) */
-export async function getDocInfo(id: string): Promise<DocInfo | null> {
+export async function getDocInfo(id: DocumentId): Promise<DocInfo | null> {
   return getResponseData(cachedPostRequest({ id }, '/api/block/getDocInfo'));
 }
 
 /** Get tree statistics (cached) */
-export async function getTreeStat(id: string): Promise<TreeStat> {
+export async function getTreeStat(id: DocumentId): Promise<TreeStat> {
   return getResponseData(cachedPostRequest({ id }, '/api/block/getTreeStat'));
 }
 
 /** Create document with path */
 export async function createDocWithPath(
-  notebookid: string,
+  notebookid: NotebookId,
   path: string,
   title = 'Untitled',
   contentMd = '',
