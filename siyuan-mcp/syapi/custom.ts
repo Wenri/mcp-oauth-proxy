@@ -5,7 +5,7 @@
  * CHANGE FROM UPSTREAM: Removed DOM-dependent functions (getActiveEditorIds, etc.)
  */
 
-import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getCacheKey, cacheResponse } from './index';
+import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getCacheKey, cacheResponse, getNodebookList, getDocIDByHPath } from './index';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush } from '../logger';
 
@@ -275,4 +275,57 @@ export async function isValidDeck(deckId: string): Promise<boolean> {
   if (deckId === QUICK_DECK_ID) return true;
   const deckResponse = await getRiffDecks();
   return !!deckResponse.find((item) => item.id === deckId);
+}
+
+/**
+ * Resolve an ID or human-readable path (hpath) to a block ID.
+ *
+ * @param input - Either a block ID (e.g., "20241231120000-abc1234") or
+ *                an hpath (e.g., "/NotebookName/Doc/SubDoc")
+ * @returns The resolved block ID, or null if not found
+ *
+ * @example
+ * // ID input - returned as-is after format check
+ * await resolveIdOrHPath("20241231120000-abc1234") // "20241231120000-abc1234"
+ *
+ * // hpath input - resolved to ID
+ * await resolveIdOrHPath("/MyNotes/Projects/Todo") // "20241231120000-xyz7890"
+ */
+export async function resolveIdOrHPath(input: string): Promise<BlockId | null> {
+  if (!isValidStr(input)) return null;
+
+  // If it's a valid ID format, return as-is
+  if (isValidIdFormat(input)) {
+    return input;
+  }
+
+  // If it starts with /, treat as hpath
+  if (input.startsWith('/')) {
+    // Split path: /NotebookName/Doc/SubDoc -> ["", "NotebookName", "Doc", "SubDoc"]
+    const segments = input.split('/').filter(s => s.length > 0);
+    if (segments.length < 1) return null;
+
+    const notebookName = segments[0];
+    const docPath = '/' + segments.slice(1).join('/'); // e.g., "/Doc/SubDoc"
+
+    // Look up notebook by name
+    const notebooks = await getNodebookList();
+    const notebook = notebooks.find(nb => nb.name === notebookName);
+    if (!notebook) {
+      debugPush(`Notebook not found: ${notebookName}`);
+      return null;
+    }
+
+    // Resolve document path within notebook
+    if (segments.length === 1) {
+      // Just notebook name, return notebook ID (though it's not a block ID)
+      return notebook.id;
+    }
+
+    const docId = await getDocIDByHPath(notebook.id, docPath);
+    return docId;
+  }
+
+  // Neither ID format nor hpath
+  return null;
 }

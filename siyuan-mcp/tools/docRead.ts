@@ -41,9 +41,9 @@ export class DocReadToolProvider extends McpToolsProvider {
     return [
       {
         name: 'siyuan_read_doc_content_markdown',
-        description: 'Retrieve the content of a document or block by its ID',
+        description: 'Retrieve the content of a document or block by its ID or path',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document or block'),
+          id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           offset: z
             .number()
             .optional()
@@ -68,7 +68,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         description:
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the block'),
+          id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           offset: z
             .number()
             .optional()
@@ -91,9 +91,9 @@ export class DocReadToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_get_hpath',
         description:
-          'Get the human-readable path (hpath) for a document or block by its ID. Optionally includes document outline for context.',
+          'Get the human-readable path (hpath) for a document or block. Optionally includes document outline for context.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document or block'),
+          id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
         },
         outputSchema: {
@@ -110,7 +110,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         description:
           'Get the outline (table of contents) of a document. Returns headings hierarchy which helps understand document structure.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document'),
+          id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
         },
         outputSchema: {
           id: z.string().describe('The document ID'),
@@ -125,7 +125,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         description:
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
         inputSchema: {
-          id: z.string().describe('The unique identifier of the document'),
+          id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
         },
         outputSchema: {
           id: z.string().describe('The document ID'),

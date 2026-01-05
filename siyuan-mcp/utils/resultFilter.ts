@@ -3,7 +3,7 @@
  */
 
 import { isValidStr } from './commonCheck';
-import { getBlockDBItem, getDocDBitem, checkIdValid } from '../syapi/custom';
+import { getBlockDBItem, getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
 import { getConfig } from '..';
 import { logPush } from '../logger';
 
@@ -29,16 +29,27 @@ function getFilterSettings() {
 
 /**
  * Validate block/doc access: checks ID format, existence, and filter settings.
+ * Accepts both block IDs and human-readable paths (hpath).
  * Throws on error, returns dbItem on success.
+ *
+ * @param input - Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/Notebook/Doc")
+ * @param requireDoc - If true, validates that the ID refers to a document
+ * @returns The block database item
  */
 export async function validateBlockAccess(
-  id: BlockId,
+  input: string,
   requireDoc?: boolean
 ): Promise<Block> {
-  try {
-    checkIdValid(id);
-  } catch {
-    throw new Error('Invalid ID format.');
+  // Try to resolve hpath to ID if needed
+  let id: BlockId;
+  if (isValidIdFormat(input)) {
+    id = input;
+  } else {
+    const resolved = await resolveIdOrHPath(input);
+    if (!resolved) {
+      throw new Error(`Invalid ID or path: "${input}". Provide a valid block ID or hpath like "/NotebookName/Doc".`);
+    }
+    id = resolved;
   }
 
   const dbItem = requireDoc
