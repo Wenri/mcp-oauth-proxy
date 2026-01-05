@@ -18,11 +18,23 @@ let cfServiceClientSecret: string | undefined;
 /**
  * Build a cache key URL from path and optional params.
  * Uses URL object to ensure consistent key format.
+ * Supports arrays as repeated keys (e.g., paths=a&paths=b).
  */
-export function getCacheKey(path: string, params?: Record<string, any>): string {
+export function getCacheKey(path: string, params?: Record<string, string | number | boolean | string[]>): string {
   const cacheUrl = new URL(path, baseUrl);
   if (params) {
-    cacheUrl.search = new URLSearchParams(params as Record<string, string>).toString();
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (Array.isArray(value)) {
+        // Repeated keys for arrays
+        for (const item of value) {
+          searchParams.append(key, item);
+        }
+      } else {
+        searchParams.append(key, String(value));
+      }
+    }
+    cacheUrl.search = searchParams.toString();
   }
   return cacheUrl.href;
 }
@@ -536,6 +548,21 @@ export async function createDailyNote(notebook: NotebookId, app: string): Promis
   throw new Error(`Create Dailynote Failed: ${response.msg}`);
 }
 
+/** Base params for full text search (used for cache key type safety) */
+type FtsBaseParams = {
+  query: string;
+  method: number;
+  page: number;
+  paths: string[];
+  groupBy: number;
+  orderBy: number;
+};
+
+// Compile-time check: ensure BlockTypeFilter keys don't conflict with FtsBaseParams
+// If there's overlap, this line will fail to compile
+type _AssertNoOverlap<T = keyof BlockTypeFilter & keyof FtsBaseParams> = T extends never ? true : { error: 'Key conflict between BlockTypeFilter and FtsBaseParams'; keys: T };
+declare const _: _AssertNoOverlap;
+
 /** Full text search (cached) */
 export async function fullTextSearchBlock({
   query,
@@ -552,11 +579,12 @@ export async function fullTextSearchBlock({
   groupBy?: number;
   orderBy?: number;
   page?: number;
-  types?: { document?: boolean; heading?: boolean; list?: boolean; listItem?: boolean; codeBlock?: boolean; mathBlock?: boolean; table?: boolean; blockquote?: boolean; superBlock?: boolean; paragraph?: boolean; htmlBlock?: boolean; embedBlock?: boolean; databaseBlock?: boolean; audioBlock?: boolean; videoBlock?: boolean; iframeBlock?: boolean; widgetBlock?: boolean; };
+  types?: BlockTypeFilter;
 }): Promise<FullTextSearchResult> {
   const url = '/api/search/fullTextSearchBlock';
   // Cache key excludes reqId (timestamp) since it changes every request
-  const cacheParams = { query, method, page, paths: paths.join(','), groupBy, orderBy, types: JSON.stringify(types) };
+  // Expand types into cache params (no key conflicts - verified by _AssertNoOverlap)
+  const cacheParams = { query, method, page, paths, groupBy, orderBy, ...types };
   const cacheKey = getCacheKey(url, cacheParams);
 
   const cached = await caches.default.match(cacheKey);
