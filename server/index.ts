@@ -2,7 +2,7 @@ import { debugPush, errorPush, logPush } from '../logger';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as express from "express";
 import { DailyNoteToolProvider} from '@/tools/dailynote';
 import { getPluginInstance } from '@/utils/pluginHelper';
@@ -129,16 +129,36 @@ export default class MyMCPServer {
     initialize() {
         logPush("hello mcp server");
         this.expressApp = express();
+
+        // CORS middleware for browser-based MCP clients (e.g., MCP Inspector)
+        this.expressApp.use((req: Request, res: Response, next: NextFunction) => {
+            const origin = req.get('origin') || '*';
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, Mcp-Session-Id');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+            res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate, Mcp-Session-Id');
+            res.setHeader('Access-Control-Max-Age', '86400');
+            if (req.method === 'OPTIONS') {
+                return res.sendStatus(204);
+            }
+            next();
+        });
+
         this.expressApp.get('/health', (_, res) => {
             res.status(200).send("ok");
         });
-        
+
         /* SSE Deprecated */
         this.expressApp.get("/sse", async (req: Request, res: Response) => {
             const authResult = await validateAuthentication(req);
             if (!authResult.authenticated) {
-                // Return 401 with RFC 9728 Protected Resource Metadata URL
+                // Return 401 with RFC 9728 Protected Resource Metadata URL and CORS headers
                 const baseUrl = `https://${req.get('host')}`;
+                const origin = req.get('origin') || '*';
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, *');
+                res.setHeader('Access-Control-Allow-Methods', '*');
+                res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate');
                 res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
                 res.status(401).json({ error: "invalid_token", error_description: authResult.error || "Authentication required" });
                 return;
@@ -177,8 +197,13 @@ export default class MyMCPServer {
         this.expressApp.post("/mcp", async (req: Request, res: Response) => {
             const authResult = await validateAuthentication(req);
             if (!authResult.authenticated) {
-                // Return 401 with RFC 9728 Protected Resource Metadata URL
+                // Return 401 with RFC 9728 Protected Resource Metadata URL and CORS headers
                 const baseUrl = `https://${req.get('host')}`;
+                const origin = req.get('origin') || '*';
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, *');
+                res.setHeader('Access-Control-Allow-Methods', '*');
+                res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate');
                 res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
                 res.status(401).json({ error: "invalid_token", error_description: authResult.error || "Authentication required" });
                 return;
