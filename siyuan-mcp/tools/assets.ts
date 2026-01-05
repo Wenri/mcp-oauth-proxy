@@ -7,7 +7,7 @@ import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { createJsonResponse, createImageContent, createAudioContent } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/filterCheck';
-import { resolveContentAuto, type ContentType } from '../utils/contentResolver';
+import { resolveContentAuto, ResolvedContent, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -82,12 +82,8 @@ export class AssetToolProvider extends McpToolsProvider {
   }
 }
 
-/** Processed file ready for upload */
-interface ProcessedFile {
-  name: string;
-  blob: Blob;       // Contains data + mimeType (access via blob.type)
-  remote?: boolean; // True if fetched from URL
-}
+/** Processed file ready for upload (ResolvedContent extends Blob) */
+type ProcessedFile = ResolvedContent & { name: string };
 
 async function uploadAssetsHandler(params: {
   files: { fileName?: string; content: string | object; type?: ContentType }[];
@@ -120,15 +116,14 @@ async function uploadAssetsHandler(params: {
       defaultType: 'base64', // Default for assets is base64 (binary)
     });
 
-    processedFiles.push({
-      name: resolved.fileName || file.fileName!,
-      blob: resolved.blob,
-      remote: resolved.remote,
-    });
+    // Add name to resolved content (ProcessedFile = ResolvedContent & { name })
+    const processed = resolved as ProcessedFile;
+    processed.name = resolved.fileName || file.fileName!;
+    processedFiles.push(processed);
   }
 
-  // Upload all files
-  const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f.blob }));
+  // Upload all files (ProcessedFile extends Blob, so f IS the blob)
+  const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f }));
   const result = await uploadAPI(assetsDirPath, filesToUpload);
   if (!result) {
     throw new Error('Failed to upload assets.');
@@ -142,7 +137,7 @@ async function uploadAssetsHandler(params: {
       const assetPath = result.succMap[file.name];
       if (!assetPath) continue;
 
-      const isImage = file.blob.type.startsWith('image/');
+      const isImage = file.type.startsWith('image/');
       const alt = altText || file.name;
       const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
 
@@ -161,14 +156,13 @@ async function uploadAssetsHandler(params: {
     const assetPath = result.succMap[file.name];
     if (!assetPath) continue;
 
-    const mimeType = file.blob.type;
-    if (mimeType.startsWith('image/') || mimeType.startsWith('audio/')) {
-      const data = new Uint8Array(await file.blob.arrayBuffer());
+    if (file.type.startsWith('image/') || file.type.startsWith('audio/')) {
+      const data = new Uint8Array(await file.arrayBuffer());
       const base64 = data.toBase64();
-      if (mimeType.startsWith('image/')) {
-        previewContent.push(createImageContent(base64, mimeType));
+      if (file.type.startsWith('image/')) {
+        previewContent.push(createImageContent(base64, file.type));
       } else {
-        previewContent.push(createAudioContent(base64, mimeType));
+        previewContent.push(createAudioContent(base64, file.type));
       }
     }
   }

@@ -270,14 +270,14 @@ async function writeFileHandler(params: {
     throw new Error('Path is required.');
   }
 
-  // Resolve content using unified resolver
+  // Resolve content using unified resolver (ResolvedContent extends Blob)
   const fileName = path.split('/').pop();
   const resolved = await resolveContentAuto(content, type, {
     fileName,
     defaultType: 'text',
   });
 
-  const result = await putFileAPI(path, resolved.blob);
+  const result = await putFileAPI(path, resolved);
   if (!result) {
     throw new Error('Failed to write the file.');
   }

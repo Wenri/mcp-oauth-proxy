@@ -29,11 +29,26 @@ export const CONTENT_RESOLVER_CONFIG = {
 /** Supported content types */
 export type ContentType = 'text' | 'base64' | 'hex' | 'json' | 'url';
 
-/** Result of content resolution */
-export interface ResolvedContent {
-  blob: Blob;         // Contains data, mimeType (blob.type), and size (blob.size)
+/** Options for ResolvedContent constructor */
+export interface ResolvedContentOptions {
+  type?: string;      // MIME type
   fileName?: string;  // For URL type, auto-detected filename
   remote?: boolean;   // True if fetched from URL (for LLM preview)
+}
+
+/**
+ * Extended Blob with additional metadata for content resolution.
+ * Inherits all Blob properties: type (mimeType), size, arrayBuffer(), etc.
+ */
+export class ResolvedContent extends Blob {
+  fileName?: string;
+  remote?: boolean;
+
+  constructor(parts: (string | ArrayBuffer | Uint8Array | Blob)[], options?: ResolvedContentOptions) {
+    super(parts, options);
+    this.fileName = options?.fileName;
+    this.remote = options?.remote;
+  }
 }
 
 /** Options for content resolution */
@@ -326,10 +341,7 @@ async function fetchFromUrl(
     fileName = `download-${Date.now()}.${ext}`;
   }
 
-  // Create blob with detected MIME type
-  const blob = new Blob([data], { type: mimeType });
-
-  return { blob, fileName, remote: true };
+  return new ResolvedContent([data], { type: mimeType, fileName, remote: true });
 }
 
 // ============================================================================
@@ -393,7 +405,7 @@ export async function resolveContent(
         throw new Error('Hex content must be a string');
       }
       const hexMime = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return { blob: new Blob([hexToBytes(content)], { type: hexMime }) };
+      return new ResolvedContent([hexToBytes(content)], { type: hexMime });
     }
 
     case 'base64': {
@@ -401,14 +413,14 @@ export async function resolveContent(
         throw new Error('Base64 content must be a string');
       }
       const b64Mime = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return { blob: new Blob([base64ToBytes(content)], { type: b64Mime }) };
+      return new ResolvedContent([base64ToBytes(content)], { type: b64Mime });
     }
 
     case 'json': {
       const jsonString = typeof content === 'string'
         ? content
         : JSON.stringify(content, null, 2);
-      return { blob: new Blob([jsonString], { type: 'application/json' }) };
+      return new ResolvedContent([jsonString], { type: 'application/json' });
     }
 
     case 'text':
@@ -417,7 +429,7 @@ export async function resolveContent(
         throw new Error('Text content must be a string');
       }
       const textMime = fileName ? getMimeType(fileName) : 'text/plain';
-      return { blob: new Blob([content], { type: textMime }) };
+      return new ResolvedContent([content], { type: textMime });
     }
   }
 }
