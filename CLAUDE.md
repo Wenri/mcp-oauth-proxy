@@ -175,6 +175,44 @@ Available tool categories:
 - **File System**: read/write files (JSON objects auto-serialized), create/remove/rename, list directories, create archives
 - **Utilities**: get time, push notifications, reindex documents, flush database transactions
 
+### ID and hpath Resolution
+
+Document tools accept both block IDs and human-readable paths (hpath):
+
+```typescript
+// Block ID format: 14 digits + hyphen + 7 alphanumeric chars
+"20241231120000-abc1234"
+
+// hpath format: /NotebookName/Doc/SubDoc
+"/MyNotes/Projects/Todo"
+```
+
+**Document tools (support hpath):**
+- `siyuan_read_doc_content_markdown`, `siyuan_get_block_kramdown`
+- `siyuan_get_hpath`, `siyuan_get_doc_outline`, `siyuan_export_html`
+- `siyuan_append_markdown_to_doc`, `siyuan_create_new_note_with_markdown_content`
+- `siyuan_rename_doc`, `siyuan_remove_doc`
+
+**Block tools:**
+- `parentID` parameter → supports hpath (parent can be a document)
+- `id`, `nextID`, `previousID` → block ID only (blocks don't have hpath)
+
+**Resolution logic** (`resolveIdOrHPath` in `syapi/custom.ts`):
+1. If input matches ID format → return as-is
+2. If input starts with `/` → parse as hpath:
+   - First segment = notebook name → look up notebook ID
+   - Remaining path → call `getDocIDByHPath` to resolve
+
+**JSON responses include resolved ID:**
+When using hpath, the response includes the resolved block ID for subsequent operations:
+```typescript
+// Request with hpath
+siyuan_read_doc_content_markdown({ id: "/MyNotes/Projects/Todo" })
+
+// Response includes resolved ID
+{ id: "20241231120000-abc1234", content: "...", offset: 0, hasMore: false, totalLength: 500 }
+```
+
 ## Environment Configuration
 
 ### Required Secrets (set via `wrangler secret put`)
