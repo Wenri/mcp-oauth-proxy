@@ -4,12 +4,12 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
 import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
 import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
-import { getBlockDBItem } from '../syapi/custom';
+import { getBlockDBItem, cachedQuery } from '../syapi/custom';
 import { filterBlock } from '../utils/filterCheck';
 import databaseSchema from '../static/siyuan-database-schema.md';
 import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
@@ -112,18 +112,13 @@ async function sqlHandler(params: { stmt: string }) {
   const { stmt } = params;
   debugPush('SQL API called', stmt);
 
-  let sqlResult;
-  try {
-    sqlResult = await queryAPI(stmt);
-  } catch (error) {
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
-  }
-
+  const sqlResult = await queryAPI(stmt);
   debugPush('SQL result', sqlResult);
 
   // Filter results if they contain id field
+  let filteredResult = sqlResult;
   if (sqlResult.length > 0 && sqlResult.length < 300 && 'id' in sqlResult[0]) {
-    const filteredResult = [];
+    filteredResult = [];
     for (const row of sqlResult) {
       const id = row['id'];
       const dbItem = await getBlockDBItem(id);
@@ -131,10 +126,9 @@ async function sqlHandler(params: { stmt: string }) {
         filteredResult.push(dbItem);
       }
     }
-    sqlResult = filteredResult;
   }
 
-  return createArrayResponse(sqlResult, 'rows');
+  return createArrayResponse(filteredResult, 'rows');
 }
 
 async function schemaHandler() {
@@ -157,7 +151,7 @@ async function fulltextSearchHandler(params: {
   debugPush('Fulltext search API called', query);
 
   if (!query || query.trim() === '') {
-    return createErrorResponse('Search query cannot be empty');
+    throw new Error('Search query cannot be empty');
   }
 
   const ftsTable = caseSensitive ? 'blocks_fts' : 'blocks_fts_case_insensitive';
@@ -165,6 +159,7 @@ async function fulltextSearchHandler(params: {
   // Column 5 is 'content' in the FTS5 table (0-indexed: id, parent_id, root_id, hash, box, path, hpath, name, alias, memo, tag, content=11)
   const contentColumn = 11;
 
+  const safeQuery = query.replace(/'/g, "''");
   const stmt = `
     SELECT
       id,
@@ -175,17 +170,12 @@ async function fulltextSearchHandler(params: {
       snippet(${ftsTable}, ${contentColumn}, '<mark>', '</mark>', '...', ${snippetLength}) as snippet,
       bm25(${ftsTable}) as relevance
     FROM ${ftsTable}
-    WHERE ${ftsTable} MATCH '${query.replace(/'/g, "''")}'
+    WHERE ${ftsTable} MATCH '${safeQuery}'
     ORDER BY relevance
     LIMIT ${limit}
   `;
 
-  let sqlResult;
-  try {
-    sqlResult = await queryAPI(stmt);
-  } catch (error) {
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
-  }
+  let sqlResult = await cachedQuery('/custom/fts', { query: safeQuery, limit, snippetLength, caseSensitive }, stmt);
 
   // Filter results
   if (sqlResult.length > 0 && 'id' in sqlResult[0]) {

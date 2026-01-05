@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createJsonResponse } from '../utils/mcpResponse';
 import { pushMsgAPI, reindexDoc, flushTransaction } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -105,7 +105,7 @@ async function pushNotificationHandler(params: { message: string; timeout?: numb
   debugPush('Push notification API called');
 
   if (!isValidStr(message)) {
-    return createErrorResponse('Message cannot be empty.');
+    throw new Error('Message cannot be empty.');
   }
 
   const result = await pushMsgAPI(message, timeout);
@@ -118,7 +118,7 @@ async function reindexDocHandler(params: { path: string }) {
   debugPush('Reindex doc API called');
 
   if (!isValidStr(path)) {
-    return createErrorResponse('Path cannot be empty.');
+    throw new Error('Path cannot be empty.');
   }
 
   const result = await reindexDoc(path);

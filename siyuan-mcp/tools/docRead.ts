@@ -6,11 +6,11 @@ import { z } from 'zod';
 import mime from 'mime-types';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createJsonResponse } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
 import { getConfig } from '..';
-import { getBlockDBItem, getBlockAssets, checkIdValid } from '../syapi/custom';
-import { filterBlock } from '../utils/filterCheck';
+import { getBlockAssets } from '../syapi/custom';
+import { validateBlockAccess } from '../utils/filterCheck';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
@@ -132,14 +132,7 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
   const { id, offset = 0, limit = 10000 } = params;
   debugPush('Reading document content');
 
-  // Check input
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document or block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse('The specified document or block is excluded by the user settings. So cannot write or read.');
-  }
+  const { dbItem } = await validateBlockAccess(id);
 
   let otherImg: any[] = [];
   if (dbItem.type !== 'd') {
@@ -177,14 +170,7 @@ async function blockReadHandler(params: { id: string; offset?: number; limit?: n
 async function kramdownReadHandler(params: { id: string }) {
   const { id } = params;
 
-  // Check input
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse('The specified document or block is excluded by the user settings. So cannot write or read.');
-  }
+  const { dbItem } = await validateBlockAccess(id);
 
   let otherImg: any[] = [];
   if (dbItem.type !== 'd') {
@@ -302,18 +288,11 @@ async function getHPathHandler(params: { id: string; includeOutline?: boolean })
   const { id, includeOutline = false } = params;
   debugPush('Get hpath API called');
 
-  checkIdValid(id);
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document or block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse('The specified document or block is excluded by the user settings.');
-  }
+  const { dbItem } = await validateBlockAccess(id);
 
   const hpath = await getHPathByIDAPI(id);
   if (hpath == null) {
-    return createErrorResponse('Failed to get the human-readable path.');
+    throw new Error('Failed to get the human-readable path.');
   }
 
   const result: any = { id, hpath };
@@ -336,24 +315,17 @@ async function getDocOutlineHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Get doc outline API called');
 
-  checkIdValid(id);
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse('The specified document is excluded by the user settings.');
-  }
+  const { dbItem } = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
   const docId = dbItem.type === 'd' ? id : dbItem.root_id;
   if (!docId) {
-    return createErrorResponse('Could not determine the document ID.');
+    throw new Error('Could not determine the document ID.');
   }
 
   const outline = await getDocOutlineAPI(docId);
   if (outline == null) {
-    return createErrorResponse('Failed to get document outline.');
+    throw new Error('Failed to get document outline.');
   }
 
   return createJsonResponse({ id: docId, outline });
@@ -363,24 +335,17 @@ async function exportHtmlHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Export HTML API called');
 
-  checkIdValid(id);
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse('The specified document is excluded by the user settings.');
-  }
+  const { dbItem } = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
   const docId = dbItem.type === 'd' ? id : dbItem.root_id;
   if (!docId) {
-    return createErrorResponse('Could not determine the document ID.');
+    throw new Error('Could not determine the document ID.');
   }
 
   const html = await getDocPreview(docId);
   if (!html) {
-    return createErrorResponse('Failed to export document as HTML.');
+    throw new Error('Failed to export document as HTML.');
   }
 
   return createJsonResponse({ id: docId, html });

@@ -4,11 +4,11 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createSuccessResponse } from '../utils/mcpResponse';
 import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { formatSearchResult } from '../utils/resultFilter';
-import { debugPush, errorPush } from '../logger';
+import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import searchSyntax from '../static/query_syntax.md';
 
@@ -100,16 +100,10 @@ async function searchHandler(params: {
   queryObj.types!.codeBlock = includingCodeBlock;
   queryObj.types!.databaseBlock = includingDatabase;
 
-  try {
-    const response = await fullTextSearchBlock(queryObj);
-    const result = formatSearchResult(response, queryObj);
-    return createSuccessResponse(result);
-  } catch (err) {
-    errorPush('Error in search', err);
-    return createErrorResponse(err instanceof Error ? err.message : 'Search failed');
-  } finally {
-    debugPush('Search tool finished');
-  }
+  const response = await fullTextSearchBlock(queryObj);
+  const result = formatSearchResult(response, queryObj);
+  debugPush('Search tool finished');
+  return createSuccessResponse(result);
 }
 
 async function querySyntaxHandler() {

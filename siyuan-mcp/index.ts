@@ -179,7 +179,7 @@ async function loadTools(
           return await handler(params, extra);
         } catch (error: any) {
           return {
-            content: [{ type: 'text', text: `Error: ${error.message || 'Unknown error'}` }],
+            content: [{ type: 'text', text: error.message || 'Unknown error' }],
             isError: true,
           };
         }

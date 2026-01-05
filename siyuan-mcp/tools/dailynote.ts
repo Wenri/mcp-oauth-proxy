@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
 import {
   appendBlockAPI,
   createDailyNote,
@@ -88,7 +88,7 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
   debugPush('Append to dailynote API called', params);
 
   if (filterNotebook(notebookId)) {
-    return createErrorResponse('The specified notebook is excluded by the user settings.');
+    throw new Error('The specified notebook is excluded by the user settings.');
   }
 
   // Create or get daily note
@@ -100,7 +100,7 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
     const queryResult = await queryAPI(`SELECT * FROM blocks WHERE id = "${id}"`);
     const result = await appendBlockAPI(markdownContent, id);
     if (result == null) {
-      return createErrorResponse('Failed to append to dailynote');
+      throw new Error('Failed to append to dailynote');
     }
 
     // If new daily note, remove empty child block
@@ -123,7 +123,7 @@ async function appendToDailynoteHandler(params: { notebookId: string; markdownCo
     }
     newBlockId = result.id;
   } else {
-    return createErrorResponse('Internal Error: failed to create dailynote');
+    throw new Error('Internal Error: failed to create dailynote');
   }
 
   taskManager.insert(id, markdownContent, 'appendToDailyNote', {}, TASK_STATUS.APPROVED);

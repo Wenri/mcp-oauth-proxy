@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createArrayResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createJsonResponse, createArrayResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
@@ -150,13 +150,13 @@ async function readFileHandler(params: { path: string }) {
   debugPush('Read file API called');
 
   if (!path) {
-    return createErrorResponse('Path is required.');
+    throw new Error('Path is required.');
   }
 
   const cacheTtl = getTokenTtl();
   const response = await getFileAPIv2(path, cacheTtl);
   if (response === null) {
-    return createErrorResponse('File not found or failed to read.');
+    throw new Error('File not found or failed to read.');
   }
 
   const contentType = response.headers.get('Content-Type') || '';
@@ -198,7 +198,7 @@ async function writeFileHandler(params: { path: string; content: string; isBase6
   debugPush('Write file API called');
 
   if (!path || content === undefined) {
-    return createErrorResponse('Path and content are required.');
+    throw new Error('Path and content are required.');
   }
 
   let fileContent: Blob | string;
@@ -210,7 +210,7 @@ async function writeFileHandler(params: { path: string; content: string; isBase6
 
   const result = await putFileAPI(path, fileContent);
   if (!result) {
-    return createErrorResponse('Failed to write the file.');
+    throw new Error('Failed to write the file.');
   }
 
   return createSuccessResponse(path);
@@ -221,12 +221,12 @@ async function removeFileHandler(params: { path: string }) {
   debugPush('Remove file API called');
 
   if (!path) {
-    return createErrorResponse('Path is required.');
+    throw new Error('Path is required.');
   }
 
   const result = await removeFileAPI(path);
   if (!result) {
-    return createErrorResponse('Failed to remove the file or directory.');
+    throw new Error('Failed to remove the file or directory.');
   }
 
   return createSuccessResponse('File removed');
@@ -237,12 +237,12 @@ async function renameFileHandler(params: { path: string; newPath: string }) {
   debugPush('Rename file API called');
 
   if (!path || !newPath) {
-    return createErrorResponse('Both path and newPath are required.');
+    throw new Error('Both path and newPath are required.');
   }
 
   const result = await renameFileAPI(path, newPath);
   if (!result) {
-    return createErrorResponse('Failed to rename the file.');
+    throw new Error('Failed to rename the file.');
   }
 
   return createSuccessResponse(newPath);
@@ -253,12 +253,12 @@ async function listDirHandler(params: { path: string }) {
   debugPush('List directory API called');
 
   if (!path) {
-    return createErrorResponse('Path is required.');
+    throw new Error('Path is required.');
   }
 
   const result = await readDirAPI(path);
   if (result === null) {
-    return createErrorResponse('Directory not found or failed to read.');
+    throw new Error('Directory not found or failed to read.');
   }
 
   return createArrayResponse(result, 'entries', { path });
@@ -269,13 +269,13 @@ async function createDirHandler(params: { path: string }) {
   debugPush('Create directory API called');
 
   if (!path) {
-    return createErrorResponse('Path is required.');
+    throw new Error('Path is required.');
   }
 
   // Use putFile with isDir=true to create a directory
   const result = await putFileAPI(path, '', true);
   if (!result) {
-    return createErrorResponse('Failed to create the directory.');
+    throw new Error('Failed to create the directory.');
   }
 
   return createSuccessResponse(path);
@@ -286,13 +286,13 @@ async function createArchiveHandler(params: { paths: string[]; name?: string }) 
   debugPush('Create archive API called');
 
   if (!paths || paths.length === 0) {
-    return createErrorResponse('At least one path is required.');
+    throw new Error('At least one path is required.');
   }
 
   // Create the zip archive on SiYuan server
   const result = await exportResourcesAPI(paths, name);
   if (!result || !result.path) {
-    return createErrorResponse('Failed to create archive.');
+    throw new Error('Failed to create archive.');
   }
 
   const fileName = result.path.split('/').pop() || 'archive.zip';

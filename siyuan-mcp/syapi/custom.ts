@@ -5,43 +5,37 @@
  * CHANGE FROM UPSTREAM: Removed DOM-dependent functions (getActiveEditorIds, etc.)
  */
 
-import { waitUntil } from 'cloudflare:workers';
-import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getBaseUrl } from './index';
+import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getCacheKey, cacheResponse } from './index';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush } from '../logger';
 
 /** Cache TTL for SQL query results (3 minutes) */
-const SQL_CACHE_TTL = 180;
+export const SQL_CACHE_TTL = 180;
 
 /**
  * Cache helper for SQL query results.
  * Uses CF Cache API with custom cache keys.
  */
-async function cachedQuery<T>(
-  cacheKey: string,
-  queryFn: () => Promise<T>,
+export async function cachedQuery(
+  path: string,
+  params: Record<string, any>,
+  stmt: string,
   ttl: number = SQL_CACHE_TTL
-): Promise<T> {
-  const cache = caches.default;
-  const baseUrl = getBaseUrl();
-  const fullKey = `${baseUrl}/cache/${cacheKey}`;
+): Promise<any[]> {
+  const cacheKey = getCacheKey(path, params);
 
   // Check cache first
-  const cached = await cache.match(fullKey);
+  const cached = await caches.default.match(cacheKey);
   if (cached) {
-    return cached.json() as Promise<T>;
+    return cached.json();
   }
 
-  // Execute query
-  const result = await queryFn();
+  // Use queryAPI
+  const result = await queryAPI(stmt);
 
-  // Cache the result
-  if (ttl > 0 && result !== null) {
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Cache-Control': `public, max-age=${ttl}`,
-    });
-    waitUntil(cache.put(fullKey, new Response(JSON.stringify(result), { status: 200, headers })));
+  // Cache using cacheResponse helper
+  if (ttl > 0) {
+    cacheResponse(result, new Headers(), cacheKey, ttl);
   }
 
   return result;
@@ -208,26 +202,22 @@ export async function isADocId(id: string): Promise<boolean> {
   if (!isValidIdFormat(id)) {
     return false;
   }
-  return cachedQuery(`isDoc:${id}`, async () => {
-    const queryResponse = await queryAPI(`SELECT type FROM blocks WHERE id = '${id}'`);
-    if (queryResponse == null || queryResponse.length == 0) {
-      return false;
-    }
-    return queryResponse[0].type === 'd';
-  });
+  const queryResponse = await cachedQuery('/custom/isDoc', { id }, `SELECT type FROM blocks WHERE id = '${id}'`);
+  if (queryResponse == null || queryResponse.length == 0) {
+    return false;
+  }
+  return queryResponse[0].type === 'd';
 }
 
 export async function getDocDBitem(id: string) {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
-  return cachedQuery(`doc:${id}`, async () => {
-    const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}' and type = 'd'`);
-    if (queryResponse == null || queryResponse.length == 0) {
-      return null;
-    }
-    return queryResponse[0];
-  });
+  const queryResponse = await cachedQuery('/custom/doc', { id }, `SELECT * FROM blocks WHERE id = '${safeId}' and type = 'd'`);
+  if (queryResponse == null || queryResponse.length == 0) {
+    return null;
+  }
+  return queryResponse[0];
 }
 
 /**
@@ -237,13 +227,11 @@ export async function getBlockDBItem(id: string) {
   if (!isValidStr(id)) return null;
   checkIdValid(id);
   const safeId = id.replace(/'/g, "''");
-  return cachedQuery(`block:${id}`, async () => {
-    const queryResponse = await queryAPI(`SELECT * FROM blocks WHERE id = '${safeId}'`);
-    if (queryResponse == null || queryResponse.length == 0) {
-      return null;
-    }
-    return queryResponse[0];
-  });
+  const queryResponse = await cachedQuery('/custom/block', { id }, `SELECT * FROM blocks WHERE id = '${safeId}'`);
+  if (queryResponse == null || queryResponse.length == 0) {
+    return null;
+  }
+  return queryResponse[0];
 }
 
 export interface IAssetsDBItem {
@@ -262,13 +250,11 @@ export interface IAssetsDBItem {
  * Get block assets (cached)
  */
 export async function getBlockAssets(id: string): Promise<IAssetsDBItem[]> {
-  return cachedQuery(`assets:${id}`, async () => {
-    const queryResponse = await queryAPI(`SELECT * FROM assets WHERE block_id = '${id}'`);
-    if (queryResponse == null || queryResponse.length == 0) {
-      return [];
-    }
-    return queryResponse;
-  });
+  const queryResponse = await cachedQuery('/custom/assets', { id }, `SELECT * FROM assets WHERE block_id = '${id}'`);
+  if (queryResponse == null || queryResponse.length == 0) {
+    return [];
+  }
+  return queryResponse;
 }
 
 /**

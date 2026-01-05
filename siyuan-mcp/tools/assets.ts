@@ -3,10 +3,9 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
+import { createJsonResponse } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
-import { getBlockDBItem, checkIdValid } from '../syapi/custom';
-import { filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/filterCheck';
 import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -145,64 +144,53 @@ async function uploadAssetHandler(params: {
   debugPush('Upload asset API called');
 
   if (!fileName || !base64Content) {
-    return createErrorResponse('fileName and base64Content are required.');
+    throw new Error('fileName and base64Content are required.');
   }
 
   // Validate insertAfterBlock if provided
   if (insertAfterBlock) {
-    checkIdValid(insertAfterBlock);
-    const blockInfo = await getBlockDBItem(insertAfterBlock);
-    if (!blockInfo) {
-      return createErrorResponse('The specified insertAfterBlock ID does not exist.');
-    }
-    if (await filterBlock(insertAfterBlock, blockInfo)) {
-      return createErrorResponse('The specified block is excluded by user settings.');
+    await validateBlockAccess(insertAfterBlock);
+  }
+
+  const mimeType = getMimeType(fileName);
+  const blob = base64ToBlob(base64Content, mimeType);
+
+  const result = await uploadAPI(assetsDirPath, [{ name: fileName, data: blob }]);
+  if (!result) {
+    throw new Error('Failed to upload the asset.');
+  }
+
+  if (result.errFiles && result.errFiles.length > 0) {
+    throw new Error(`Failed to upload: ${result.errFiles.join(', ')}`);
+  }
+
+  const assetPath = result.succMap[fileName];
+  if (!assetPath) {
+    throw new Error('Upload succeeded but asset path not returned.');
+  }
+
+  // Auto-insert block if requested
+  let insertedBlockId: string | null = null;
+  if (insertAfterBlock) {
+    const isImage = mimeType.startsWith('image/');
+    const alt = altText || fileName;
+    // Create markdown for image or link
+    const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
+
+    const insertResult = await insertBlockAPI(markdown, insertAfterBlock, 'insertAfter');
+    if (insertResult && insertResult.length > 0) {
+      insertedBlockId = insertResult[0].doOperations?.[0]?.id || null;
     }
   }
 
-  try {
-    const mimeType = getMimeType(fileName);
-    const blob = base64ToBlob(base64Content, mimeType);
-
-    const result = await uploadAPI(assetsDirPath, [{ name: fileName, data: blob }]);
-    if (!result) {
-      return createErrorResponse('Failed to upload the asset.');
-    }
-
-    if (result.errFiles && result.errFiles.length > 0) {
-      return createErrorResponse(`Failed to upload: ${result.errFiles.join(', ')}`);
-    }
-
-    const assetPath = result.succMap[fileName];
-    if (!assetPath) {
-      return createErrorResponse('Upload succeeded but asset path not returned.');
-    }
-
-    // Auto-insert block if requested
-    let insertedBlockId: string | null = null;
-    if (insertAfterBlock) {
-      const isImage = mimeType.startsWith('image/');
-      const alt = altText || fileName;
-      // Create markdown for image or link
-      const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
-
-      const insertResult = await insertBlockAPI(markdown, insertAfterBlock, 'insertAfter');
-      if (insertResult && insertResult.length > 0) {
-        insertedBlockId = insertResult[0].doOperations?.[0]?.id || null;
-      }
-    }
-
-    return createJsonResponse({
-      fileName,
-      assetPath,
-      insertedBlockId,
-      message: insertedBlockId
-        ? `Asset uploaded and inserted as block ${insertedBlockId}.`
-        : `Asset uploaded successfully. Use "${assetPath}" to reference it in documents.`,
-    });
-  } catch (error) {
-    return createErrorResponse(`Failed to process the file: ${error}`);
-  }
+  return createJsonResponse({
+    fileName,
+    assetPath,
+    insertedBlockId,
+    message: insertedBlockId
+      ? `Asset uploaded and inserted as block ${insertedBlockId}.`
+      : `Asset uploaded successfully. Use "${assetPath}" to reference it in documents.`,
+  });
 }
 
 async function uploadAssetsBatchHandler(params: {
@@ -213,33 +201,29 @@ async function uploadAssetsBatchHandler(params: {
   debugPush('Upload assets batch API called');
 
   if (!files || files.length === 0) {
-    return createErrorResponse('At least one file is required.');
+    throw new Error('At least one file is required.');
   }
 
-  try {
-    const filesToUpload: { name: string; data: Blob }[] = [];
+  const filesToUpload: { name: string; data: Blob }[] = [];
 
-    for (const file of files) {
-      if (!file.fileName || !file.base64Content) {
-        return createErrorResponse(`Invalid file entry: fileName and base64Content are required.`);
-      }
-      const mimeType = getMimeType(file.fileName);
-      const blob = base64ToBlob(file.base64Content, mimeType);
-      filesToUpload.push({ name: file.fileName, data: blob });
+  for (const file of files) {
+    if (!file.fileName || !file.base64Content) {
+      throw new Error(`Invalid file entry: fileName and base64Content are required.`);
     }
-
-    const result = await uploadAPI(assetsDirPath, filesToUpload);
-    if (!result) {
-      return createErrorResponse('Failed to upload the assets.');
-    }
-
-    return createJsonResponse({
-      uploadedCount: Object.keys(result.succMap).length,
-      failedCount: result.errFiles?.length || 0,
-      succMap: result.succMap,
-      errFiles: result.errFiles || [],
-    });
-  } catch (error) {
-    return createErrorResponse(`Failed to process the files: ${error}`);
+    const mimeType = getMimeType(file.fileName);
+    const blob = base64ToBlob(file.base64Content, mimeType);
+    filesToUpload.push({ name: file.fileName, data: blob });
   }
+
+  const result = await uploadAPI(assetsDirPath, filesToUpload);
+  if (!result) {
+    throw new Error('Failed to upload the assets.');
+  }
+
+  return createJsonResponse({
+    uploadedCount: Object.keys(result.succMap).length,
+    failedCount: result.errFiles?.length || 0,
+    succMap: result.succMap,
+    errFiles: result.errFiles || [],
+  });
 }

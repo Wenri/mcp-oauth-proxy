@@ -2,9 +2,39 @@
  * Filter check utilities
  */
 
-import { getBlockDBItem } from '../syapi/custom';
+import { getBlockDBItem, getDocDBitem, checkIdValid } from '../syapi/custom';
 import { getConfig } from '..';
 import { logPush } from '../logger';
+
+/**
+ * Validate block/doc access: checks ID format, existence, and filter settings.
+ * Throws on error, returns { dbItem } on success.
+ */
+export async function validateBlockAccess(
+  id: string,
+  opts?: { requireDoc?: boolean }
+): Promise<{ dbItem: any }> {
+  try {
+    checkIdValid(id);
+  } catch {
+    throw new Error('Invalid ID format.');
+  }
+
+  const dbItem = opts?.requireDoc
+    ? await getDocDBitem(id)
+    : await getBlockDBItem(id);
+
+  if (dbItem == null) {
+    const type = opts?.requireDoc ? 'document' : 'block';
+    throw new Error(`Invalid ${type} ID. Please check if the ID exists.`);
+  }
+
+  if (await filterBlock(id, dbItem)) {
+    throw new Error('The specified block is excluded by user settings.');
+  }
+
+  return { dbItem };
+}
 
 function getFilterSettings() {
   const config = getConfig();

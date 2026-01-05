@@ -5,7 +5,7 @@
 import { addRiffCards, queryAPI, removeRiffCards } from '../syapi';
 import { getBlockDBItem, isValidDeck, QUICK_DECK_ID } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { z } from 'zod';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
@@ -109,7 +109,7 @@ async function addFlashCardMarkdown(
   let { parentId, docTitle, type, deckId, markdownContent } = params;
 
   if (await filterBlock(parentId, null)) {
-    return createErrorResponse(
+    throw new Error(
       'The specified document or block is excluded by the user settings, so cannot create a new note under it.'
     );
   }
@@ -118,14 +118,14 @@ async function addFlashCardMarkdown(
     deckId = QUICK_DECK_ID;
   }
   if (!(await isValidDeck(deckId!))) {
-    return createErrorResponse(
+    throw new Error(
       'Card creation failed: DeckId does not exist. If user did not specify a deck name or ID, set deckId to ""'
     );
   }
 
   const config = getConfig();
   if (type === 'highlight' && !config.editor?.markdown?.inlineMath) {
-    return createErrorResponse(
+    throw new Error(
       'Card creation failed: Highlight flashcards require Markdown inline syntax to be enabled. Please remind user to enable this feature (Settings - Editor - Markdown inline syntax)'
     );
   }
@@ -140,7 +140,7 @@ async function addFlashCardMarkdown(
     const addCardsResult = await parseDocAddCards(newDocId, type, deckId!);
     return createJsonResponse({ docId: newDocId, cardCount: addCardsResult });
   } else {
-    return createErrorResponse('Card creation failed: Unknown error while creating flashcard document');
+    throw new Error('Card creation failed: Unknown error while creating flashcard document');
   }
 }
 
@@ -154,7 +154,7 @@ async function createFlashcardsHandler(
     deckId = QUICK_DECK_ID;
   }
   if (!(await isValidDeck(deckId!))) {
-    return createErrorResponse(
+    throw new Error(
       'Card creation failed: The DeckId does not exist. If the user has not specified a deck name or ID, set the deckId parameter to an empty string.'
     );
   }
@@ -164,7 +164,7 @@ async function createFlashcardsHandler(
     const blockId = blockIds[i];
     const dbItem = await getBlockDBItem(blockId);
     if (dbItem == null) {
-      return createErrorResponse(
+      throw new Error(
         `Invalid block ID: ${blockId}. Please check if the ID exists and is correct.`
       );
     }
@@ -176,7 +176,7 @@ async function createFlashcardsHandler(
 
   const addCardsResult = await addRiffCards(filteredIds, deckId!);
   if (addCardsResult === null) {
-    return createErrorResponse('Failed to create flashcards.');
+    throw new Error('Failed to create flashcards.');
   }
   return createSuccessResponse(`Created ${filteredIds.length} flashcards`);
 }
@@ -188,14 +188,14 @@ async function deleteFlashcardsHandler(params: { blockIds: string[]; deckId?: st
     deckId = '';
   }
   if ((await isValidDeck(deckId!)) === false && deckId !== '') {
-    return createErrorResponse(
+    throw new Error(
       'Card deletion failed: The DeckId does not exist. If the user has not specified a deck name or ID, set the deckId parameter to an empty string.'
     );
   }
 
   const removeResult = await removeRiffCards(blockIds, deckId!);
   if (removeResult === null) {
-    return createErrorResponse('Failed to delete flashcards.');
+    throw new Error('Failed to delete flashcards.');
   }
   return createSuccessResponse(`Removed ${blockIds.length} flashcards`);
 }

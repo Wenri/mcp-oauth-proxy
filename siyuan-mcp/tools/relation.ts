@@ -4,12 +4,12 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createArrayResponse } from '../utils/mcpResponse';
+import { createArrayResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
-import { getBlockDBItem, getDocDBitem } from '../syapi/custom';
-import { filterBlock } from '../utils/filterCheck';
+import { getDocDBitem } from '../syapi/custom';
+import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
 
 export class RelationToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -123,17 +123,7 @@ export class RelationToolProvider extends McpToolsProvider<any> {
 async function getDocBacklink(params: { id: string }) {
   const { id } = params;
 
-  const dbItem = await getBlockDBItem(id);
-  if (dbItem == null) {
-    return createErrorResponse(
-      'Invalid document or block ID. Please check if the ID exists and is correct.'
-    );
-  }
-  if (await filterBlock(id, dbItem)) {
-    return createErrorResponse(
-      'The specified document or block is excluded by the user settings. So cannot write or read.'
-    );
-  }
+  await validateBlockAccess(id);
 
   const backlinkResponse = await getBackLink2T(id, '3');
   debugPush('backlinkResponse', backlinkResponse);
@@ -167,14 +157,14 @@ async function getChildrenDocs(params: { id: string }) {
   const sqlResult = await getDocDBitem(id);
 
   if (await filterBlock(id, sqlResult)) {
-    return createErrorResponse(
+    throw new Error(
       'The specified document or block is excluded by the user settings. So cannot write or read.'
     );
   }
 
   let result = null;
   if (sqlResult == null && !notebookIds.includes(id)) {
-    return createErrorResponse(
+    throw new Error(
       'The queried ID does not exist, or does not correspond to a document or notebook. Please check if the ID is correct.'
     );
   } else if (sqlResult == null) {
@@ -190,17 +180,7 @@ async function getChildrenDocs(params: { id: string }) {
 async function getChildBlocksTool(params: { id: string }) {
   const { id } = params;
 
-  const sqlResult = await getBlockDBItem(id);
-  if (sqlResult == null) {
-    return createErrorResponse(
-      'Invalid document or block ID. Please check if the ID exists and is correct.'
-    );
-  }
-  if (await filterBlock(id, sqlResult)) {
-    return createErrorResponse(
-      'The specified document or block is excluded by the user settings. So cannot write or read.'
-    );
-  }
+  await validateBlockAccess(id);
 
   return createArrayResponse(await getChildBlocks(id), 'blocks');
 }

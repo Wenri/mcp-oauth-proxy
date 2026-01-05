@@ -4,13 +4,12 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
-import { getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
 import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
-import { filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/filterCheck';
 
 export class AttributeToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -80,20 +79,13 @@ async function setBlockAttributesHandler(params: { blockId: string; attributes: 
   const { blockId, attributes } = params;
 
   if (!isValidStr(blockId)) {
-    return createErrorResponse('blockId cannot be empty.');
+    throw new Error('blockId cannot be empty.');
   }
 
-  const dbItem = await getBlockDBItem(blockId);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document or block ID. Please check if the ID exists and is correct.');
-  }
-
-  if (await filterBlock(blockId, dbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  await validateBlockAccess(blockId);
 
   if (typeof attributes !== 'object' || attributes === null) {
-    return createErrorResponse('attributes must be an object.');
+    throw new Error('attributes must be an object.');
   }
 
   const allowedNonCustomKeys = ['name', 'alias', 'memo', 'bookmark'];
@@ -103,29 +95,25 @@ async function setBlockAttributesHandler(params: { blockId: string; attributes: 
     if (key.startsWith('custom-')) {
       const customPart = key.substring('custom-'.length);
       if (!customKeyRegex.test(customPart)) {
-        return createErrorResponse(
+        throw new Error(
           `Invalid custom attribute name: '${key}'. The part after 'custom-' must only contain letters and(or) numbers.`
         );
       }
     } else if (!allowedNonCustomKeys.includes(key)) {
-      return createErrorResponse(
+      throw new Error(
         `Invalid attribute name: '${key}'. Attribute names must start with 'custom-' or be one of the following: ${allowedNonCustomKeys.join(', ')}.`
       );
     }
     if (typeof attributes[key] !== 'string') {
-      return createErrorResponse(`Invalid value for attribute '${key}'. Attribute values must be strings.`);
+      throw new Error(`Invalid value for attribute '${key}'. Attribute values must be strings.`);
     }
   }
 
-  try {
-    const result = await addblockAttrAPI(attributes, blockId);
-    if (result === 0) {
-      return createSuccessResponse('Attributes updated');
-    } else {
-      return createErrorResponse('Failed to update attributes');
-    }
-  } catch (error: any) {
-    return createErrorResponse(`An error occurred: ${error.message}`);
+  const result = await addblockAttrAPI(attributes, blockId);
+  if (result === 0) {
+    return createSuccessResponse('Attributes updated');
+  } else {
+    throw new Error('Failed to update attributes');
   }
 }
 
@@ -133,58 +121,38 @@ async function getBlockAttributesHandler(params: { blockId: string }) {
   const { blockId } = params;
 
   if (!isValidStr(blockId)) {
-    return createErrorResponse('blockId cannot be empty.');
+    throw new Error('blockId cannot be empty.');
   }
 
-  const dbItem = await getBlockDBItem(blockId);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid document or block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(blockId, dbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  await validateBlockAccess(blockId);
 
-  try {
-    const attributes = await getblockAttr(blockId);
-    return createJsonResponse({ attributes: attributes ?? {} });
-  } catch (error: any) {
-    return createErrorResponse(`An error occurred: ${error.message}`);
-  }
+  const attributes = await getblockAttr(blockId);
+  return createJsonResponse({ attributes: attributes ?? {} });
 }
 
 async function batchSetAttributesHandler(params: { blocks: { id: string; attrs: Record<string, string> }[] }) {
   const { blocks } = params;
 
   if (!blocks || blocks.length === 0) {
-    return createErrorResponse('blocks array cannot be empty.');
+    throw new Error('blocks array cannot be empty.');
   }
 
   // Validate all blocks first
   for (const block of blocks) {
     if (!isValidStr(block.id)) {
-      return createErrorResponse('Each block must have a valid id.');
+      throw new Error('Each block must have a valid id.');
     }
-    const dbItem = await getBlockDBItem(block.id);
-    if (dbItem == null) {
-      return createErrorResponse(`Block "${block.id}" does not exist.`);
-    }
-    if (await filterBlock(block.id, dbItem)) {
-      return createErrorResponse(`Block "${block.id}" is excluded by user settings.`);
-    }
+    await validateBlockAccess(block.id);
   }
 
   // Format for batchSetBlockAttrs API: JSON string of array
   // Each item: { id: string, attrs: Record<string, string> }
   const blockAttrs = JSON.stringify(blocks);
 
-  try {
-    const result = await batchSetBlockAttrs(blockAttrs);
-    if (result !== null) {
-      return createSuccessResponse(`Updated ${blocks.length} blocks`);
-    } else {
-      return createErrorResponse('Failed to batch update attributes');
-    }
-  } catch (error: any) {
-    return createErrorResponse(`An error occurred: ${error.message}`);
+  const result = await batchSetBlockAttrs(blockAttrs);
+  if (result !== null) {
+    return createSuccessResponse(`Updated ${blocks.length} blocks`);
+  } else {
+    throw new Error('Failed to batch update attributes');
   }
 }

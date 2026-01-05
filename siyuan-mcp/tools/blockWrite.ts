@@ -3,16 +3,15 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
-import { checkIdValid, getBlockDBItem } from '../syapi/custom';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr } from '../utils/commonCheck';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
-import { filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess } from '../utils/filterCheck';
 import { getConfig } from '..';
 
 export class BlockWriteToolProvider extends McpToolsProvider<any> {
@@ -179,7 +178,7 @@ async function insertBlockHandler(params: {
     (previousID && isValidNotebookId(previousID)) ||
     (parentID && isValidNotebookId(parentID))
   ) {
-    return createErrorResponse('nextID, previousID, and parentID must be block IDs, not notebook IDs.');
+    throw new Error('nextID, previousID, and parentID must be block IDs, not notebook IDs.');
   }
 
   let anchorID: string | undefined;
@@ -197,25 +196,18 @@ async function insertBlockHandler(params: {
   }
 
   if (!anchorID) {
-    return createErrorResponse('Please provide one of nextID, previousID or parentID to anchor the insertion.');
+    throw new Error('Please provide one of nextID, previousID or parentID to anchor the insertion.');
   }
 
-  checkIdValid(anchorID);
-  const dbItem = await getBlockDBItem(anchorID);
-  if (dbItem == null) {
-    return createErrorResponse(`Invalid ${anchorType}: The specified block does not exist.`);
-  }
-  if (await filterBlock(anchorID, dbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  const { dbItem } = await validateBlockAccess(anchorID);
 
   if (anchorType === 'parentID' && isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
-    return createErrorResponse('Invalid parentID: Cannot insert a block under a non-container block.');
+    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
   const response = await insertBlockOriginAPI({ data, dataType: 'markdown', nextID, previousID, parentID });
   if (response == null) {
-    return createErrorResponse('Failed to insert the block');
+    throw new Error('Failed to insert the block');
   }
 
   taskManager.insert(response[0].doOperations[0].id, data, 'insertBlock', { parentID }, TASK_STATUS.APPROVED);
@@ -226,25 +218,19 @@ async function prependBlockHandler(params: { data: string; parentID: string }) {
   const { data, parentID } = params;
   debugPush('Prepend block API called');
 
-  checkIdValid(parentID);
   if (isValidNotebookId(parentID)) {
-    return createErrorResponse('parentID must be a block ID, not a notebook ID.');
+    throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
-  const dbItem = await getBlockDBItem(parentID);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid parentID: The specified parent block does not exist.');
-  }
-  if (await filterBlock(parentID, dbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  const { dbItem } = await validateBlockAccess(parentID);
+
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
-    return createErrorResponse('Invalid parentID: Cannot insert a block under a non-container block.');
+    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
   const response = await prependBlockAPI(data, parentID);
   if (response == null) {
-    return createErrorResponse('Failed to prepend the block');
+    throw new Error('Failed to prepend the block');
   }
 
   taskManager.insert(response.id, data, 'prependBlock', { parentID }, TASK_STATUS.APPROVED);
@@ -255,25 +241,19 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
   const { data, parentID } = params;
   debugPush('Append block API called');
 
-  checkIdValid(parentID);
   if (isValidNotebookId(parentID)) {
-    return createErrorResponse('parentID must be a block ID, not a notebook ID.');
+    throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
-  const dbItem = await getBlockDBItem(parentID);
-  if (dbItem == null) {
-    return createErrorResponse('Invalid parentID: The specified parent block does not exist.');
-  }
-  if (await filterBlock(parentID, dbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  const { dbItem } = await validateBlockAccess(parentID);
+
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
-    return createErrorResponse('Invalid parentID: Cannot insert a block under a non-container block.');
+    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
   const result = await appendBlockAPI(data, parentID);
   if (result == null) {
-    return createErrorResponse('Failed to append to the block');
+    throw new Error('Failed to append to the block');
   }
 
   const paragraphIds: string[] = [];
@@ -295,16 +275,10 @@ async function appendBlockHandler(params: { data: string; parentID: string }) {
 async function updateBlockHandler(params: { data: string; id: string }) {
   const { data, id } = params;
 
-  checkIdValid(id);
-  const blockDbItem = await getBlockDBItem(id);
-  if (blockDbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, blockDbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  const { dbItem: blockDbItem } = await validateBlockAccess(id);
+
   if (blockDbItem.type === 'av') {
-    return createErrorResponse('Cannot update attribute view (i.e. Database) blocks.');
+    throw new Error('Cannot update attribute view (i.e. Database) blocks.');
   }
 
   // In CF Worker, we auto-approve changes (no plugin UI for review)
@@ -314,7 +288,7 @@ async function updateBlockHandler(params: { data: string; id: string }) {
   if (autoApprove) {
     const response = await updateBlockAPI(data, id);
     if (response == null) {
-      return createErrorResponse('Failed to update the block');
+      throw new Error('Failed to update the block');
     }
     taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.APPROVED);
     return createSuccessResponse('Block updated');
@@ -328,21 +302,15 @@ async function deleteBlockHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Delete block API called');
 
-  checkIdValid(id);
-  const blockDbItem = await getBlockDBItem(id);
-  if (blockDbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, blockDbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  const { dbItem: blockDbItem } = await validateBlockAccess(id);
+
   if (blockDbItem.type === 'd') {
-    return createErrorResponse('Cannot delete document blocks. Use siyuan_remove_doc instead.');
+    throw new Error('Cannot delete document blocks. Use siyuan_remove_doc instead.');
   }
 
   const result = await removeBlockAPI(id);
   if (!result) {
-    return createErrorResponse('Failed to delete the block');
+    throw new Error('Failed to delete the block');
   }
 
   taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
@@ -354,37 +322,22 @@ async function moveBlockHandler(params: { id: string; parentID?: string; previou
   debugPush('Move block API called');
 
   if (!parentID && !previousID) {
-    return createErrorResponse('Please provide either parentID or previousID to specify the target position.');
+    throw new Error('Please provide either parentID or previousID to specify the target position.');
   }
 
-  checkIdValid(id);
-  const blockDbItem = await getBlockDBItem(id);
-  if (blockDbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
-  if (await filterBlock(id, blockDbItem)) {
-    return createErrorResponse("The specified block is excluded by the user settings. Can't read or write.");
-  }
+  await validateBlockAccess(id);
 
   // Validate target block exists
   if (previousID) {
-    checkIdValid(previousID);
-    const prevDbItem = await getBlockDBItem(previousID);
-    if (prevDbItem == null) {
-      return createErrorResponse('Invalid previousID: The specified block does not exist.');
-    }
+    await validateBlockAccess(previousID);
   }
   if (parentID && !previousID) {
-    checkIdValid(parentID);
-    const parentDbItem = await getBlockDBItem(parentID);
-    if (parentDbItem == null) {
-      return createErrorResponse('Invalid parentID: The specified block does not exist.');
-    }
+    await validateBlockAccess(parentID);
   }
 
   const result = await moveBlockAPI(id, parentID, previousID);
   if (!result) {
-    return createErrorResponse('Failed to move the block');
+    throw new Error('Failed to move the block');
   }
 
   return createSuccessResponse('Block moved');
@@ -394,15 +347,11 @@ async function foldBlockHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Fold block API called');
 
-  checkIdValid(id);
-  const blockDbItem = await getBlockDBItem(id);
-  if (blockDbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
+  await validateBlockAccess(id);
 
   const result = await foldBlockAPI(id);
   if (!result) {
-    return createErrorResponse('Failed to fold the block');
+    throw new Error('Failed to fold the block');
   }
 
   return createSuccessResponse('Block folded');
@@ -412,15 +361,11 @@ async function unfoldBlockHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Unfold block API called');
 
-  checkIdValid(id);
-  const blockDbItem = await getBlockDBItem(id);
-  if (blockDbItem == null) {
-    return createErrorResponse('Invalid block ID. Please check if the ID exists and is correct.');
-  }
+  await validateBlockAccess(id);
 
   const result = await unfoldBlockAPI(id);
   if (!result) {
-    return createErrorResponse('Failed to unfold the block');
+    throw new Error('Failed to unfold the block');
   }
 
   return createSuccessResponse('Block unfolded');

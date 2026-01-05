@@ -3,6 +3,7 @@
  */
 
 import { waitUntil } from 'cloudflare:workers';
+import isPlainObject from 'lodash-es/isPlainObject';
 import { warnPush, errorPush } from '../logger';
 
 // ============================================================================
@@ -14,9 +15,16 @@ let authToken: string | undefined;
 let cfServiceClientId: string | undefined;
 let cfServiceClientSecret: string | undefined;
 
-/** Get the current kernel base URL */
-export function getBaseUrl(): string {
-  return baseUrl;
+/**
+ * Build a cache key URL from path and optional params.
+ * Uses URL object to ensure consistent key format.
+ */
+export function getCacheKey(path: string, params?: Record<string, any>): string {
+  const cacheUrl = new URL(path, baseUrl);
+  if (params) {
+    cacheUrl.search = new URLSearchParams(params as Record<string, string>).toString();
+  }
+  return cacheUrl.href;
 }
 
 /** All API endpoints that use caching */
@@ -36,8 +44,17 @@ const CACHED_ENDPOINTS = [
   '/api/outline/getDocOutline',
   '/api/export/preview',
   '/api/export/exportMdContent',
+  '/api/ref/getBacklink2',
   '/api/riff/getRiffDecks',
+  '/api/search/fullTextSearchBlock',
+  '/api/file/getFile',
   '/api/file/readDir',
+  // Custom SQL query cache paths (used by cachedQuery)
+  '/custom/isDoc',
+  '/custom/doc',
+  '/custom/block',
+  '/custom/assets',
+  '/custom/fts',
 ];
 
 /**
@@ -511,7 +528,7 @@ export async function createDailyNote(notebook: string, app: string): Promise<st
   throw new Error(`Create Dailynote Failed: ${response.msg}`);
 }
 
-/** Full text search */
+/** Full text search (cached) */
 export async function fullTextSearchBlock({
   query,
   method = 0,
@@ -530,6 +547,15 @@ export async function fullTextSearchBlock({
   types?: any;
 }): Promise<any> {
   const url = '/api/search/fullTextSearchBlock';
+  // Cache key excludes reqId (timestamp) since it changes every request
+  const cacheParams = { query, method, page, paths: paths.join(','), groupBy, orderBy, types: JSON.stringify(types) };
+  const cacheKey = getCacheKey(url, cacheParams);
+
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    return cached.json();
+  }
+
   const postBody = {
     query,
     method,
@@ -543,6 +569,7 @@ export async function fullTextSearchBlock({
   };
   const response = await postRequest(postBody, url);
   if (response.code === 0) {
+    cacheResponse(response.data, new Headers(), cacheKey, DEFAULT_API_CACHE_TTL);
     return response.data;
   }
   throw new Error(`fullTextSearchBlock Failed: ${response.msg}`);
@@ -797,15 +824,11 @@ const DEFAULT_API_CACHE_TTL = 180;
  * @returns Parsed JSON response
  */
 export async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number = DEFAULT_API_CACHE_TTL): Promise<any> {
-  // Build cache key using URL object - handles empty params correctly
-  const cacheUrl = new URL(url, baseUrl);
-  cacheUrl.search = new URLSearchParams(data as Record<string, string>).toString();
-  const cacheKey = cacheUrl.href;
-  const cache = caches.default;
+  const cacheKey = getCacheKey(url, data);
 
   // Check cache first
   if (cacheTtl > 0) {
-    const cached = await cache.match(cacheKey);
+    const cached = await caches.default.match(cacheKey);
     if (cached) {
       return cached.json();
     }
@@ -814,13 +837,9 @@ export async function cachedPostRequest(data: Record<string, string | number | b
   // Fetch from kernel
   const response = await postRequest(data, url);
 
-  // Cache successful responses
+  // Cache using cacheResponse helper
   if (cacheTtl > 0 && response.code === 0) {
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Cache-Control': `public, max-age=${cacheTtl}`,
-    });
-    waitUntil(cache.put(cacheKey, new Response(JSON.stringify(response), { status: 200, headers })));
+    cacheResponse(response, new Headers(), cacheKey, cacheTtl);
   }
 
   return response;
@@ -836,27 +855,36 @@ export async function cachedPostRequest(data: Record<string, string | number | b
  * @returns Response object for the caller
  */
 export function cacheResponse(
-  body: Uint8Array | ReadableStream<Uint8Array>,
+  body: BodyInit | object,
   headers: Headers,
   cacheKey: string,
   cacheTtl: number
 ): Response {
+  // Auto-stringify plain objects
+  let data: BodyInit;
+  if (isPlainObject(body)) {
+    headers.set('Content-Type', 'application/json');
+    data = JSON.stringify(body);
+  } else {
+    data = body as BodyInit;
+  }
+
   if (cacheTtl > 0) {
     const cache = caches.default;
     const cacheHeaders = new Headers(headers);
     cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
 
-    if (body instanceof Uint8Array) {
-      waitUntil(cache.put(cacheKey, new Response(body, { status: 200, headers: cacheHeaders })));
-      return new Response(body, { status: 200, headers });
+    // ReadableStream needs tee() to split for cache vs return
+    if (data instanceof ReadableStream) {
+      const [cacheStream, returnStream] = data.tee();
+      waitUntil(cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders })));
+      return new Response(returnStream, { status: 200, headers });
     }
 
-    const [cacheStream, returnStream] = body.tee();
-    waitUntil(cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders })));
-    return new Response(returnStream, { status: 200, headers });
+    waitUntil(cache.put(cacheKey, new Response(data, { status: 200, headers: cacheHeaders })));
   }
 
-  return new Response(body, { status: 200, headers });
+  return new Response(data, { status: 200, headers });
 }
 
 /** Normalize file path: ensure leading slash, collapse double slashes, remove trailing slash */

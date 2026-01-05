@@ -4,14 +4,14 @@
  */
 
 import { z } from 'zod';
-import { createErrorResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
-import { checkIdValid, isADocId, getDocDBitem } from '../syapi/custom';
+import { isADocId } from '../syapi/custom';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { filterBlock } from '../utils/filterCheck';
+import { validateBlockAccess, filterBlock } from '../utils/filterCheck';
 
 export class DocWriteToolProvider extends McpToolsProvider<any> {
   async getTools(): Promise<McpTool<any>[]> {
@@ -112,19 +112,14 @@ async function appendBlockHandler(params: { id: string; markdownContent: string 
   const { id, markdownContent } = params;
   debugPush('Append to document API called');
 
-  checkIdValid(id);
   if (!(await isADocId(id))) {
-    return createErrorResponse("Failed to append to document: The provided ID is not the document's ID.");
+    throw new Error("Failed to append to document: The provided ID is not a document ID.");
   }
-  if (await filterBlock(id, null)) {
-    return createErrorResponse(
-      'The specified document or block is excluded by the user settings. So cannot write or read.'
-    );
-  }
+  await validateBlockAccess(id, { requireDoc: true });
 
   const result = await appendBlockAPI(markdownContent, id);
   if (result == null) {
-    return createErrorResponse('Failed to append to the document');
+    throw new Error('Failed to append to the document');
   }
 
   taskManager.insert(result.id, markdownContent, 'appendToDocEnd', { docId: id }, TASK_STATUS.APPROVED);
@@ -135,7 +130,7 @@ async function createNewNoteUnder(params: { parentId: string; title: string; mar
   const { parentId, title, markdownContent } = params;
 
   if (await filterBlock(parentId, null)) {
-    return createErrorResponse(
+    throw new Error(
       'The specified document or block is excluded by the user settings, so cannot create a new note under it.'
     );
   }
@@ -148,29 +143,18 @@ async function createNewNoteUnder(params: { parentId: string; title: string; mar
     return createSuccessResponse(newDocId);
   }
 
-  return createErrorResponse('An Error Occurred');
+  throw new Error('An Error Occurred');
 }
 
 async function renameDocHandler(params: { id: string; title: string }) {
   const { id, title } = params;
   debugPush('Rename document API called');
 
-  checkIdValid(id);
-  if (!(await isADocId(id))) {
-    return createErrorResponse('The provided ID is not a document ID.');
-  }
-  if (await filterBlock(id, null)) {
-    return createErrorResponse('The specified document is excluded by the user settings.');
-  }
-
-  const docInfo = await getDocDBitem(id);
-  if (!docInfo) {
-    return createErrorResponse('Document not found.');
-  }
+  const { dbItem: docInfo } = await validateBlockAccess(id, { requireDoc: true });
 
   const result = await renameDocAPI(docInfo.box, docInfo.path, title);
   if (!result) {
-    return createErrorResponse('Failed to rename the document');
+    throw new Error('Failed to rename the document');
   }
 
   return createSuccessResponse(title);
@@ -180,22 +164,11 @@ async function removeDocHandler(params: { id: string }) {
   const { id } = params;
   debugPush('Remove document API called');
 
-  checkIdValid(id);
-  if (!(await isADocId(id))) {
-    return createErrorResponse('The provided ID is not a document ID.');
-  }
-  if (await filterBlock(id, null)) {
-    return createErrorResponse('The specified document is excluded by the user settings.');
-  }
-
-  const docInfo = await getDocDBitem(id);
-  if (!docInfo) {
-    return createErrorResponse('Document not found.');
-  }
+  const { dbItem: docInfo } = await validateBlockAccess(id, { requireDoc: true });
 
   const result = await removeDocAPI(docInfo.box, docInfo.path);
   if (!result) {
-    return createErrorResponse('Failed to remove the document');
+    throw new Error('Failed to remove the document');
   }
 
   taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
@@ -207,7 +180,7 @@ async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string;
   debugPush('Move documents API called');
 
   if (!fromDocs || fromDocs.length === 0) {
-    return createErrorResponse('Please provide at least one document ID or path to move.');
+    throw new Error('Please provide at least one document ID or path to move.');
   }
 
   // Process each entry - could be an ID or a full path
@@ -219,18 +192,7 @@ async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string;
       fromPaths.push(doc);
     } else {
       // It's a document ID - look up the path
-      checkIdValid(doc);
-      if (!(await isADocId(doc))) {
-        return createErrorResponse(`"${doc}" is not a valid document ID.`);
-      }
-      if (await filterBlock(doc, null)) {
-        return createErrorResponse(`The document "${doc}" is excluded by the user settings.`);
-      }
-
-      const docInfo = await getDocDBitem(doc);
-      if (!docInfo) {
-        return createErrorResponse(`Document "${doc}" not found.`);
-      }
+      const { dbItem: docInfo } = await validateBlockAccess(doc, { requireDoc: true });
       // Full path format: notebook/path
       fromPaths.push(`${docInfo.box}${docInfo.path}`);
     }
@@ -238,7 +200,7 @@ async function moveDocsHandler(params: { fromDocs: string[]; toNotebook: string;
 
   const result = await moveDocsAPI(fromPaths, toNotebook, toPath);
   if (!result) {
-    return createErrorResponse('Failed to move the documents');
+    throw new Error('Failed to move the documents');
   }
 
   return createSuccessResponse(`Moved ${fromDocs.length} documents`);
