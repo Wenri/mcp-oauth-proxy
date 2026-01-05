@@ -3,7 +3,8 @@
  */
 
 import { z } from 'zod';
-import { createJsonResponse } from '../utils/mcpResponse';
+import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
+import { createJsonResponse, createImageContent, createAudioContent } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/filterCheck';
 import { resolveContentAuto, type ContentType } from '../utils/contentResolver';
@@ -86,6 +87,8 @@ interface ProcessedFile {
   name: string;
   data: Blob;
   mimeType: string;
+  remote?: boolean;      // True if fetched from URL
+  rawData?: Uint8Array;  // Raw data for LLM preview (images/audio)
 }
 
 async function uploadAssetsHandler(params: {
@@ -123,6 +126,8 @@ async function uploadAssetsHandler(params: {
       name: resolved.fileName || file.fileName!,
       data: resolved.blob,
       mimeType: resolved.mimeType,
+      remote: resolved.remote,
+      rawData: resolved.data,
     });
   }
 
@@ -153,12 +158,27 @@ async function uploadAssetsHandler(params: {
     }
   }
 
+  // Build preview content for remote images/audio (for LLM to see)
+  const previewContent: ContentBlock[] = [];
+  for (const file of processedFiles) {
+    if (!file.remote || !file.rawData) continue;
+    const assetPath = result.succMap[file.name];
+    if (!assetPath) continue;
+
+    const base64 = file.rawData.toBase64();
+    if (file.mimeType.startsWith('image/')) {
+      previewContent.push(createImageContent(base64, file.mimeType));
+    } else if (file.mimeType.startsWith('audio/')) {
+      previewContent.push(createAudioContent(base64, file.mimeType));
+    }
+  }
+
   return createJsonResponse({
     uploadedCount: Object.keys(result.succMap).length,
     failedCount: result.errFiles?.length || 0,
     succMap: result.succMap,
     errFiles: result.errFiles || [],
     insertedBlockIds,
-  });
+  }, previewContent.length > 0 ? previewContent : undefined);
 }
 

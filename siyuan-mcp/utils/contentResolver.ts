@@ -35,6 +35,8 @@ export interface ResolvedContent {
   mimeType: string;
   fileName?: string; // For URL type, auto-detected filename
   size?: number;     // For URL type, actual size
+  remote?: boolean;  // True if fetched from URL (for LLM preview)
+  data?: Uint8Array; // Raw data for preview (images/audio)
 }
 
 /** Options for content resolution */
@@ -335,6 +337,8 @@ async function fetchFromUrl(
     mimeType,
     fileName,
     size: totalSize,
+    remote: true,
+    data, // Include raw data for LLM preview
   };
 }
 
