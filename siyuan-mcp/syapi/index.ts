@@ -413,11 +413,11 @@ export async function unfoldBlockAPI(id: BlockId): Promise<boolean> {
 }
 
 /** Get block Kramdown source (cached for 60s) */
-export async function getKramdown(blockid: BlockId, throwError = false): Promise<string | null> {
+export async function getKramdown(blockid: BlockId, throwError = false): Promise<KramdownResult | null> {
   const url = '/api/block/getBlockKramdown';
   const response = await cachedPostRequest({ id: blockid }, url) as APIResponse<KramdownResult>;
-  if (response.code === 0 && response.data?.kramdown) {
-    return response.data.kramdown;
+  if (response.code === 0 && response.data) {
+    return response.data;
   }
   if (throwError) {
     throw new Error(`get kramdown failed: ${response.msg}`);

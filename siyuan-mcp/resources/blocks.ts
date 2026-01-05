@@ -72,15 +72,15 @@ export class BlockResourceProvider extends McpResourceProvider {
         }
 
         // Other blocks: return kramdown
-        const kramdown = await getKramdown(id);
-        if (!kramdown) {
+        const result = await getKramdown(id);
+        if (!result) {
           return { contents: [{ uri: uri.href, text: `Failed to read block: ${id}` }] };
         }
         return {
           contents: [{
             uri: uri.href,
             mimeType: 'text/markdown',
-            text: kramdown,
+            text: result.kramdown,
           }],
         };
       }

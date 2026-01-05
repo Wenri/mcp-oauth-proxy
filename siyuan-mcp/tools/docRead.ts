@@ -72,7 +72,8 @@ export class DocReadToolProvider extends McpToolsProvider {
           id: z.string().describe('The unique identifier of the block'),
         },
         outputSchema: {
-          kramdown: z.string().describe('The block content in Kramdown format with preserved formatting'),
+          id: z.string().describe('The block ID'),
+          kramdown: z.string().describe('Block content in Kramdown format (Markdown with IAL attributes like {: id="..." })'),
         },
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
@@ -182,15 +183,12 @@ async function kramdownReadHandler(params: { id: BlockId }) {
     }
   }
 
-  const kramdown = await getKramdown(id);
-  const content = kramdown || '';
+  const result = await getKramdown(id);
+  if (!result) {
+    throw new Error('Failed to get block kramdown content.');
+  }
 
-  return createJsonResponse(
-    {
-      kramdown: content,
-    },
-    otherImg
-  );
+  return createJsonResponse(result, otherImg);
 }
 
 async function getAssets(id: BlockId): Promise<ContentBlock[]> {
