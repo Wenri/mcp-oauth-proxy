@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
-import { createJsonResponse, createResourceLink, blobToContentBlock } from '../utils/mcpResponse';
+import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MAX_INLINE_ASSET_SIZE } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
 import { getEffectiveMimeType } from '../utils/contentType';
 import { getConfig } from '..';
@@ -193,9 +193,6 @@ async function kramdownReadHandler(params: { id: BlockId }) {
   );
 }
 
-const MAX_INLINE_ASSET_SIZE = 2 * 1024 * 1024; // 2MB per asset
-const MAX_TOTAL_INLINE_SIZE = 5 * 1024 * 1024; // 5MB total
-
 async function getAssets(id: BlockId): Promise<ContentBlock[]> {
   const assetsInfo = await getBlockAssets(id);
 
@@ -217,35 +214,24 @@ async function getAssets(id: BlockId): Promise<ContentBlock[]> {
     const mimeType = getEffectiveMimeType(response, path);
     const contentLength = response.headers.get('Content-Length');
     const size = contentLength ? parseInt(contentLength, 10) : null;
+    const uri = `syfile:///data/${path}`;
 
-    // For large files or when total inline size exceeded, return ResourceLink
+    // Early check using Content-Length header (optimization - skip reading large files)
     if (size && size > MAX_INLINE_ASSET_SIZE) {
       logPush('Asset too large, returning resource link', path, size);
       const fileName = path.split('/').pop() || path;
-      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
-      continue;
-    }
-
-    if (inlineSizeSum > MAX_TOTAL_INLINE_SIZE) {
-      logPush('Total inline size exceeded, returning resource link', path);
-      const fileName = path.split('/').pop() || path;
-      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
+      contentBlocks.push(createResourceLink(uri, fileName, mimeType));
       continue;
     }
 
     const blob = await response.blob();
     logPush('Asset blob', path, blob.size);
 
-    // Double-check size after reading (in case Content-Length was missing)
-    if (blob.size > MAX_INLINE_ASSET_SIZE) {
-      logPush('Asset too large after read, returning resource link', path, blob.size);
-      const fileName = path.split('/').pop() || path;
-      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
-      continue;
-    }
-
-    inlineSizeSum += blob.size;
-    contentBlocks.push(await blobToContentBlock(blob, mimeType, `syfile:///data/${path}`));
+    const { block, inlineSize } = await blobToContentBlockWithLimit(
+      blob, mimeType, uri, MAX_INLINE_ASSET_SIZE, inlineSizeSum
+    );
+    contentBlocks.push(block);
+    inlineSizeSum += inlineSize;
   }
 
   return contentBlocks;

@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
-import { createJsonResponse, blobToContentBlock } from '../utils/mcpResponse';
+import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MAX_INLINE_ASSET_SIZE } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
@@ -134,15 +134,28 @@ async function uploadAssetsHandler(params: {
     }
   }
 
-  // Build preview content for remote images/audio (for LLM to see)
+  // Build preview content for images/audio (for LLM to see)
   const previewContent: ContentBlock[] = [];
+  let inlineSizeSum = 0;
   for (const file of processedFiles) {
-    if (!file.remote) continue;
     const assetPath = result.succMap[file.name];
     if (!assetPath) continue;
 
-    if (file.type.startsWith('image/') || file.type.startsWith('audio/')) {
-      previewContent.push(await blobToContentBlock(file, file.type, `syfile://${assetPath}`));
+    // Only preview image/audio content
+    if (!file.type.startsWith('image/') && !file.type.startsWith('audio/')) continue;
+
+    const uri = `syfile://${assetPath}`;
+
+    if (file.remote) {
+      // Remote content: apply size limits (inline if small, ResourceLink if large)
+      const { block, inlineSize } = await blobToContentBlockWithLimit(
+        file, file.type, uri, MAX_INLINE_ASSET_SIZE, inlineSizeSum
+      );
+      previewContent.push(block);
+      inlineSizeSum += inlineSize;
+    } else {
+      // Uploaded content: always ResourceLink (no inline preview)
+      previewContent.push(createResourceLink(uri, file.name, file.type));
     }
   }
 

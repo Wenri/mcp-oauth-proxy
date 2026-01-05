@@ -242,6 +242,12 @@ export function createResourceLink(uri: string, name: string, mimeType: string):
   };
 }
 
+/** Maximum size for inline content per asset (2MB) */
+export const MAX_INLINE_ASSET_SIZE = 2 * 1024 * 1024;
+
+/** Maximum total size for all inline content (5MB) */
+export const MAX_TOTAL_INLINE_SIZE = 5 * 1024 * 1024;
+
 /**
  * Convert a Blob to an appropriate MCP ContentBlock based on content type.
  *
@@ -279,4 +285,39 @@ export async function blobToContentBlock(blob: Blob, mimeType: string, resourceU
 
   // Other binary: return as EmbeddedResource with blob
   return createBlobResource(resourceUri, base64Data, mimeType);
+}
+
+/**
+ * Convert a Blob to ContentBlock with size limits.
+ * Returns ResourceLink for oversized content, inline content otherwise.
+ *
+ * @param blob - The blob to convert
+ * @param mimeType - MIME type of the content
+ * @param resourceUri - URI for the resource
+ * @param maxSize - Maximum size for inline content (default: MAX_INLINE_ASSET_SIZE)
+ * @param currentTotalSize - Current total inline size for limit checking
+ * @returns Object with block and inlineSize (0 for ResourceLink, blob.size for inline)
+ */
+export async function blobToContentBlockWithLimit(
+  blob: Blob,
+  mimeType: string,
+  resourceUri: string,
+  maxSize: number = MAX_INLINE_ASSET_SIZE,
+  currentTotalSize: number = 0
+): Promise<{ block: ContentBlock; inlineSize: number }> {
+  const name = resourceUri.split('/').pop() || resourceUri;
+
+  // Check individual size limit
+  if (blob.size > maxSize) {
+    return { block: createResourceLink(resourceUri, name, mimeType), inlineSize: 0 };
+  }
+
+  // Check total size limit
+  if (currentTotalSize > MAX_TOTAL_INLINE_SIZE) {
+    return { block: createResourceLink(resourceUri, name, mimeType), inlineSize: 0 };
+  }
+
+  // Convert to inline content
+  const block = await blobToContentBlock(blob, mimeType, resourceUri);
+  return { block, inlineSize: blob.size };
 }
