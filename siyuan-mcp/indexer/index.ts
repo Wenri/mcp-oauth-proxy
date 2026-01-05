@@ -6,7 +6,8 @@
  */
 
 import type { SiyuanMCPConfig } from '..';
-import { initKernel, queryAPI, exportMdContent } from '../syapi';
+import { initKernel, exportMdContent } from '../syapi';
+import { cachedQuery } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
@@ -198,8 +199,9 @@ export async function queueRecentDocuments(
     .slice(0, 14);
 
   // Query for recently updated documents
-  const sql = `SELECT id FROM blocks WHERE type = 'd' AND updated >= '${sinceStr}' LIMIT ${config.MAX_DOCUMENTS || 100}`;
-  const result = await queryAPI(sql);
+  const maxDocs = config.MAX_DOCUMENTS || 100;
+  const stmt = `SELECT id FROM blocks WHERE type = 'd' AND updated >= '${sinceStr}' LIMIT ${maxDocs}`;
+  const result = await cachedQuery<{ id: string }>('/custom/recentDocs', { sinceStr, maxDocs }, stmt);
 
   if (!result || result.length === 0) {
     debugPush('No recently updated documents found');
@@ -208,7 +210,7 @@ export async function queueRecentDocuments(
 
   // Add to queue
   const queue = new IndexQueue(kv);
-  const ids = result.map((row: any) => row.id);
+  const ids = result.map((row) => row.id);
   await queue.enqueue(ids);
 
   logPush(`Queued ${ids.length} documents for indexing`);
@@ -227,8 +229,8 @@ export async function queueAllDocuments(
   initKernel(config.SIYUAN_KERNEL_URL!, config.SIYUAN_KERNEL_TOKEN);
 
   // Query for all documents
-  const sql = `SELECT id FROM blocks WHERE type = 'd' LIMIT ${maxDocuments}`;
-  const result = await queryAPI(sql);
+  const stmt = `SELECT id FROM blocks WHERE type = 'd' LIMIT ${maxDocuments}`;
+  const result = await cachedQuery<{ id: string }>('/custom/allDocs', { maxDocuments }, stmt);
 
   if (!result || result.length === 0) {
     debugPush('No documents found');
@@ -237,7 +239,7 @@ export async function queueAllDocuments(
 
   // Add to queue
   const queue = new IndexQueue(kv);
-  const ids = result.map((row: any) => row.id);
+  const ids = result.map((row) => row.id);
   await queue.enqueue(ids);
 
   logPush(`Queued ${ids.length} documents for full reindex`);
