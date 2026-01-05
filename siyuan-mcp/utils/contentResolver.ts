@@ -1,9 +1,27 @@
 /**
  * Unified content resolver for file uploads
- * Converts various content types to binary blobs
+ * Handles content conversion (text, base64, hex, json) and URL fetching
  */
 
-import { fetchFromUrl } from './urlFetch';
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Maximum file size for URL fetch: 50 MB */
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+/** Fetch timeout: 30 seconds (aligned with CF Workers limits) */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/** Export configuration constants for reference */
+export const CONTENT_RESOLVER_CONFIG = {
+  MAX_FILE_SIZE,
+  FETCH_TIMEOUT_MS,
+} as const;
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /** Supported content types */
 export type ContentType = 'text' | 'base64' | 'hex' | 'json' | 'url';
@@ -13,6 +31,7 @@ export interface ResolvedContent {
   blob: Blob;
   mimeType: string;
   fileName?: string; // For URL type, auto-detected filename
+  size?: number;     // For URL type, actual size
 }
 
 /** Options for content resolution */
@@ -23,9 +42,26 @@ export interface ResolveOptions {
   defaultType?: ContentType;
 }
 
-/**
- * MIME type detection from file extension
- */
+/** URL fetch error codes */
+export type UrlFetchErrorCode = 'TIMEOUT' | 'TOO_LARGE' | 'NETWORK' | 'INVALID_URL' | 'HTTP_ERROR';
+
+/** Error class for URL fetch failures */
+export class UrlFetchError extends Error {
+  constructor(
+    message: string,
+    public readonly code: UrlFetchErrorCode,
+    public readonly statusCode?: number
+  ) {
+    super(message);
+    this.name = 'UrlFetchError';
+  }
+}
+
+// ============================================================================
+// MIME Type Mappings
+// ============================================================================
+
+/** Extension to MIME type mapping */
 const EXT_TO_MIME: Record<string, string> = {
   // Images
   png: 'image/png',
@@ -74,6 +110,11 @@ const EXT_TO_MIME: Record<string, string> = {
   gz: 'application/gzip',
 };
 
+/** MIME type to extension mapping (for URL fetch fallback filename) */
+const MIME_TO_EXT: Record<string, string> = Object.fromEntries(
+  Object.entries(EXT_TO_MIME).map(([ext, mime]) => [mime, ext])
+);
+
 /**
  * Get MIME type from file name
  */
@@ -81,6 +122,18 @@ export function getMimeType(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   return EXT_TO_MIME[ext] || 'application/octet-stream';
 }
+
+/**
+ * Get file extension from MIME type
+ */
+function getExtensionFromMime(mimeType: string): string {
+  const baseMime = mimeType.split(';')[0].trim();
+  return MIME_TO_EXT[baseMime] || 'bin';
+}
+
+// ============================================================================
+// Binary Decoders
+// ============================================================================
 
 /**
  * Decode hex string to Uint8Array
@@ -114,6 +167,177 @@ function base64ToBytes(base64: string): Uint8Array {
   }
   return bytes;
 }
+
+// ============================================================================
+// URL Fetch
+// ============================================================================
+
+/**
+ * Extract filename from URL or Content-Disposition header
+ */
+function extractFileName(url: string, headers: Headers): string | null {
+  // Try Content-Disposition header first (RFC 6266)
+  const contentDisposition = headers.get('Content-Disposition');
+  if (contentDisposition) {
+    // Match filename*= (RFC 5987 encoded) or filename= (quoted or unquoted)
+    const filenameMatch = contentDisposition.match(
+      /filename\*?=['"]?(?:UTF-8'')?([^;\s"']+)['"]?/i
+    );
+    if (filenameMatch) {
+      try {
+        return decodeURIComponent(filenameMatch[1]);
+      } catch {
+        return filenameMatch[1];
+      }
+    }
+  }
+
+  // Fall back to URL path
+  try {
+    const urlObj = new URL(url);
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    const lastSegment = pathSegments.pop();
+    if (lastSegment && lastSegment.includes('.')) {
+      return decodeURIComponent(lastSegment);
+    }
+  } catch {
+    // Invalid URL - handled elsewhere
+  }
+
+  return null;
+}
+
+/**
+ * Fetch file from URL with size limit and timeout
+ *
+ * @param url - URL to fetch from (http/https only)
+ * @param providedFileName - Optional filename override
+ * @returns ResolvedContent with blob, filename, mimeType, and size
+ * @throws UrlFetchError on failure
+ */
+async function fetchFromUrl(
+  url: string,
+  providedFileName?: string
+): Promise<ResolvedContent> {
+  // Validate URL
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new UrlFetchError(`Invalid URL: ${url}`, 'INVALID_URL');
+  }
+
+  // Only allow http/https
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new UrlFetchError(
+      `Unsupported protocol: ${parsedUrl.protocol}. Only http/https allowed.`,
+      'INVALID_URL'
+    );
+  }
+
+  // Fetch with timeout
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: {
+        'User-Agent': 'SiYuan-MCP/1.0',
+        'Accept': '*/*',
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        throw new UrlFetchError(
+          `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s`,
+          'TIMEOUT'
+        );
+      }
+      throw new UrlFetchError(`Network error: ${error.message}`, 'NETWORK');
+    }
+    throw new UrlFetchError('Unknown network error', 'NETWORK');
+  }
+
+  if (!response.ok) {
+    throw new UrlFetchError(
+      `HTTP ${response.status}: ${response.statusText}`,
+      'HTTP_ERROR',
+      response.status
+    );
+  }
+
+  // Check Content-Length if available (early rejection for large files)
+  const contentLength = response.headers.get('Content-Length');
+  if (contentLength) {
+    const size = parseInt(contentLength, 10);
+    if (size > MAX_FILE_SIZE) {
+      throw new UrlFetchError(
+        `File too large: ${(size / 1024 / 1024).toFixed(1)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
+        'TOO_LARGE'
+      );
+    }
+  }
+
+  // Read response body with streaming size check
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    throw new UrlFetchError('Response body is empty', 'NETWORK');
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalSize += value.length;
+      if (totalSize > MAX_FILE_SIZE) {
+        throw new UrlFetchError(
+          `File too large: exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
+          'TOO_LARGE'
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Combine chunks into single array
+  const data = new Uint8Array(totalSize);
+  let offset = 0;
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Determine MIME type from response headers
+  const mimeType = response.headers.get('Content-Type')?.split(';')[0].trim()
+    || 'application/octet-stream';
+
+  // Determine filename (priority: provided > header > URL > generated)
+  let fileName = providedFileName || extractFileName(url, response.headers);
+  if (!fileName) {
+    const ext = getExtensionFromMime(mimeType);
+    fileName = `download-${Date.now()}.${ext}`;
+  }
+
+  // Create blob with detected MIME type
+  const blob = new Blob([data], { type: mimeType });
+
+  return {
+    blob,
+    mimeType,
+    fileName,
+    size: totalSize,
+  };
+}
+
+// ============================================================================
+// Content Resolution
+// ============================================================================
 
 /**
  * Infer content type from content value
@@ -164,12 +388,7 @@ export async function resolveContent(
       if (typeof content !== 'string') {
         throw new Error('URL content must be a string');
       }
-      const result = await fetchFromUrl(content, fileName);
-      return {
-        blob: result.blob,
-        mimeType: result.mimeType,
-        fileName: result.fileName,
-      };
+      return fetchFromUrl(content, fileName);
     }
 
     case 'hex': {
