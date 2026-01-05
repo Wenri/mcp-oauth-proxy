@@ -46,17 +46,16 @@ export class DocReadToolProvider extends McpToolsProvider {
           id: z.string().describe('The unique identifier of the document or block'),
           offset: z
             .number()
-            .default(0)
-            .describe('The starting character offset for partial content reading (for pagination/large docs)'),
+            .optional()
+            .describe('Starting character offset for partial reading (default: 0)'),
           limit: z
             .number()
-            .default(10000)
-            .describe('The maximum number of characters to return in this request'),
+            .optional()
+            .describe('Maximum characters to return (default: unlimited)'),
         },
         outputSchema: {
-          content: z.string().describe('The markdown content of the document/block (sliced by offset/limit)'),
+          content: z.string().describe('The markdown content (sliced if offset/limit provided)'),
           offset: z.number().describe('The starting offset used'),
-          limit: z.number().describe('The limit used'),
           hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
           totalLength: z.number().describe('Total length of the full content in characters'),
         },
@@ -70,10 +69,20 @@ export class DocReadToolProvider extends McpToolsProvider {
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
         inputSchema: {
           id: z.string().describe('The unique identifier of the block'),
+          offset: z
+            .number()
+            .optional()
+            .describe('Starting character offset for partial reading (default: 0)'),
+          limit: z
+            .number()
+            .optional()
+            .describe('Maximum characters to return (default: unlimited)'),
         },
         outputSchema: {
-          id: z.string().describe('The block ID'),
           kramdown: z.string().describe('Block content in Kramdown format (Markdown with IAL attributes like {: id="..." })'),
+          offset: z.number().describe('The starting offset used'),
+          hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
+          totalLength: z.number().describe('Total length of the full content in characters'),
         },
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
@@ -131,7 +140,7 @@ export class DocReadToolProvider extends McpToolsProvider {
 }
 
 async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: number }) {
-  const { id, offset = 0, limit = 10000 } = params;
+  const { id, offset = 0, limit } = params;
   debugPush('Reading document content');
 
   const dbItem = await validateBlockAccess(id);
@@ -154,14 +163,13 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
   }
 
   const content = markdown['content'] || '';
-  const sliced = content.slice(offset, offset + limit);
-  const hasMore = offset + limit < content.length;
+  const sliced = limit !== undefined ? content.slice(offset, offset + limit) : content.slice(offset);
+  const hasMore = limit !== undefined ? offset + limit < content.length : false;
 
   return createJsonResponse(
     {
       content: sliced,
       offset,
-      limit,
       hasMore,
       totalLength: content.length,
     },
@@ -169,8 +177,8 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
   );
 }
 
-async function kramdownReadHandler(params: { id: BlockId }) {
-  const { id } = params;
+async function kramdownReadHandler(params: { id: BlockId; offset?: number; limit?: number }) {
+  const { id, offset = 0, limit } = params;
 
   const dbItem = await validateBlockAccess(id);
 
@@ -188,7 +196,19 @@ async function kramdownReadHandler(params: { id: BlockId }) {
     throw new Error('Failed to get block kramdown content.');
   }
 
-  return createJsonResponse(result, otherImg);
+  const content = result.kramdown;
+  const sliced = limit !== undefined ? content.slice(offset, offset + limit) : content.slice(offset);
+  const hasMore = limit !== undefined ? offset + limit < content.length : false;
+
+  return createJsonResponse(
+    {
+      kramdown: sliced,
+      offset,
+      hasMore,
+      totalLength: content.length,
+    },
+    otherImg
+  );
 }
 
 async function getAssets(id: BlockId): Promise<ContentBlock[]> {
