@@ -1,4 +1,4 @@
-import type { CallToolResult, ImageContent, AudioContent, ContentBlock } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ImageContent, AudioContent, EmbeddedResource, ResourceLink, ContentBlock } from "@modelcontextprotocol/sdk/types.js";
 import YAML from "yaml";
 
 /**
@@ -157,5 +157,86 @@ export function createErrorResponse(errorMessage: string): CallToolResult {
   return {
     content: [{ type: "text", text: errorMessage }],
     isError: true,
+  };
+}
+
+/**
+ * Create an EmbeddedResource with text content for inclusion in content array.
+ *
+ * @param uri - Resource URI (e.g., "file:///data/config.json")
+ * @param text - The text content
+ * @param mimeType - MIME type (e.g., "text/plain", "application/json")
+ * @returns EmbeddedResource block to include in content array
+ *
+ * @example
+ * ```ts
+ * return createJsonResponse(
+ *   { path: "/data/config.json", type: "text" },
+ *   [createTextResource("file:///data/config.json", jsonContent, "application/json")]
+ * );
+ * ```
+ */
+export function createTextResource(uri: string, text: string, mimeType: string): EmbeddedResource {
+  return {
+    type: "resource",
+    resource: {
+      uri,
+      mimeType,
+      text,
+    },
+  };
+}
+
+/**
+ * Create an EmbeddedResource with blob (binary) content for inclusion in content array.
+ *
+ * @param uri - Resource URI (e.g., "file:///data/document.pdf")
+ * @param base64Data - Base64 encoded binary data
+ * @param mimeType - MIME type (e.g., "application/pdf", "application/zip")
+ * @returns EmbeddedResource block to include in content array
+ *
+ * @example
+ * ```ts
+ * return createJsonResponse(
+ *   { path: "/data/document.pdf", type: "binary" },
+ *   [createBlobResource("file:///data/document.pdf", base64Data, "application/pdf")]
+ * );
+ * ```
+ */
+export function createBlobResource(uri: string, base64Data: string, mimeType: string): EmbeddedResource {
+  return {
+    type: "resource",
+    resource: {
+      uri,
+      mimeType,
+      blob: base64Data,
+    },
+  };
+}
+
+/**
+ * Create a ResourceLink (URI reference without inline content).
+ * Client can fetch the actual content via the resource handler.
+ *
+ * @param uri - Resource URI (e.g., "syfile:///data/large-file.pdf")
+ * @param name - Display name for the resource
+ * @param mimeType - MIME type of the resource
+ * @returns ResourceLink block for inclusion in content array
+ *
+ * @example
+ * ```ts
+ * // For large files, return reference instead of inline content
+ * return createJsonResponse(
+ *   { path: "/data/large-file.pdf", type: "binary" },
+ *   [createResourceLink("syfile:///data/large-file.pdf", "large-file.pdf", "application/pdf")]
+ * );
+ * ```
+ */
+export function createResourceLink(uri: string, name: string, mimeType: string): ResourceLink {
+  return {
+    type: "resource_link",
+    uri,
+    name,
+    mimeType,
   };
 }

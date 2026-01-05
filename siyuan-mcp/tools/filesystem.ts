@@ -3,7 +3,8 @@
  */
 
 import { z } from 'zod';
-import { createJsonResponse, createArrayResponse, createSuccessResponse } from '../utils/mcpResponse';
+import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
+import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
 import { McpToolsProvider } from './baseToolProvider';
@@ -17,7 +18,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_read_file',
         description:
-          'Read a file from SiYuan workspace. For text files (detected via Content-Type or extension), returns the content directly. For binary files (images, etc.), returns metadata with a download URL.',
+          'Read a file from SiYuan workspace. For text files, returns content in structured data. For media files (images/audio), returns metadata in structured data and the binary content as separate MCP content blocks. For other binary files, returns metadata with download URL only.',
         inputSchema: {
           path: z
             .string()
@@ -25,12 +26,10 @@ export class FileSystemToolProvider extends McpToolsProvider {
         },
         outputSchema: {
           path: z.string().describe('Path of the file'),
-          content: z.string().optional().describe('File content (text or base64 encoded)'),
-          type: z.enum(['text', 'binary']).describe('Whether the file is text or binary'),
+          type: z.enum(['text', 'image', 'audio', 'binary']).describe('Content type: text/image/audio (in extraContent), binary (download only)'),
           mimeType: z.string().describe('MIME type of the file'),
           downloadUrl: z.string().describe('URL to download the file'),
           expiresAt: z.string().nullable().describe('When the download URL expires'),
-          encoding: z.string().optional().describe('Content encoding (e.g., "base64" for binary)'),
         },
         handler: readFileHandler,
         title: lang('tool_title_read_file'),
@@ -145,6 +144,24 @@ export class FileSystemToolProvider extends McpToolsProvider {
   }
 }
 
+/** Check if MIME type is an image */
+function isImageMime(mimeType: string): boolean {
+  return mimeType.startsWith('image/');
+}
+
+/** Check if MIME type is audio */
+function isAudioMime(mimeType: string): boolean {
+  return mimeType.startsWith('audio/');
+}
+
+/** Determine content type category */
+function getContentType(mimeType: string, path: string): 'text' | 'image' | 'audio' | 'binary' {
+  if (isTextMimeType(mimeType) || isTextExtension(path)) return 'text';
+  if (isImageMime(mimeType)) return 'image';
+  if (isAudioMime(mimeType)) return 'audio';
+  return 'binary';
+}
+
 async function readFileHandler(params: { path: string }) {
   const { path } = params;
   debugPush('Read file API called');
@@ -159,38 +176,67 @@ async function readFileHandler(params: { path: string }) {
     throw new Error('File not found or failed to read.');
   }
 
-  const contentType = response.headers.get('Content-Type') || '';
+  const mimeType = response.headers.get('Content-Type')?.split(';')[0].trim() || 'application/octet-stream';
   const downloadUrl = await buildDownloadUrl(path);
-  const isText = isTextMimeType(contentType) || isTextExtension(path);
   const expiresAt = cacheTtl > 0 ? new Date(Date.now() + cacheTtl * 1000).toISOString() : null;
+  const contentType = getContentType(mimeType, path);
 
   const MAX_INLINE_SIZE = 512 * 1024; // 512KB
   const contentLength = response.headers.get('Content-Length');
   const knownSize = contentLength ? parseInt(contentLength, 10) : null;
 
-  // Helper to return inline content
-  const returnInline = (data: Uint8Array) => {
-    if (isText) {
-      return createJsonResponse({ path, content: new TextDecoder().decode(data), type: 'text', mimeType: contentType, downloadUrl, expiresAt });
+  // Resource URI for syfile:// scheme (used by FileResourceProvider)
+  const resourceUri = `syfile://${path}`;
+
+  // Base metadata for all responses
+  const metadata = { path, type: contentType, mimeType, downloadUrl, expiresAt };
+
+  // Helper to create response with inline content
+  const createInlineResponse = (data: Uint8Array) => {
+    let extraContent: ContentBlock[];
+
+    if (contentType === 'text') {
+      // Text: return as simple text content block
+      extraContent = [{ type: 'text', text: new TextDecoder().decode(data) }];
+    } else if (contentType === 'image') {
+      // Image: return as image content block
+      extraContent = [createImageContent(data.toBase64(), mimeType)];
+    } else if (contentType === 'audio') {
+      // Audio: return as audio content block
+      extraContent = [createAudioContent(data.toBase64(), mimeType)];
+    } else {
+      // Other binary: return as embedded resource with blob
+      extraContent = [createBlobResource(resourceUri, data.toBase64(), mimeType)];
     }
-    return createJsonResponse({ path, content: data.toBase64(), type: 'binary', mimeType: contentType, downloadUrl, expiresAt, encoding: 'base64' });
+
+    return createJsonResponse(metadata, extraContent);
+  };
+
+  // Helper to create response with resource link (for large files)
+  const createRefResponse = () => {
+    // Return resource link - client can fetch via FileResourceProvider
+    const fileName = path.split('/').pop() || path;
+    const extraContent: ContentBlock[] = [createResourceLink(resourceUri, fileName, mimeType)];
+    return createJsonResponse(metadata, extraContent);
   };
 
   // Fast path: Content-Length tells us the size
   if (knownSize !== null) {
     if (knownSize <= MAX_INLINE_SIZE) {
       const data = new Uint8Array(await response.arrayBuffer());
-      return returnInline(data);
+      return createInlineResponse(data);
     }
-    return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
+    // Too large for inline - return resource reference
+    return createRefResponse();
   }
 
   // Slow path: No Content-Length, try limitedRead
   const data = await limitedRead(response.body!, MAX_INLINE_SIZE);
   if (data) {
-    return returnInline(data);
+    return createInlineResponse(data);
   }
-  return createJsonResponse({ path, type: 'binary', mimeType: contentType, downloadUrl, expiresAt });
+  // Too large or failed - return resource reference
+  return createRefResponse();
 }
 
 async function writeFileHandler(params: { path: string; content: string; isBase64?: boolean }) {

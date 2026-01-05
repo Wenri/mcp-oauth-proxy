@@ -4,9 +4,11 @@
 
 import { z } from 'zod';
 import mime from 'mime-types';
+import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
-import { createJsonResponse } from '../utils/mcpResponse';
+import { createJsonResponse, createResourceLink, createBlobResource } from '../utils/mcpResponse';
+import { isTextMimeType, isTextExtension } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { getConfig } from '..';
 import { getBlockAssets } from '../syapi/custom';
@@ -134,7 +136,7 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
 
   const dbItem = await validateBlockAccess(id);
 
-  let otherImg: MediaContentBlock[] = [];
+  let otherImg: ContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
       otherImg = await getAssets(id);
@@ -172,7 +174,7 @@ async function kramdownReadHandler(params: { id: BlockId }) {
 
   const dbItem = await validateBlockAccess(id);
 
-  let otherImg: MediaContentBlock[] = [];
+  let otherImg: ContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
       otherImg = await getAssets(id);
@@ -192,61 +194,74 @@ async function kramdownReadHandler(params: { id: BlockId }) {
   );
 }
 
-/** Check if MIME type is a supported media type (image or audio) */
-function isMediaMime(mimeType: string): boolean {
-  return mimeType.startsWith('image/') || mimeType.startsWith('audio/');
+/** Asset content type categories */
+type AssetType = 'image' | 'audio' | 'text' | 'binary';
+
+/** Determine asset type from MIME */
+function getAssetType(mimeType: string, path: string): AssetType {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (isTextMimeType(mimeType) || isTextExtension(path)) return 'text';
+  return 'binary';
 }
 
 /**
  * Get effective MIME type for a response.
- * Priority: response MIME (if media) > extension-based MIME (via mime-types)
+ * Priority: response MIME > extension-based MIME (via mime-types) > fallback
  */
-function getEffectiveMimeType(response: Response, path: string): string | null {
+function getEffectiveMimeType(response: Response, path: string): string {
   const contentType = response.headers.get('Content-Type') || '';
   const responseMime = contentType.split(';')[0].trim().toLowerCase();
 
-  // Trust response MIME if it's a known media type
-  if (isMediaMime(responseMime)) {
+  // Trust response MIME if it's not generic
+  if (responseMime && responseMime !== 'application/octet-stream') {
     return responseMime;
   }
 
   // Fall back to extension-based MIME using mime-types library
   const extMime = mime.lookup(path);
-  if (extMime && isMediaMime(extMime)) {
+  if (extMime) {
     return extMime;
   }
 
-  return null;
+  return 'application/octet-stream';
 }
 
-/** MCP media content block (image or audio) */
-type MediaContentBlock = {
-  type: 'image' | 'audio';
-  data: string;
-  mimeType: string;
-};
-
-/** Convert blob to MCP ContentBlock with explicit MIME type */
-async function blobToContentBlock(blob: Blob, mimeType: string): Promise<MediaContentBlock> {
+/** Convert blob to MCP ContentBlock based on asset type */
+async function blobToContentBlock(blob: Blob, mimeType: string, path: string): Promise<ContentBlock> {
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  const base64Data = btoa(binary);
+  const assetType = getAssetType(mimeType, path);
 
-  return {
-    type: mimeType.split('/')[0] as 'image' | 'audio',
-    data: base64Data,
-    mimeType,
-  };
+  if (assetType === 'text') {
+    // Text: return as TextContent
+    const text = new TextDecoder().decode(bytes);
+    return { type: 'text', text };
+  }
+
+  // Binary data needs base64 encoding
+  const base64Data = bytes.toBase64();
+
+  if (assetType === 'image') {
+    return { type: 'image', data: base64Data, mimeType };
+  }
+
+  if (assetType === 'audio') {
+    return { type: 'audio', data: base64Data, mimeType };
+  }
+
+  // Other binary: return as EmbeddedResource with blob
+  const resourceUri = `syfile:///data/${path}`;
+  return createBlobResource(resourceUri, base64Data, mimeType);
 }
 
-async function getAssets(id: BlockId): Promise<MediaContentBlock[]> {
+const MAX_INLINE_ASSET_SIZE = 2 * 1024 * 1024; // 2MB per asset
+const MAX_TOTAL_INLINE_SIZE = 5 * 1024 * 1024; // 5MB total
+
+async function getAssets(id: BlockId): Promise<ContentBlock[]> {
   const assetsInfo = await getBlockAssets(id);
 
-  // Fetch all assets in parallel, then filter by MIME type or extension
+  // Fetch all assets in parallel
   const allPaths = assetsInfo.map((item) => item.path);
 
   const fetchResults = await Promise.all(
@@ -255,33 +270,47 @@ async function getAssets(id: BlockId): Promise<MediaContentBlock[]> {
     )
   );
 
-  const contentBlocks: Promise<MediaContentBlock>[] = [];
-  let mediaLengthSum = 0;
+  const contentBlocks: ContentBlock[] = [];
+  let inlineSizeSum = 0;
 
   for (const { path, response } of fetchResults) {
     if (!response) continue;
 
-    // Determine MIME: trust response if media, fallback to extension
     const mimeType = getEffectiveMimeType(response, path);
-    if (!mimeType) continue;
+    const contentLength = response.headers.get('Content-Length');
+    const size = contentLength ? parseInt(contentLength, 10) : null;
+
+    // For large files or when total inline size exceeded, return ResourceLink
+    if (size && size > MAX_INLINE_ASSET_SIZE) {
+      logPush('Asset too large, returning resource link', path, size);
+      const fileName = path.split('/').pop() || path;
+      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
+      continue;
+    }
+
+    if (inlineSizeSum > MAX_TOTAL_INLINE_SIZE) {
+      logPush('Total inline size exceeded, returning resource link', path);
+      const fileName = path.split('/').pop() || path;
+      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
+      continue;
+    }
 
     const blob = await response.blob();
     logPush('Asset blob', path, blob.size);
 
-    if (blob.size / 1024 / 1024 > 2) {
-      logPush('File too large, not returning', blob.size);
+    // Double-check size after reading (in case Content-Length was missing)
+    if (blob.size > MAX_INLINE_ASSET_SIZE) {
+      logPush('Asset too large after read, returning resource link', path, blob.size);
+      const fileName = path.split('/').pop() || path;
+      contentBlocks.push(createResourceLink(`syfile:///data/${path}`, fileName, mimeType));
       continue;
     }
-    if (mediaLengthSum / 1024 / 1024 > 5) {
-      logPush('Total media size too large, not returning more content', mediaLengthSum);
-      break;
-    }
 
-    mediaLengthSum += blob.size;
-    contentBlocks.push(blobToContentBlock(blob, mimeType));
+    inlineSizeSum += blob.size;
+    contentBlocks.push(await blobToContentBlock(blob, mimeType, path));
   }
 
-  return await Promise.all(contentBlocks);
+  return contentBlocks;
 }
 
 async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }) {
