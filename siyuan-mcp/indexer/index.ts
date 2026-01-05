@@ -11,8 +11,8 @@ import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
 export type IndexerConfig = Pick<SiyuanMCPConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN' | 'RAG_BASE_URL' | 'RAG_API_KEY'> & {
-  batchSize?: number;
-  maxDocuments?: number;
+  BATCH_SIZE?: number;
+  MAX_DOCUMENTS?: number;
 };
 
 export interface RAGProvider {
@@ -133,7 +133,7 @@ export async function processIndexQueue(config: IndexerConfig, kv: KVNamespace):
 
   const provider = createRAGProvider(config);
   const queue = new IndexQueue(kv);
-  const batchSize = config.batchSize || 5;
+  const batchSize = config.BATCH_SIZE || 5;
 
   // Check RAG backend health
   const health = await provider.health();
@@ -198,7 +198,7 @@ export async function queueRecentDocuments(
     .slice(0, 14);
 
   // Query for recently updated documents
-  const sql = `SELECT id FROM blocks WHERE type = 'd' AND updated >= '${sinceStr}' LIMIT ${config.maxDocuments || 100}`;
+  const sql = `SELECT id FROM blocks WHERE type = 'd' AND updated >= '${sinceStr}' LIMIT ${config.MAX_DOCUMENTS || 100}`;
   const result = await queryAPI(sql);
 
   if (!result || result.length === 0) {
