@@ -31,12 +31,10 @@ export type ContentType = 'text' | 'base64' | 'hex' | 'json' | 'url';
 
 /** Result of content resolution */
 export interface ResolvedContent {
-  blob: Blob;
-  mimeType: string;
-  fileName?: string; // For URL type, auto-detected filename
-  size?: number;     // For URL type, actual size
-  remote?: boolean;  // True if fetched from URL (for LLM preview)
-  data?: Uint8Array; // Raw data for preview (images/audio)
+  blob: Blob;         // Contains data + mimeType (access via blob.type)
+  fileName?: string;  // For URL type, auto-detected filename
+  size?: number;      // Actual size in bytes
+  remote?: boolean;   // True if fetched from URL (for LLM preview)
 }
 
 /** Options for content resolution */
@@ -334,11 +332,9 @@ async function fetchFromUrl(
 
   return {
     blob,
-    mimeType,
     fileName,
     size: totalSize,
     remote: true,
-    data, // Include raw data for LLM preview
   };
 }
 
@@ -402,34 +398,23 @@ export async function resolveContent(
       if (typeof content !== 'string') {
         throw new Error('Hex content must be a string');
       }
-      const bytes = hexToBytes(content);
-      const mimeType = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return {
-        blob: new Blob([bytes], { type: mimeType }),
-        mimeType,
-      };
+      const hexMime = fileName ? getMimeType(fileName) : 'application/octet-stream';
+      return { blob: new Blob([hexToBytes(content)], { type: hexMime }) };
     }
 
     case 'base64': {
       if (typeof content !== 'string') {
         throw new Error('Base64 content must be a string');
       }
-      const bytes = base64ToBytes(content);
-      const mimeType = fileName ? getMimeType(fileName) : 'application/octet-stream';
-      return {
-        blob: new Blob([bytes], { type: mimeType }),
-        mimeType,
-      };
+      const b64Mime = fileName ? getMimeType(fileName) : 'application/octet-stream';
+      return { blob: new Blob([base64ToBytes(content)], { type: b64Mime }) };
     }
 
     case 'json': {
       const jsonString = typeof content === 'string'
         ? content
         : JSON.stringify(content, null, 2);
-      return {
-        blob: new Blob([jsonString], { type: 'application/json' }),
-        mimeType: 'application/json',
-      };
+      return { blob: new Blob([jsonString], { type: 'application/json' }) };
     }
 
     case 'text':
@@ -437,11 +422,8 @@ export async function resolveContent(
       if (typeof content !== 'string') {
         throw new Error('Text content must be a string');
       }
-      const mimeType = fileName ? getMimeType(fileName) : 'text/plain';
-      return {
-        blob: new Blob([content], { type: mimeType }),
-        mimeType,
-      };
+      const textMime = fileName ? getMimeType(fileName) : 'text/plain';
+      return { blob: new Blob([content], { type: textMime }) };
     }
   }
 }

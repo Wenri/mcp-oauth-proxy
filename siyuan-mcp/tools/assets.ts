@@ -85,10 +85,8 @@ export class AssetToolProvider extends McpToolsProvider {
 /** Processed file ready for upload */
 interface ProcessedFile {
   name: string;
-  data: Blob;
-  mimeType: string;
-  remote?: boolean;      // True if fetched from URL
-  rawData?: Uint8Array;  // Raw data for LLM preview (images/audio)
+  blob: Blob;       // Contains data + mimeType (access via blob.type)
+  remote?: boolean; // True if fetched from URL
 }
 
 async function uploadAssetsHandler(params: {
@@ -124,15 +122,13 @@ async function uploadAssetsHandler(params: {
 
     processedFiles.push({
       name: resolved.fileName || file.fileName!,
-      data: resolved.blob,
-      mimeType: resolved.mimeType,
+      blob: resolved.blob,
       remote: resolved.remote,
-      rawData: resolved.data,
     });
   }
 
   // Upload all files
-  const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f.data }));
+  const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f.blob }));
   const result = await uploadAPI(assetsDirPath, filesToUpload);
   if (!result) {
     throw new Error('Failed to upload assets.');
@@ -146,7 +142,7 @@ async function uploadAssetsHandler(params: {
       const assetPath = result.succMap[file.name];
       if (!assetPath) continue;
 
-      const isImage = file.mimeType.startsWith('image/');
+      const isImage = file.blob.type.startsWith('image/');
       const alt = altText || file.name;
       const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
 
@@ -161,15 +157,19 @@ async function uploadAssetsHandler(params: {
   // Build preview content for remote images/audio (for LLM to see)
   const previewContent: ContentBlock[] = [];
   for (const file of processedFiles) {
-    if (!file.remote || !file.rawData) continue;
+    if (!file.remote) continue;
     const assetPath = result.succMap[file.name];
     if (!assetPath) continue;
 
-    const base64 = file.rawData.toBase64();
-    if (file.mimeType.startsWith('image/')) {
-      previewContent.push(createImageContent(base64, file.mimeType));
-    } else if (file.mimeType.startsWith('audio/')) {
-      previewContent.push(createAudioContent(base64, file.mimeType));
+    const mimeType = file.blob.type;
+    if (mimeType.startsWith('image/') || mimeType.startsWith('audio/')) {
+      const data = new Uint8Array(await file.blob.arrayBuffer());
+      const base64 = data.toBase64();
+      if (mimeType.startsWith('image/')) {
+        previewContent.push(createImageContent(base64, mimeType));
+      } else {
+        previewContent.push(createAudioContent(base64, mimeType));
+      }
     }
   }
 
