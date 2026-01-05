@@ -31,9 +31,8 @@ export type ContentType = 'text' | 'base64' | 'hex' | 'json' | 'url';
 
 /** Result of content resolution */
 export interface ResolvedContent {
-  blob: Blob;         // Contains data + mimeType (access via blob.type)
+  blob: Blob;         // Contains data, mimeType (blob.type), and size (blob.size)
   fileName?: string;  // For URL type, auto-detected filename
-  size?: number;      // Actual size in bytes
   remote?: boolean;   // True if fetched from URL (for LLM preview)
 }
 
@@ -330,12 +329,7 @@ async function fetchFromUrl(
   // Create blob with detected MIME type
   const blob = new Blob([data], { type: mimeType });
 
-  return {
-    blob,
-    fileName,
-    size: totalSize,
-    remote: true,
-  };
+  return { blob, fileName, remote: true };
 }
 
 // ============================================================================
