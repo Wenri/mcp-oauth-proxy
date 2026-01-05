@@ -21,7 +21,8 @@
  */
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { createSiyuanMCPServer, initializeSiyuanMCPServer, type SiyuanMCPConfig } from '../siyuan-mcp';
+import type { SiyuanMCPConfig } from '..';
+import { createSiyuanMCPServer, initializeSiyuanMCPServer } from '../siyuan-mcp';
 
 // Parse command line arguments
 function parseArgs(): SiyuanMCPConfig {

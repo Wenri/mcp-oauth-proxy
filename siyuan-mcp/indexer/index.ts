@@ -5,7 +5,7 @@
  * It can be triggered by CF Cron or called manually to index documents.
  */
 
-import type { SiyuanMCPConfig } from '../..';
+import type { SiyuanMCPConfig } from '..';
 import { initKernel, queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
