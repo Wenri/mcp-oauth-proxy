@@ -451,3 +451,46 @@ siyuan_write_file({
   isBase64: true
 })
 ```
+
+### URL Fetch Support for Uploads
+
+Both `siyuan_upload_assets` and `siyuan_write_file` support fetching files from URLs instead of providing content directly. This is useful for uploading files from the web without passing large base64 content through the LLM.
+
+**Constraints:**
+- Maximum file size: 50 MB
+- Timeout: 30 seconds
+- Protocols: HTTP/HTTPS only
+
+**Usage examples:**
+```typescript
+// Upload image from URL (filename auto-detected)
+siyuan_upload_assets({
+  files: [{ url: "https://example.com/photo.jpg" }]
+})
+
+// Upload with custom filename
+siyuan_upload_assets({
+  files: [{ url: "https://example.com/image", fileName: "custom.png" }]
+})
+
+// Mix URL and content in batch
+siyuan_upload_assets({
+  files: [
+    { url: "https://example.com/a.png" },
+    { fileName: "config.json", content: { key: "value" } }
+  ]
+})
+
+// Write file from URL
+siyuan_write_file({
+  path: "/data/assets/downloaded.pdf",
+  url: "https://example.com/document.pdf"
+})
+```
+
+**Error handling:**
+- `INVALID_URL` - Malformed URL or unsupported protocol
+- `TIMEOUT` - Request exceeded 30s
+- `TOO_LARGE` - File exceeds 50MB limit
+- `NETWORK` - DNS/connection failure
+- `HTTP_ERROR` - Server returned 4xx/5xx

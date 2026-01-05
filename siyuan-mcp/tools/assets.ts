@@ -7,6 +7,7 @@ import { createJsonResponse } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/filterCheck';
 import { base64ToBlob } from '../utils/common';
+import { fetchFromUrl } from '../utils/urlFetch';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -33,11 +34,15 @@ const fileContentSchema = z.union([
   z.array(jsonValue).describe('JSON array (auto-serialized)'),
 ]);
 
-/** Schema for a single file to upload */
+/** Schema for a single file to upload (content or URL) */
 const fileSchema = z.object({
-  fileName: z.string().describe('Name of the file including extension (e.g., "image.png", "config.json")'),
-  content: fileContentSchema.describe('File content'),
-});
+  fileName: z.string().optional().describe('File name (required for content, optional for URL - auto-detected from URL if omitted)'),
+  content: fileContentSchema.optional().describe('File content (base64 or JSON)'),
+  url: z.string().url().optional().describe('URL to fetch file from (alternative to content, max 50MB)'),
+}).refine(
+  (data) => (data.content !== undefined) !== (data.url !== undefined),
+  { message: 'Provide exactly one of content or url' }
+);
 
 export class AssetToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -45,7 +50,7 @@ export class AssetToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_upload_assets',
         description:
-          'Upload one or more files to SiYuan assets. For binary files, pass base64 string. For JSON, pass an object directly (auto-serialized). Can optionally auto-insert all uploaded assets into a document in order.',
+          'Upload one or more files to SiYuan assets. Provide either content (base64/JSON) or a URL to fetch from. Can optionally auto-insert all uploaded assets into a document in order.',
         inputSchema: {
           files: z.array(fileSchema).describe('Array of files to upload'),
           assetsDirPath: z
@@ -141,8 +146,15 @@ function contentToBlob(content: string | object, fileName: string): Blob {
   return base64ToBlob(content, mimeType);
 }
 
+/** Processed file ready for upload */
+interface ProcessedFile {
+  name: string;
+  data: Blob;
+  mimeType: string;
+}
+
 async function uploadAssetsHandler(params: {
-  files: { fileName: string; content: string | object }[];
+  files: { fileName?: string; content?: string | object; url?: string }[];
   assetsDirPath?: string;
   insertAfterBlock?: string;
   altText?: string;
@@ -159,16 +171,36 @@ async function uploadAssetsHandler(params: {
     await validateBlockAccess(insertAfterBlock);
   }
 
-  // Convert all files to blobs
-  const filesToUpload: { name: string; data: Blob }[] = [];
+  // Process all files: fetch URLs or convert content to blobs
+  const processedFiles: ProcessedFile[] = [];
   for (const file of files) {
-    if (!file.fileName || file.content === undefined) {
-      throw new Error('Each file must have fileName and content.');
+    if (file.url) {
+      // Fetch from URL
+      const result = await fetchFromUrl(file.url, file.fileName);
+      processedFiles.push({
+        name: result.fileName,
+        data: result.blob,
+        mimeType: result.mimeType,
+      });
+    } else if (file.content !== undefined) {
+      // Content-based upload (existing logic)
+      if (!file.fileName) {
+        throw new Error('fileName is required when using content.');
+      }
+      const mimeType = typeof file.content === 'object' ? 'application/json' : getMimeType(file.fileName);
+      const blob = contentToBlob(file.content, file.fileName);
+      processedFiles.push({
+        name: file.fileName,
+        data: blob,
+        mimeType,
+      });
+    } else {
+      throw new Error('Each file must have either content or url.');
     }
-    const blob = contentToBlob(file.content, file.fileName);
-    filesToUpload.push({ name: file.fileName, data: blob });
   }
 
+  // Upload all files
+  const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f.data }));
   const result = await uploadAPI(assetsDirPath, filesToUpload);
   if (!result) {
     throw new Error('Failed to upload assets.');
@@ -178,13 +210,12 @@ async function uploadAssetsHandler(params: {
   const insertedBlockIds: string[] = [];
   if (insertAfterBlock) {
     let previousBlockId = insertAfterBlock;
-    for (const file of files) {
-      const assetPath = result.succMap[file.fileName];
+    for (const file of processedFiles) {
+      const assetPath = result.succMap[file.name];
       if (!assetPath) continue;
 
-      const mimeType = typeof file.content === 'object' ? 'application/json' : getMimeType(file.fileName);
-      const isImage = mimeType.startsWith('image/');
-      const alt = altText || file.fileName;
+      const isImage = file.mimeType.startsWith('image/');
+      const alt = altText || file.name;
       const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
 
       const insertResult = await insertBlockAPI(markdown, previousBlockId, 'insertAfter');

@@ -22,6 +22,7 @@ const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
+import { fetchFromUrl } from '../utils/urlFetch';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -53,14 +54,15 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_write_file',
         description:
-          'Write content to a file in SiYuan workspace. For text, pass string directly. For JSON, pass an object (auto-serialized). For binary, pass base64 string with isBase64=true.',
+          'Write content to a file in SiYuan workspace. Provide either content (text/JSON/base64) or a URL to fetch from.',
         inputSchema: {
           path: z.string().describe('Path to write the file (e.g., "/data/widgets/config.json")'),
           content: z.union([
             z.string().describe('Text content or base64-encoded binary'),
             z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
             z.array(jsonValue).describe('JSON array (auto-serialized)'),
-          ]).describe('File content to write'),
+          ]).optional().describe('File content to write'),
+          url: z.string().url().optional().describe('URL to fetch file from (alternative to content, max 50MB)'),
           isBase64: z.boolean().optional().describe('Set to true if content is a base64 encoded binary string'),
         },
         handler: writeFileHandler,
@@ -258,24 +260,39 @@ async function readFileHandler(params: { path: string }) {
   return createRefResponse();
 }
 
-async function writeFileHandler(params: { path: string; content: string | JsonValue[] | Record<string, JsonValue>; isBase64?: boolean }) {
-  const { path, content, isBase64 = false } = params;
+async function writeFileHandler(params: {
+  path: string;
+  content?: string | JsonValue[] | Record<string, JsonValue>;
+  url?: string;
+  isBase64?: boolean;
+}) {
+  const { path, content, url, isBase64 = false } = params;
   debugPush('Write file API called');
 
-  if (!path || content === undefined) {
-    throw new Error('Path and content are required.');
+  if (!path) {
+    throw new Error('Path is required.');
   }
 
   let fileContent: Blob | string;
-  if (typeof content === 'object') {
-    // Object or array → serialize to pretty JSON
-    fileContent = JSON.stringify(content, null, 2);
-  } else if (isBase64) {
-    // Base64 string → decode to Blob
-    fileContent = base64ToBlob(content);
+
+  if (url) {
+    // Fetch from URL
+    const result = await fetchFromUrl(url);
+    fileContent = result.blob;
+  } else if (content !== undefined) {
+    // Content-based write (existing logic)
+    if (typeof content === 'object') {
+      // Object or array → serialize to pretty JSON
+      fileContent = JSON.stringify(content, null, 2);
+    } else if (isBase64) {
+      // Base64 string → decode to Blob
+      fileContent = base64ToBlob(content);
+    } else {
+      // Plain text string
+      fileContent = content;
+    }
   } else {
-    // Plain text string
-    fileContent = content;
+    throw new Error('Either content or url is required.');
   }
 
   const result = await putFileAPI(path, fileContent);
