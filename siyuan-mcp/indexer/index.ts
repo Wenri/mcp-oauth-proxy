@@ -10,11 +10,10 @@ import { initKernel, queryAPI, exportMdContent } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
-export interface IndexerConfig
-  extends Pick<SiyuanMCPConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN' | 'RAG_BASE_URL' | 'RAG_API_KEY'> {
+export type IndexerConfig = Pick<SiyuanMCPConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN' | 'RAG_BASE_URL' | 'RAG_API_KEY'> & {
   batchSize?: number;
   maxDocuments?: number;
-}
+};
 
 export interface RAGProvider {
   update(id: string, content: string): Promise<void>;
