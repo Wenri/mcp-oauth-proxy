@@ -406,24 +406,33 @@ const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
 
 ### Unified Content Schema for Uploads
 
-Both `siyuan_upload_assets` and `siyuan_write_file` use a unified content schema:
+Both `siyuan_upload_assets` and `siyuan_write_file` use a unified content schema with a shared resolver (`siyuan-mcp/utils/contentResolver.ts`):
 
 ```typescript
 // Content: string | object | array
 content: z.union([
-  z.string(),                          // text, base64, or URL
+  z.string(),                          // text, base64, hex, or URL
   z.record(z.string(), jsonValue),     // JSON object (auto-serialized)
   z.array(jsonValue),                  // JSON array (auto-serialized)
 ])
 
 // Type: optional, auto-inferred from content
-type: z.enum(['text', 'base64', 'json', 'url']).optional()
+type: z.enum(['text', 'base64', 'hex', 'json', 'url']).optional()
 ```
+
+**Supported types:**
+| Type | Description | Input |
+|------|-------------|-------|
+| `text` | Plain text | string |
+| `base64` | Base64-encoded binary | string |
+| `hex` | Hex-encoded binary (0x prefix optional) | string |
+| `json` | JSON (auto-serialized) | object/array |
+| `url` | Fetch from URL | string |
 
 **Type inference:**
 - Objects/arrays → `json` (auto-serialized to pretty JSON)
 - Strings → `text` (for write_file) or `base64` (for upload_assets)
-- Must specify `type: 'url'` for URL fetch
+- Must specify `type: 'hex'` or `type: 'url'` explicitly
 
 **Usage examples:**
 ```typescript
@@ -462,11 +471,18 @@ siyuan_write_file({
   content: { enabled: true, options: ["a", "b"] }
 })
 
-// Write binary file
+// Write binary file (base64)
 siyuan_write_file({
   path: "/data/assets/image.png",
   content: "iVBORw0KGgo...",
   type: "base64"
+})
+
+// Write binary file (hex)
+siyuan_write_file({
+  path: "/data/assets/icon.ico",
+  content: "0x00000100010010100000...",
+  type: "hex"
 })
 
 // Write file from URL

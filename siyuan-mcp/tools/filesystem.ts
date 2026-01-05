@@ -21,8 +21,7 @@ const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
 );
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
-import { base64ToBlob } from '../utils/common';
-import { fetchFromUrl } from '../utils/urlFetch';
+import { resolveContentAuto, type ContentType } from '../utils/contentResolver';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -58,11 +57,11 @@ export class FileSystemToolProvider extends McpToolsProvider {
         inputSchema: {
           path: z.string().describe('Path to write the file (e.g., "/data/widgets/config.json")'),
           content: z.union([
-            z.string().describe('Text, base64-encoded binary, or URL (see type parameter)'),
+            z.string().describe('Text, base64/hex-encoded binary, or URL (see type parameter)'),
             z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
             z.array(jsonValue).describe('JSON array (auto-serialized)'),
           ]).describe('File content to write'),
-          type: z.enum(['text', 'base64', 'json', 'url']).optional().describe('Content type: text (default for strings), base64, json (auto for objects/arrays), url (fetch from URL)'),
+          type: z.enum(['text', 'base64', 'hex', 'json', 'url']).optional().describe('Content type: text (default for strings), base64, hex, json (auto for objects/arrays), url (fetch from URL)'),
         },
         handler: writeFileHandler,
         title: lang('tool_title_write_file'),
@@ -262,7 +261,7 @@ async function readFileHandler(params: { path: string }) {
 async function writeFileHandler(params: {
   path: string;
   content: string | JsonValue[] | Record<string, JsonValue>;
-  type?: 'text' | 'base64' | 'json' | 'url';
+  type?: ContentType;
 }) {
   const { path, content, type } = params;
   debugPush('Write file API called');
@@ -271,39 +270,14 @@ async function writeFileHandler(params: {
     throw new Error('Path is required.');
   }
 
-  let fileContent: Blob | string;
+  // Resolve content using unified resolver
+  const fileName = path.split('/').pop();
+  const resolved = await resolveContentAuto(content, type, {
+    fileName,
+    defaultType: 'text',
+  });
 
-  // Infer type if not provided
-  const resolvedType = type ?? (typeof content === 'object' ? 'json' : 'text');
-
-  switch (resolvedType) {
-    case 'url':
-      if (typeof content !== 'string') {
-        throw new Error('URL must be a string.');
-      }
-      const result = await fetchFromUrl(content);
-      fileContent = result.blob;
-      break;
-    case 'base64':
-      if (typeof content !== 'string') {
-        throw new Error('Base64 content must be a string.');
-      }
-      fileContent = base64ToBlob(content);
-      break;
-    case 'json':
-      // Serialize object/array to JSON (or string if already JSON string)
-      fileContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
-      break;
-    case 'text':
-    default:
-      if (typeof content !== 'string') {
-        throw new Error('Text content must be a string.');
-      }
-      fileContent = content;
-      break;
-  }
-
-  const result = await putFileAPI(path, fileContent);
+  const result = await putFileAPI(path, resolved.blob);
   if (!result) {
     throw new Error('Failed to write the file.');
   }
