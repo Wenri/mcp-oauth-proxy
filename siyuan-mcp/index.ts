@@ -11,6 +11,7 @@ import { getAllToolProviders } from './tools';
 import { getAllResourceProviders, type ResourceContext } from './resources';
 import { logPush, debugPush } from './logger';
 import { encryptGrant } from './utils/crypto';
+import { createErrorResponse } from './utils/mcpResponse';
 import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 
 // Import prompts from static index
@@ -178,10 +179,7 @@ async function loadTools(
         try {
           return await handler(params, extra);
         } catch (error: any) {
-          return {
-            content: [{ type: 'text', text: error.message || 'Unknown error' }],
-            isError: true,
-          };
+          return createErrorResponse(error.message || 'Unknown error');
         }
       });
     }
