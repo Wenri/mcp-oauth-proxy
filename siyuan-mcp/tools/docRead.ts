@@ -54,6 +54,7 @@ export class DocReadToolProvider extends McpToolsProvider {
             .describe('Maximum characters to return (default: unlimited)'),
         },
         outputSchema: {
+          id: z.string().describe('The resolved block/document ID'),
           content: z.string().describe('The markdown content (sliced if offset/limit provided)'),
           offset: z.number().describe('The starting offset used'),
           hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
@@ -79,6 +80,7 @@ export class DocReadToolProvider extends McpToolsProvider {
             .describe('Maximum characters to return (default: unlimited)'),
         },
         outputSchema: {
+          id: z.string().describe('The resolved block/document ID'),
           kramdown: z.string().describe('Block content in Kramdown format (Markdown with IAL attributes like {: id="..." })'),
           offset: z.number().describe('The starting offset used'),
           hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
@@ -168,6 +170,7 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
 
   return createJsonResponse(
     {
+      id: dbItem.id,
       content: sliced,
       offset,
       hasMore,
@@ -202,6 +205,7 @@ async function kramdownReadHandler(params: { id: BlockId; offset?: number; limit
 
   return createJsonResponse(
     {
+      id: dbItem.id,
       kramdown: sliced,
       offset,
       hasMore,
@@ -260,17 +264,18 @@ async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }
   debugPush('Get hpath API called');
 
   const dbItem = await validateBlockAccess(id);
+  const resolvedId = dbItem.id;
 
-  const hpath = await getHPathByIDAPI(id);
+  const hpath = await getHPathByIDAPI(resolvedId);
   if (hpath == null) {
     throw new Error('Failed to get the human-readable path.');
   }
 
-  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id, hpath };
+  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id: resolvedId, hpath };
 
   if (includeOutline) {
     // Get the root document ID for outline
-    const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+    const docId = dbItem.type === 'd' ? resolvedId : dbItem.root_id;
     if (docId) {
       const outline = await getDocOutlineAPI(docId);
       if (outline) {
@@ -289,7 +294,7 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
   const dbItem = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
-  const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+  const docId = dbItem.type === 'd' ? dbItem.id : dbItem.root_id;
   if (!docId) {
     throw new Error('Could not determine the document ID.');
   }
@@ -309,7 +314,7 @@ async function exportHtmlHandler(params: { id: BlockId }) {
   const dbItem = await validateBlockAccess(id);
 
   // Get the root document ID if a block ID was provided
-  const docId = dbItem.type === 'd' ? id : dbItem.root_id;
+  const docId = dbItem.type === 'd' ? dbItem.id : dbItem.root_id;
   if (!docId) {
     throw new Error('Could not determine the document ID.');
   }
