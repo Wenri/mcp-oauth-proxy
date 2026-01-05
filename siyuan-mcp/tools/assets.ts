@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
-import { createJsonResponse, createImageContent, createAudioContent } from '../utils/mcpResponse';
+import { createJsonResponse, blobToContentBlock } from '../utils/mcpResponse';
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
@@ -142,13 +142,7 @@ async function uploadAssetsHandler(params: {
     if (!assetPath) continue;
 
     if (file.type.startsWith('image/') || file.type.startsWith('audio/')) {
-      const data = new Uint8Array(await file.arrayBuffer());
-      const base64 = data.toBase64();
-      if (file.type.startsWith('image/')) {
-        previewContent.push(createImageContent(base64, file.type));
-      } else {
-        previewContent.push(createAudioContent(base64, file.type));
-      }
+      previewContent.push(await blobToContentBlock(file, file.type, `syfile://${assetPath}`));
     }
   }
 

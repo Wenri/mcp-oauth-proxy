@@ -1,5 +1,6 @@
 import type { CallToolResult, ImageContent, AudioContent, EmbeddedResource, ResourceLink, ContentBlock } from "@modelcontextprotocol/sdk/types.js";
 import YAML from "yaml";
+import { getContentCategory } from "./contentType";
 
 /**
  * Structured content type - matches outputSchema definitions.
@@ -239,4 +240,43 @@ export function createResourceLink(uri: string, name: string, mimeType: string):
     name,
     mimeType,
   };
+}
+
+/**
+ * Convert a Blob to an appropriate MCP ContentBlock based on content type.
+ *
+ * @param blob - The blob to convert
+ * @param mimeType - MIME type of the content
+ * @param resourceUri - URI for embedding as resource (used for binary files)
+ * @returns ContentBlock (TextContent, ImageContent, AudioContent, or EmbeddedResource)
+ *
+ * @example
+ * ```ts
+ * const block = await blobToContentBlock(blob, "image/png", "syfile:///data/image.png");
+ * return createJsonResponse({ path }, [block]);
+ * ```
+ */
+export async function blobToContentBlock(blob: Blob, mimeType: string, resourceUri: string): Promise<ContentBlock> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const category = getContentCategory(mimeType, resourceUri);
+
+  if (category === 'text') {
+    const text = new TextDecoder().decode(bytes);
+    return { type: 'text', text };
+  }
+
+  // Binary data needs base64 encoding
+  const base64Data = bytes.toBase64();
+
+  if (category === 'image') {
+    return { type: 'image', data: base64Data, mimeType };
+  }
+
+  if (category === 'audio') {
+    return { type: 'audio', data: base64Data, mimeType };
+  }
+
+  // Other binary: return as EmbeddedResource with blob
+  return createBlobResource(resourceUri, base64Data, mimeType);
 }

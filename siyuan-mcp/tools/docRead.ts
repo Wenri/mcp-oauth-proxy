@@ -6,9 +6,9 @@ import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { McpToolsProvider } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
-import { createJsonResponse, createResourceLink, createBlobResource } from '../utils/mcpResponse';
+import { createJsonResponse, createResourceLink, blobToContentBlock } from '../utils/mcpResponse';
 import { isValidStr } from '../utils/commonCheck';
-import { getContentCategory, getEffectiveMimeType } from '../utils/contentType';
+import { getEffectiveMimeType } from '../utils/contentType';
 import { getConfig } from '..';
 import { getBlockAssets } from '../syapi/custom';
 import { validateBlockAccess } from '../utils/resultFilter';
@@ -193,34 +193,6 @@ async function kramdownReadHandler(params: { id: BlockId }) {
   );
 }
 
-/** Convert blob to MCP ContentBlock based on content category */
-async function blobToContentBlock(blob: Blob, mimeType: string, path: string): Promise<ContentBlock> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const category = getContentCategory(mimeType, path);
-
-  if (category === 'text') {
-    // Text: return as TextContent
-    const text = new TextDecoder().decode(bytes);
-    return { type: 'text', text };
-  }
-
-  // Binary data needs base64 encoding
-  const base64Data = bytes.toBase64();
-
-  if (category === 'image') {
-    return { type: 'image', data: base64Data, mimeType };
-  }
-
-  if (category === 'audio') {
-    return { type: 'audio', data: base64Data, mimeType };
-  }
-
-  // Other binary: return as EmbeddedResource with blob
-  const resourceUri = `syfile:///data/${path}`;
-  return createBlobResource(resourceUri, base64Data, mimeType);
-}
-
 const MAX_INLINE_ASSET_SIZE = 2 * 1024 * 1024; // 2MB per asset
 const MAX_TOTAL_INLINE_SIZE = 5 * 1024 * 1024; // 5MB total
 
@@ -273,7 +245,7 @@ async function getAssets(id: BlockId): Promise<ContentBlock[]> {
     }
 
     inlineSizeSum += blob.size;
-    contentBlocks.push(await blobToContentBlock(blob, mimeType, path));
+    contentBlocks.push(await blobToContentBlock(blob, mimeType, `syfile:///data/${path}`));
   }
 
   return contentBlocks;
