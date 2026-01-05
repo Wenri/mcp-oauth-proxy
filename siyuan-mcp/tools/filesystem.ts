@@ -4,6 +4,21 @@
 
 import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
+
+/** JSON-serializable value type */
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** Zod schema for JSON-serializable values (recursive) */
+const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValue),
+    z.record(z.string(), jsonValue),
+  ])
+);
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, isTextMimeType, isTextExtension, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { base64ToBlob } from '../utils/common';
@@ -38,11 +53,15 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_write_file',
         description:
-          'Write content to a file in SiYuan workspace. For text content, pass the string directly. For binary content, pass base64 encoded data.',
+          'Write content to a file in SiYuan workspace. For text, pass string directly. For JSON, pass an object (auto-serialized). For binary, pass base64 string with isBase64=true.',
         inputSchema: {
           path: z.string().describe('Path to write the file (e.g., "/data/widgets/config.json")'),
-          content: z.string().describe('File content (text or base64 encoded for binary)'),
-          isBase64: z.boolean().optional().describe('Set to true if content is base64 encoded binary data'),
+          content: z.union([
+            z.string().describe('Text content or base64-encoded binary'),
+            z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
+            z.array(jsonValue).describe('JSON array (auto-serialized)'),
+          ]).describe('File content to write'),
+          isBase64: z.boolean().optional().describe('Set to true if content is a base64 encoded binary string'),
         },
         handler: writeFileHandler,
         title: lang('tool_title_write_file'),
@@ -239,7 +258,7 @@ async function readFileHandler(params: { path: string }) {
   return createRefResponse();
 }
 
-async function writeFileHandler(params: { path: string; content: string; isBase64?: boolean }) {
+async function writeFileHandler(params: { path: string; content: string | JsonValue[] | Record<string, JsonValue>; isBase64?: boolean }) {
   const { path, content, isBase64 = false } = params;
   debugPush('Write file API called');
 
@@ -248,9 +267,14 @@ async function writeFileHandler(params: { path: string; content: string; isBase6
   }
 
   let fileContent: Blob | string;
-  if (isBase64) {
+  if (typeof content === 'object') {
+    // Object or array → serialize to pretty JSON
+    fileContent = JSON.stringify(content, null, 2);
+  } else if (isBase64) {
+    // Base64 string → decode to Blob
     fileContent = base64ToBlob(content);
   } else {
+    // Plain text string
     fileContent = content;
   }
 

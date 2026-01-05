@@ -11,16 +11,43 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 
+/** JSON-serializable value type */
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** Zod schema for JSON-serializable values (recursive) */
+const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValue),
+    z.record(z.string(), jsonValue),
+  ])
+);
+
+/** Schema for file content (base64 string or JSON) */
+const fileContentSchema = z.union([
+  z.string().describe('Base64 encoded binary content'),
+  z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
+  z.array(jsonValue).describe('JSON array (auto-serialized)'),
+]);
+
+/** Schema for a single file to upload */
+const fileSchema = z.object({
+  fileName: z.string().describe('Name of the file including extension (e.g., "image.png", "config.json")'),
+  content: fileContentSchema.describe('File content'),
+});
+
 export class AssetToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
       {
-        name: 'siyuan_upload_asset',
+        name: 'siyuan_upload_assets',
         description:
-          'Upload a file (image, document, etc.) to SiYuan assets. The file content should be base64 encoded. Optionally auto-inserts the asset into a document block.',
+          'Upload one or more files to SiYuan assets. For binary files, pass base64 string. For JSON, pass an object directly (auto-serialized). Can optionally auto-insert all uploaded assets into a document in order.',
         inputSchema: {
-          fileName: z.string().describe('Name of the file including extension (e.g., "image.png", "document.pdf")'),
-          base64Content: z.string().describe('Base64 encoded content of the file'),
+          files: z.array(fileSchema).describe('Array of files to upload'),
           assetsDirPath: z
             .string()
             .optional()
@@ -28,52 +55,21 @@ export class AssetToolProvider extends McpToolsProvider {
           insertAfterBlock: z
             .string()
             .optional()
-            .describe('If provided, auto-insert the asset as an image/link block after this block ID'),
+            .describe('Auto-insert uploaded assets as image/link blocks after this block ID, in order'),
           altText: z
             .string()
             .optional()
-            .describe('Alt text for the image (only used when insertAfterBlock is provided)'),
-        },
-        outputSchema: {
-          fileName: z.string().describe('Name of the uploaded file'),
-          assetPath: z.string().describe('Path to the uploaded asset'),
-          insertedBlockId: z.string().nullable().describe('ID of the inserted block if auto-insert was used'),
-          message: z.string().describe('Status message'),
-        },
-        handler: uploadAssetHandler,
-        title: lang('tool_title_upload_asset'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      },
-      {
-        name: 'siyuan_upload_assets_batch',
-        description:
-          'Upload multiple files to SiYuan assets in a single request. Each file should have a name and base64 encoded content.',
-        inputSchema: {
-          files: z
-            .array(
-              z.object({
-                fileName: z.string().describe('Name of the file including extension'),
-                base64Content: z.string().describe('Base64 encoded content of the file'),
-              })
-            )
-            .describe('Array of files to upload'),
-          assetsDirPath: z
-            .string()
-            .optional()
-            .describe('Target assets directory path. Defaults to "/data/assets/"'),
+            .describe('Alt text for images when using insertAfterBlock (defaults to fileName)'),
         },
         outputSchema: {
           uploadedCount: z.number().describe('Number of files uploaded successfully'),
           failedCount: z.number().describe('Number of files that failed to upload'),
           succMap: z.record(z.string()).describe('Map of file names to their asset paths'),
           errFiles: z.array(z.string()).describe('List of file names that failed to upload'),
+          insertedBlockIds: z.array(z.string()).describe('IDs of inserted blocks (when insertAfterBlock is used)'),
         },
-        handler: uploadAssetsBatchHandler,
-        title: lang('tool_title_upload_assets_batch'),
+        handler: uploadAssetsHandler,
+        title: lang('tool_title_upload_assets'),
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -133,18 +129,29 @@ function getMimeType(fileName: string): string {
   return mimeTypes[ext] || 'application/octet-stream';
 }
 
-async function uploadAssetHandler(params: {
-  fileName: string;
-  base64Content: string;
+/** Convert content to Blob based on type */
+function contentToBlob(content: string | object, fileName: string): Blob {
+  if (typeof content === 'object') {
+    // JSON object/array → serialize to pretty JSON
+    const jsonString = JSON.stringify(content, null, 2);
+    return new Blob([jsonString], { type: 'application/json' });
+  }
+  // String → assume base64 encoded binary
+  const mimeType = getMimeType(fileName);
+  return base64ToBlob(content, mimeType);
+}
+
+async function uploadAssetsHandler(params: {
+  files: { fileName: string; content: string | object }[];
   assetsDirPath?: string;
   insertAfterBlock?: string;
   altText?: string;
 }) {
-  const { fileName, base64Content, assetsDirPath = '/data/assets/', insertAfterBlock, altText } = params;
-  debugPush('Upload asset API called');
+  const { files, assetsDirPath = '/data/assets/', insertAfterBlock, altText } = params;
+  debugPush('Upload assets API called');
 
-  if (!fileName || !base64Content) {
-    throw new Error('fileName and base64Content are required.');
+  if (!files || files.length === 0) {
+    throw new Error('At least one file is required.');
   }
 
   // Validate insertAfterBlock if provided
@@ -152,72 +159,40 @@ async function uploadAssetHandler(params: {
     await validateBlockAccess(insertAfterBlock);
   }
 
-  const mimeType = getMimeType(fileName);
-  const blob = base64ToBlob(base64Content, mimeType);
-
-  const result = await uploadAPI(assetsDirPath, [{ name: fileName, data: blob }]);
-  if (!result) {
-    throw new Error('Failed to upload the asset.');
-  }
-
-  if (result.errFiles && result.errFiles.length > 0) {
-    throw new Error(`Failed to upload: ${result.errFiles.join(', ')}`);
-  }
-
-  const assetPath = result.succMap[fileName];
-  if (!assetPath) {
-    throw new Error('Upload succeeded but asset path not returned.');
-  }
-
-  // Auto-insert block if requested
-  let insertedBlockId: string | null = null;
-  if (insertAfterBlock) {
-    const isImage = mimeType.startsWith('image/');
-    const alt = altText || fileName;
-    // Create markdown for image or link
-    const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
-
-    const insertResult = await insertBlockAPI(markdown, insertAfterBlock, 'insertAfter');
-    if (insertResult) {
-      insertedBlockId = insertResult.id;
-    }
-  }
-
-  return createJsonResponse({
-    fileName,
-    assetPath,
-    insertedBlockId,
-    message: insertedBlockId
-      ? `Asset uploaded and inserted as block ${insertedBlockId}.`
-      : `Asset uploaded successfully. Use "${assetPath}" to reference it in documents.`,
-  });
-}
-
-async function uploadAssetsBatchHandler(params: {
-  files: { fileName: string; base64Content: string }[];
-  assetsDirPath?: string;
-}) {
-  const { files, assetsDirPath = '/data/assets/' } = params;
-  debugPush('Upload assets batch API called');
-
-  if (!files || files.length === 0) {
-    throw new Error('At least one file is required.');
-  }
-
+  // Convert all files to blobs
   const filesToUpload: { name: string; data: Blob }[] = [];
-
   for (const file of files) {
-    if (!file.fileName || !file.base64Content) {
-      throw new Error(`Invalid file entry: fileName and base64Content are required.`);
+    if (!file.fileName || file.content === undefined) {
+      throw new Error('Each file must have fileName and content.');
     }
-    const mimeType = getMimeType(file.fileName);
-    const blob = base64ToBlob(file.base64Content, mimeType);
+    const blob = contentToBlob(file.content, file.fileName);
     filesToUpload.push({ name: file.fileName, data: blob });
   }
 
   const result = await uploadAPI(assetsDirPath, filesToUpload);
   if (!result) {
-    throw new Error('Failed to upload the assets.');
+    throw new Error('Failed to upload assets.');
+  }
+
+  // Auto-insert blocks if requested (in order)
+  const insertedBlockIds: string[] = [];
+  if (insertAfterBlock) {
+    let previousBlockId = insertAfterBlock;
+    for (const file of files) {
+      const assetPath = result.succMap[file.fileName];
+      if (!assetPath) continue;
+
+      const mimeType = typeof file.content === 'object' ? 'application/json' : getMimeType(file.fileName);
+      const isImage = mimeType.startsWith('image/');
+      const alt = altText || file.fileName;
+      const markdown = isImage ? `![${alt}](${assetPath})` : `[${alt}](${assetPath})`;
+
+      const insertResult = await insertBlockAPI(markdown, previousBlockId, 'insertAfter');
+      if (insertResult) {
+        insertedBlockIds.push(insertResult.id);
+        previousBlockId = insertResult.id; // Next insert goes after this one
+      }
+    }
   }
 
   return createJsonResponse({
@@ -225,5 +200,7 @@ async function uploadAssetsBatchHandler(params: {
     failedCount: result.errFiles?.length || 0,
     succMap: result.succMap,
     errFiles: result.errFiles || [],
+    insertedBlockIds,
   });
 }
+

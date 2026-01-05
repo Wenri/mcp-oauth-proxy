@@ -83,7 +83,7 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 │   │   ├── flashCard.ts       # Flashcard management
 │   │   ├── vectorSearch.ts    # RAG vector search
 │   │   ├── relation.ts        # Document relations
-│   │   ├── assets.ts          # Asset upload (single & batch)
+│   │   ├── assets.ts          # Asset upload (with batch & auto-insert support)
 │   │   ├── filesystem.ts      # File system operations
 │   │   └── utility.ts         # Time, notifications, reindex, flush
 │   ├── syapi/                 # SiYuan kernel API wrappers
@@ -171,7 +171,8 @@ Available tool categories:
 - **Search**: FTS5 full-text search (BM25 ranking, snippets), SQL queries, vector search (RAG)
 - **SQL**: query with advanced features (REGEXP, window functions, JSON), database schema, SQL cheatsheet
 - **Organization**: daily notes, flashcards, attributes (single & batch), relations
-- **Assets**: upload assets (single & batch), file system operations
+- **Assets**: upload assets (batch support, JSON auto-serialize, auto-insert into docs), file system operations
+- **File System**: read/write files (JSON objects auto-serialized), create/remove/rename, list directories, create archives
 - **Utilities**: get time, push notifications, reindex documents, flush database transactions
 
 ## Environment Configuration
@@ -401,4 +402,52 @@ const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
     children: z.array(outlineItemSchema).optional(),
   })
 );
+```
+
+### JSON Content Support for Uploads
+
+Tools that accept file content (`siyuan_upload_assets`, `siyuan_write_file`) support direct JSON objects:
+
+```typescript
+// Define recursive JSON value type for type-safe schemas
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValue),
+    z.record(z.string(), jsonValue),
+  ])
+);
+
+// Content schema accepts string (text/base64) or JSON (auto-serialized)
+content: z.union([
+  z.string().describe('Text or base64-encoded binary'),
+  z.record(z.string(), jsonValue).describe('JSON object (auto-serialized)'),
+  z.array(jsonValue).describe('JSON array (auto-serialized)'),
+])
+```
+
+**Usage examples:**
+```typescript
+// Upload JSON config as asset
+siyuan_upload_assets({
+  files: [{ fileName: "config.json", content: { theme: "dark", version: 2 } }]
+})
+
+// Write JSON file directly
+siyuan_write_file({
+  path: "/data/widgets/settings.json",
+  content: { enabled: true, options: ["a", "b"] }
+})
+
+// Binary files still use base64
+siyuan_write_file({
+  path: "/data/assets/image.png",
+  content: "iVBORw0KGgo...",
+  isBase64: true
+})
 ```
