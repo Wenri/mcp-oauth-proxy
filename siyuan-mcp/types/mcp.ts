@@ -5,8 +5,14 @@ declare global {
     /**
      * Tool definition for SiYuan MCP tools
      * Matches the SDK's registerTool API structure
+     *
+     * @template TInput - The Zod schema type for input validation
+     * @template TOutput - The Zod schema type for output validation
      */
-    interface McpTool {
+    interface McpTool<
+        TInput extends z.ZodType = z.ZodType,
+        TOutput extends z.ZodType = z.ZodType
+    > {
         /** The unique name of the tool */
         name: string;
 
@@ -20,20 +26,20 @@ declare global {
          * The Zod schema for validating tool input arguments
          * Must be a pre-constructed z.object() schema (not raw shape) for CF Workers compatibility
          */
-        inputSchema?: z.ZodTypeAny;
+        inputSchema?: TInput;
 
         /**
          * The Zod schema for validating tool output (optional)
          * When provided, enables structuredContent in responses
          * Must be a pre-constructed z.object() schema (not raw shape) for CF Workers compatibility
          */
-        outputSchema?: z.ZodTypeAny;
+        outputSchema?: TOutput;
 
         /**
          * The handler function for the tool
-         * Handler receives parsed args and optional extra context
+         * Args type is inferred from inputSchema via z.infer<TInput>
          */
-        handler(args: any, extra?: unknown): Promise<CallToolResult>;
+        handler(args: z.infer<TInput>, extra?: unknown): Promise<CallToolResult>;
 
         /** Optional hints about tool behavior */
         annotations?: {
@@ -43,5 +49,14 @@ declare global {
             openWorldHint?: boolean;   // If true, tool interacts with external entities
         }
     }
+
+    /**
+     * Helper function to define a tool with type inference
+     * Automatically infers handler args type from inputSchema
+     */
+    function defineTool<
+        TInput extends z.ZodType,
+        TOutput extends z.ZodType = z.ZodType
+    >(tool: McpTool<TInput, TOutput>): McpTool<TInput, TOutput>;
 }
 

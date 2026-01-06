@@ -8,7 +8,7 @@ import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MA
 import { uploadAPI, insertBlockAPI } from '../syapi';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { jsonValueSchema } from '../types';
@@ -31,7 +31,7 @@ const fileSchema = z.object({
 export class AssetToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_upload_assets',
         description:
           'Upload one or more files to SiYuan assets. Provide either content (base64/JSON) or a URL to fetch from. Can optionally auto-insert all uploaded assets into a document in order.',
@@ -64,7 +64,7 @@ export class AssetToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
+      }),
     ];
   }
 }

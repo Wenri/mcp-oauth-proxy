@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { createArrayResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { getDocDBitem, resolveIdOrHPath } from '../syapi/custom';
 import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
@@ -14,7 +14,7 @@ import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
 export class RelationToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_get_doc_backlinks',
         description:
           "Retrieve all documents or blocks that reference a specified document or block within the workspace. The result includes the referencing document's ID, name, notebook ID, and path. Useful for understanding backlinks and document relationships within the knowledge base.",
@@ -45,8 +45,8 @@ export class RelationToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_list_sub_docs',
         description:
           'Retrieve the basic information of sub-documents under a specified document within the SiYuan workspace. Useful for analyzing document structure and hierarchy relationships.',
@@ -86,8 +86,8 @@ export class RelationToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_get_children_blocks',
         description:
           'Get all child blocks under a parent block by its ID. This includes directly nested blocks and blocks under headings. Long block content will be abbreviated. Useful for understanding block hierarchy and content organization.',
@@ -115,7 +115,7 @@ export class RelationToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
+      }),
     ];
   }
 }

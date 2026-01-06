@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { isValidStr, assertNonEmptyArray } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { validateBlockAccess } from '../utils/resultFilter';
@@ -40,7 +40,7 @@ function validateAttributeKeys(attributes: BlockAttrs, blockId?: string): void {
 export class AttributeToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_set_block_attributes',
         description:
           "Set, update, or delete attributes for a specific block. To delete an attribute, set its value to an empty string.",
@@ -59,8 +59,8 @@ export class AttributeToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_get_block_attributes',
         description: 'Get all attributes of a specific block.',
         inputSchema: z.object({
@@ -74,8 +74,8 @@ export class AttributeToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_batch_set_attributes',
         description:
           'Set attributes on multiple blocks at once. More efficient than calling set_block_attributes multiple times.',
@@ -103,7 +103,7 @@ export class AttributeToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: false,
         },
-      },
+      }),
     ];
   }
 }

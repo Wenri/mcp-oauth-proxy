@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { createJsonResponse } from '../utils/mcpResponse';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 import { getConfig } from '..';
@@ -94,7 +94,7 @@ export class DocVectorSearchProvider extends McpToolsProvider {
     }
 
     return [
-      {
+      defineTool({
         name: 'siyuan_generate_answer_with_doc',
         description:
           'This tool provides a Retrieval-Augmented Generation (RAG) based Q&A capability. It generates context-aware answers using only the notes that the user has explicitly indexed from their siyuan-notes. Please note: the tool does not access or use all documents—only those that have been indexed by the user.',
@@ -112,7 +112,7 @@ export class DocVectorSearchProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
+      }),
     ];
   }
 }

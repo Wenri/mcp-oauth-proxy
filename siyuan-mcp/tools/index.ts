@@ -2,7 +2,7 @@
  * Tools index - exports all tool providers
  */
 
-export { McpToolsProvider, createNewDoc, createNewDocWithParentId } from './baseToolProvider';
+export { McpToolsProvider, createNewDoc, createNewDocWithParentId, defineTool } from './baseToolProvider';
 export { DocReadToolProvider } from './docRead';
 export { DocWriteToolProvider } from './docWrite';
 export { BlockWriteToolProvider } from './blockWrite';

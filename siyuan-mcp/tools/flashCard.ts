@@ -6,7 +6,7 @@ import { addRiffCards, removeRiffCards } from '../syapi';
 import { getBlockDBItem, isValidDeck, QUICK_DECK_ID, cachedQuery } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
-import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
+import { McpToolsProvider, createNewDocWithParentId, defineTool } from './baseToolProvider';
 import { z } from 'zod';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
@@ -18,7 +18,7 @@ const TYPE_VALID_LIST = ['h1', 'h2', 'h3', 'h4', 'h5', 'highlight', 'superBlock'
 export class FlashcardToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_create_flashcards_with_new_doc',
         description: 'Create New Document, and Make Flashcards with Specific Method',
         inputSchema: z.object({
@@ -50,8 +50,8 @@ export class FlashcardToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_create_flashcards',
         description: 'Create flashcards from one or more block IDs.',
         inputSchema: z.object({
@@ -70,8 +70,8 @@ export class FlashcardToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_delete_flashcards',
         description: 'Delete flashcards from a deck using their corresponding block IDs.',
         inputSchema: z.object({
@@ -92,7 +92,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: false,
         },
-      },
+      }),
     ];
   }
 }

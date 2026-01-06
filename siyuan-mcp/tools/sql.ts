@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
 import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { lang } from '../utils/lang';
 import { cachedQuery, escapeSqlString } from '../syapi/custom';
 import databaseSchema from '../static/siyuan-database-schema.md';
@@ -16,7 +16,7 @@ import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
 export class SqlToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_database_schema',
         description:
           'Provides the SiYuan database schema, including table names, field names, and their relationships, to help construct valid SQL queries for retrieving notes or note content. Returns the schema in markdown format.',
@@ -26,8 +26,8 @@ export class SqlToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_sql_cheatsheet',
         description:
           'Provides a SQL cheatsheet with query examples for SiYuan database, including FTS5 full-text search, window functions, JSON operations, and common patterns.',
@@ -37,8 +37,8 @@ export class SqlToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_query_sql',
         description: `Execute SQL queries on SiYuan's SQLite database (read-only). Supports advanced features:
 
@@ -68,8 +68,8 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_fulltext_search',
         description:
           'Fast full-text search using FTS5 with BM25 relevance ranking. Returns matching blocks with highlighted snippets. Supports FTS5 query syntax: AND (implicit), OR, NOT, "exact phrase", prefix*, column:term.',
@@ -102,7 +102,7 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
         annotations: {
           readOnlyHint: true,
         },
-      },
+      }),
     ];
   }
 }

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { createJsonResponse } from '../utils/mcpResponse';
 import { pushMsgAPI, reindexDoc, flushTransaction } from '../syapi';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isValidStr } from '../utils/commonCheck';
@@ -13,7 +13,7 @@ import { isValidStr } from '../utils/commonCheck';
 export class UtilityToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'get_current_time',
         description: lang('tool_get_current_time'),
         inputSchema: z.object({}),
@@ -37,8 +37,8 @@ export class UtilityToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_push_notification',
         description:
           'Push a notification message to the SiYuan UI. Useful for notifying the user about task progress or completion.',
@@ -60,8 +60,8 @@ export class UtilityToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_reindex_doc',
         description:
           'Reindex a document tree. Useful after batch operations to ensure the index is up to date.',
@@ -79,8 +79,8 @@ export class UtilityToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_flush_transaction',
         description:
           'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
@@ -95,7 +95,7 @@ export class UtilityToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
+      }),
     ];
   }
 }

@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutlineAPI, getDocPreview } from '../syapi';
 import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MAX_INLINE_ASSET_SIZE } from '../utils/mcpResponse';
 import { isValidStr, extractDocumentId, assertApiResult } from '../utils/commonCheck';
@@ -56,7 +56,7 @@ const outlinePathSchema: z.ZodType<OutlinePath> = z.lazy(() =>
 export class DocReadToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_read_doc_content_markdown',
         description: 'Retrieve the content of a document or block by its ID or path',
         inputSchema: z.object({
@@ -94,8 +94,8 @@ export class DocReadToolProvider extends McpToolsProvider {
         handler: blockReadHandler,
         title: lang('tool_title_read_doc_content_markdown'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_get_block_kramdown',
         description:
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
@@ -120,8 +120,8 @@ export class DocReadToolProvider extends McpToolsProvider {
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_get_hpath',
         description:
           'Get the human-readable path (hpath) for a document or block. Optionally includes document outline for context.',
@@ -137,8 +137,8 @@ export class DocReadToolProvider extends McpToolsProvider {
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_get_doc_outline',
         description:
           'Get the outline (table of contents) of a document. Returns headings hierarchy which helps understand document structure.',
@@ -152,8 +152,8 @@ export class DocReadToolProvider extends McpToolsProvider {
         handler: getDocOutlineHandler,
         title: lang('tool_title_get_doc_outline'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_export_html',
         description:
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
@@ -178,7 +178,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         handler: exportHtmlHandler,
         title: lang('tool_title_export_html'),
         annotations: { readOnlyHint: true },
-      },
+      }),
     ];
   }
 }

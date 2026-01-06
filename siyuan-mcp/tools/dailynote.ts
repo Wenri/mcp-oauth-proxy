@@ -15,7 +15,7 @@ import {
 } from '../syapi';
 import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush, warnPush } from '../logger';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
@@ -73,7 +73,7 @@ function getSortModeName(sortMode: number): SortMode {
 export class DailyNoteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_append_to_dailynote',
         description: lang('tool_append_dailynote'),
         inputSchema: z.object({
@@ -93,8 +93,8 @@ export class DailyNoteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_list_notebook',
         description:
           'List all notebooks in SiYuan and return their metadata(such as id, open status, dailyNoteSavePath etc.).',
@@ -128,7 +128,7 @@ export class DailyNoteToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
+      }),
     ];
   }
 }

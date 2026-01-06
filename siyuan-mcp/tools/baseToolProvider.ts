@@ -2,11 +2,33 @@
  * Base tool provider and shared functions
  */
 
+import type { z } from 'zod';
 import { generateNodeID } from '..';
 import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';
 import { generateToolSignature, generateToolTypeDoc } from '../utils/schemaDoc';
+
+/**
+ * Helper function to define a tool with type inference.
+ * Automatically infers handler args type from inputSchema.
+ *
+ * @example
+ * defineTool({
+ *   name: 'get_block',
+ *   description: 'Get a block by ID',
+ *   inputSchema: z.object({ id: z.string() }),
+ *   handler: async (args) => {
+ *     // args.id is inferred as string
+ *   }
+ * })
+ */
+export function defineTool<
+  TInput extends z.ZodType,
+  TOutput extends z.ZodType = z.ZodType
+>(tool: McpTool<TInput, TOutput>): McpTool<TInput, TOutput> {
+  return tool;
+}
 
 export abstract class McpToolsProvider {
   abstract getTools(): Promise<McpTool[]>;

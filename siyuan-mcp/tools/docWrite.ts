@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
 import { isADocId } from '../syapi/custom';
-import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
+import { McpToolsProvider, createNewDocWithParentId, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 // DISABLED: taskManager causes race conditions in CF Workers
@@ -18,7 +18,7 @@ import { assertApiResult, assertNonEmptyArray } from '../utils/commonCheck';
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_append_markdown_to_doc',
         description: 'Append Markdown content to the end of a document in SiYuan.',
         inputSchema: z.object({
@@ -36,8 +36,8 @@ export class DocWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_create_new_note_with_markdown_content',
         description:
           'Create a new note under a parent document in SiYuan with a specified title and Markdown content.',
@@ -57,8 +57,8 @@ export class DocWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_rename_doc',
         description: 'Rename a document.',
         inputSchema: z.object({
@@ -72,8 +72,8 @@ export class DocWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_remove_doc',
         description: 'Delete a document. This action moves the document to trash and is irreversible.',
         inputSchema: z.object({
@@ -86,8 +86,8 @@ export class DocWriteToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_move_docs',
         description:
           'Move one or more documents to a new location. Accepts either document IDs or full paths (notebook/path format).',
@@ -105,7 +105,7 @@ export class DocWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
+      }),
     ];
   }
 }

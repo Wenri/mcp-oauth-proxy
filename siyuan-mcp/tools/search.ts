@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
 import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { filterGroupSearchBlocksResult, filterSearchBlocksResult } from '../utils/resultFilter';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -42,7 +42,7 @@ export class SearchToolProvider extends McpToolsProvider {
     // Note: Original upstream returns empty array with "// # 16" comment
     // We keep the tools available for CF Worker implementation
     return [
-      {
+      defineTool({
         name: 'siyuan_search',
         description:
           'Perform a keyword-based full-text search across blocks in SiYuan (e.g., paragraphs, headings). This tool only matches literal text content in document bodies or headings. For dynamic queries (dailynote(i.e. diary), path restrictions, date ranges), use sql with `siyuan_query_sql` tool instead. Results are grouped by their containing documents with limit page size 10.',
@@ -96,8 +96,8 @@ export class SearchToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_query_syntax',
         description:
           "Provides documentation about SiYuan's advanced query syntax for searching content blocks, including boolean operators (AND, OR, NOT).",
@@ -107,7 +107,7 @@ export class SearchToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: true,
         },
-      },
+      }),
     ];
   }
 }

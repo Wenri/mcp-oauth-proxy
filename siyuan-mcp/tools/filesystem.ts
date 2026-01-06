@@ -7,7 +7,7 @@ import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
 import { createJsonResponse, createArrayResponse, createSuccessResponse, createImageContent, createAudioContent, createBlobResource, createResourceLink } from '../utils/mcpResponse';
 import { getFileAPIv2, putFileAPI, removeFileAPI, renameFileAPI, readDirAPI, exportResourcesAPI, limitedRead } from '../syapi';
 import { ResolvedContent, inferContentType, type ContentType } from '../utils/contentResolver';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { buildDownloadUrl, getTokenTtl } from '..';
@@ -18,7 +18,7 @@ import { assertNonEmptyArray, assertApiResult } from '../utils/commonCheck';
 export class FileSystemToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_read_file',
         description:
           'Read a file from SiYuan workspace. For text files, returns content in structured data. For media files (images/audio), returns metadata in structured data and the binary content as separate MCP content blocks. For other binary files, returns metadata with download URL only.',
@@ -37,8 +37,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
         handler: readFileHandler,
         title: lang('tool_title_read_file'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_write_file',
         description:
           'Write content to a file in SiYuan workspace. Content can be text, base64-encoded binary, JSON object/array, or a URL to fetch from.',
@@ -58,8 +58,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_remove_file',
         description: 'Delete a file or directory from SiYuan workspace.',
         inputSchema: z.object({
@@ -72,8 +72,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_rename_file',
         description: 'Rename or move a file within SiYuan workspace.',
         inputSchema: z.object({
@@ -87,8 +87,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_list_dir',
         description:
           'List contents of a directory in SiYuan workspace. Returns file/directory names with metadata.',
@@ -112,8 +112,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
         handler: listDirHandler,
         title: lang('tool_title_list_dir'),
         annotations: { readOnlyHint: true },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_create_dir',
         description: 'Create a new directory in SiYuan workspace.',
         inputSchema: z.object({
@@ -126,8 +126,8 @@ export class FileSystemToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_create_archive',
         description:
           'Create a zip archive from files or directories in SiYuan workspace. Returns a download URL for the zip file. Can archive any workspace path including assets, widgets, notebooks, etc.',
@@ -146,7 +146,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
         handler: createArchiveHandler,
         title: lang('tool_title_create_archive'),
         annotations: { readOnlyHint: true },
-      },
+      }),
     ];
   }
 }

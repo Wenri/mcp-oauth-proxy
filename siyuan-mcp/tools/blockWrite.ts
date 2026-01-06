@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
-import { McpToolsProvider } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr, assertApiResult } from '../utils/commonCheck';
@@ -18,7 +18,7 @@ import { getConfig } from '..';
 export class BlockWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      {
+      defineTool({
         name: 'siyuan_insert_block',
         description:
           'Insert a new block at a specified position. Content must be in markdown format. Position is anchored by one of: `nextID` (ID of block after), `previousID` (ID of block before), or `parentID` (parent block ID). `nextID` has highest priority.',
@@ -44,8 +44,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_prepend_block',
         description:
           'Insert a new block at the beginning of a parent block\'s children. Content must be in markdown format.',
@@ -66,8 +66,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_append_block',
         description:
           'Insert a new block at the end of a parent block\'s children. Content must be in markdown format.',
@@ -88,8 +88,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_update_block',
         description:
           'Update an existing block\'s content by ID. Content should be in Kramdown format. Using markdown format will lose block attributes.',
@@ -104,8 +104,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: false,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_fold_block',
         description: 'Fold (collapse) a block to hide its children. Works on headings and other container blocks.',
         inputSchema: z.object({
@@ -118,8 +118,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_unfold_block',
         description: 'Unfold (expand) a block to show its children.',
         inputSchema: z.object({
@@ -132,8 +132,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_delete_block',
         description: 'Delete one or more blocks by their IDs. This action is irreversible.',
         inputSchema: z.object({
@@ -153,8 +153,8 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: true,
           idempotentHint: true,
         },
-      },
-      {
+      }),
+      defineTool({
         name: 'siyuan_move_block',
         description:
           'Move one or more blocks to a new position. Blocks are moved in order, maintaining their relative sequence. Specify either parentID (to move as children) or previousID (to move after a specific block).',
@@ -177,7 +177,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           destructiveHint: false,
           idempotentHint: false,
         },
-      },
+      }),
     ];
   }
 }
