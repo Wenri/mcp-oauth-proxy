@@ -68,6 +68,20 @@ export class DocReadToolProvider extends McpToolsProvider {
             .number()
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
+          refMode: z
+            .number()
+            .optional()
+            .describe(
+              'Reference export mode: 0=anchor text, 1=anchor hash, 2=anchor+text, 3=text only, 4=blockquote (default: 4)'
+            ),
+          embedMode: z
+            .number()
+            .optional()
+            .describe('Embed export mode: 0=original, 1=blockquote (default: 1)'),
+          yfm: z
+            .boolean()
+            .optional()
+            .describe('Include YAML front matter with document attributes (default: false)'),
         }),
         outputSchema: z.object({
           id: z.string().describe('The resolved block/document ID'),
@@ -157,8 +171,15 @@ export class DocReadToolProvider extends McpToolsProvider {
   }
 }
 
-async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: number }) {
-  const { id, offset = 0, limit } = params;
+async function blockReadHandler(params: {
+  id: BlockId;
+  offset?: number;
+  limit?: number;
+  refMode?: number;
+  embedMode?: number;
+  yfm?: boolean;
+}) {
+  const { id, offset = 0, limit, refMode = 4, embedMode = 1, yfm = false } = params;
   debugPush('Reading document content');
 
   const dbItem = await validateBlockAccess(id);
@@ -173,7 +194,7 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
     }
   }
 
-  const markdown = await exportMdContent({ id: resolvedId, refMode: 4, embedMode: 1, yfm: false });
+  const markdown = await exportMdContent({ id: resolvedId, refMode, embedMode, yfm });
 
   const config = getConfig();
   if (dbItem.type !== 'd' && isValidStr(markdown['content']) && config.export?.addTitle) {
