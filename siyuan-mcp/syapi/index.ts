@@ -911,9 +911,10 @@ export function cacheResponse(
   cacheKey: string,
   cacheTtl: number
 ): Response {
-  // Auto-stringify plain objects
+  // Auto-stringify objects and arrays to JSON
+  // Note: isPlainObject returns false for arrays, so we need to check both
   let data: BodyInit;
-  if (isPlainObject(body)) {
+  if (isPlainObject(body) || Array.isArray(body)) {
     headers.set('Content-Type', 'application/json');
     data = JSON.stringify(body);
   } else {
