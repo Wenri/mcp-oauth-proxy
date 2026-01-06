@@ -33,7 +33,6 @@ export type SiyuanConfig = {
   fileTree: {
     sort: number;
   };
-  notebooks?: any[];
   // Merged from SiyuanMCPConfig
   filterNotebooks?: string;
   filterDocuments?: string;

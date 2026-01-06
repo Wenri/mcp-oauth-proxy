@@ -129,6 +129,22 @@ type NotebookConfResponse = {
   name: string;
 };
 
+/**
+ * Notebook info/statistics from getNotebookInfo API.
+ * Source: kernel/model/box.go BoxInfo struct
+ */
+type BoxInfo = {
+  id: NotebookId;
+  name: string;
+  docCount: number;
+  size: number;
+  hSize: string;
+  mtime: number;
+  cTime: number;
+  hMtime: string;
+  hCtime: string;
+};
+
 // ============================================================================
 // Transaction Types (from kernel/model/transaction.go)
 // ============================================================================

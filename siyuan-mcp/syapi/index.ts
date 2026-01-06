@@ -460,6 +460,16 @@ export async function getNotebookConf(notebookId: NotebookId): Promise<NotebookC
   return null;
 }
 
+/** Check if a notebook exists by ID (cached). Returns BoxInfo with stats. */
+export async function getNotebookInfo(notebookId: string): Promise<BoxInfo | null> {
+  const url = '/api/notebook/getNotebookInfo';
+  const response = await cachedPostRequest({ notebook: notebookId }, url) as APIResponse<{ boxInfo: BoxInfo }>;
+  if (response.code === 0 && response.data?.boxInfo) {
+    return response.data.boxInfo;
+  }
+  return null;
+}
+
 /** Get child blocks (cached) */
 export async function getChildBlocks(id: BlockId): Promise<ChildBlock[]> {
   const url = '/api/block/getChildBlocks';

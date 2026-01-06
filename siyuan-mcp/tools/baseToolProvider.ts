@@ -3,7 +3,7 @@
  */
 
 import { generateNodeID } from '..';
-import { createDocWithMdAPI, createDocWithPath, getNodebookList } from '../syapi';
+import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';
 
@@ -37,27 +37,19 @@ export async function createNewDocWithParentId(
   };
 
   // Case 1: Check if it's a valid notebook ID
-  if (isValidIdFormat(parentId) && isValidNotebookId(parentId)) {
+  if (isValidIdFormat(parentId) && await isValidNotebookId(parentId)) {
     createParams.notebook = parentId;
   }
-  // Case 2: Check if it's a valid ID format (could be document ID or notebook ID not in cache)
+  // Case 2: Valid ID format but not a notebook - must be a document ID
   else if (isValidIdFormat(parentId)) {
-    // First try as document ID
     const docInfo = await getDocDBitem(parentId);
     if (docInfo) {
       createParams.notebook = docInfo['box'];
       createParams.path = docInfo['path'].replace('.sy', '') + createParams.path;
     } else {
-      // Might be a notebook ID not in cache - verify against API
-      const notebooks = await getNodebookList();
-      const notebook = notebooks.find(nb => nb.id === parentId);
-      if (notebook) {
-        createParams.notebook = parentId;
-      } else {
-        throw new Error(
-          `Invalid parentId "${parentId}". Not found as document or notebook. Please check the ID.`
-        );
-      }
+      throw new Error(
+        `Invalid parentId "${parentId}". Not found as document or notebook.`
+      );
     }
   }
   // Case 3: hpath like "/NotebookName" or "/NotebookName/Doc"
@@ -70,9 +62,7 @@ export async function createNewDocWithParentId(
     }
 
     // Check if resolved to notebook or document
-    const notebooks = await getNodebookList();
-    const notebook = notebooks.find(nb => nb.id === resolvedId);
-    if (notebook) {
+    if (await isValidNotebookId(resolvedId)) {
       createParams.notebook = resolvedId;
     } else {
       const docInfo = await getDocDBitem(resolvedId);

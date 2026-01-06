@@ -4,6 +4,8 @@
 
 import { isEmpty } from 'lodash-es';
 import { getConfig } from '..';
+import { getNotebookInfo } from '../syapi';
+import { isValidIdFormat } from '../syapi/custom';
 
 export function isValidStr(s: any): boolean {
   if (s == undefined || s == null || s === '') {
@@ -18,16 +20,13 @@ export function isBlankStr(s: any): boolean {
   return clearBlankStr === '';
 }
 
-export function isValidNotebookId(id: string): boolean {
+/** Check if a string is a valid notebook ID by querying the kernel */
+export async function isValidNotebookId(id: string): Promise<boolean> {
   if (!isValidStr(id)) return false;
+  if (!isValidIdFormat(id)) return false;
 
-  const config = getConfig();
-  const notebooks = config.notebooks;
-  if (notebooks && Array.isArray(notebooks)) {
-    return notebooks.some((nb: any) => nb.id === id);
-  }
-
-  return false;
+  const notebook = await getNotebookInfo(id);
+  return notebook !== null;
 }
 
 export function isMobile(): boolean {

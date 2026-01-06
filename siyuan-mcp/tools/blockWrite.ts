@@ -192,9 +192,9 @@ async function insertBlockHandler(params: {
   debugPush('Insert block API called');
 
   if (
-    (nextID && isValidNotebookId(nextID)) ||
-    (previousID && isValidNotebookId(previousID)) ||
-    (parentID && isValidNotebookId(parentID))
+    (nextID && await isValidNotebookId(nextID)) ||
+    (previousID && await isValidNotebookId(previousID)) ||
+    (parentID && await isValidNotebookId(parentID))
   ) {
     throw new Error('nextID, previousID, and parentID must be block IDs, not notebook IDs.');
   }
@@ -254,7 +254,7 @@ async function prependBlockHandler(params: { data: string; parentID: BlockId }) 
   const { data, parentID } = params;
   debugPush('Prepend block API called');
 
-  if (isValidNotebookId(parentID)) {
+  if (await isValidNotebookId(parentID)) {
     throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
@@ -282,7 +282,7 @@ async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
   const { data, parentID } = params;
   debugPush('Append block API called');
 
-  if (isValidNotebookId(parentID)) {
+  if (await isValidNotebookId(parentID)) {
     throw new Error('parentID must be a block ID, not a notebook ID.');
   }
 
