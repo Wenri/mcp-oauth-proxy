@@ -40,7 +40,7 @@ export class AssetToolProvider extends McpToolsProvider {
           assetsDirPath: z
             .string()
             .optional()
-            .describe('Target assets directory path (e.g., "/data/assets/"). Defaults to "/data/assets/"'),
+            .describe('Target assets directory path relative to /data/ (e.g., "assets/"). Defaults to "assets/"'),
           insertAfterBlock: z
             .string()
             .optional()
@@ -78,7 +78,7 @@ async function uploadAssetsHandler(params: {
   insertAfterBlock?: string;
   altText?: string;
 }) {
-  const { files, assetsDirPath = '/data/assets/', insertAfterBlock, altText } = params;
+  const { files, assetsDirPath = 'assets/', insertAfterBlock, altText } = params;
   debugPush('Upload assets API called');
 
   assertNonEmptyArray(files, 'file');
