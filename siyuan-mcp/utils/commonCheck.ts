@@ -2,6 +2,7 @@
  * Common validation utilities
  */
 
+import { isEmpty } from 'lodash-es';
 import { getConfig, hasContext } from '..';
 
 export function isValidStr(s: any): boolean {
@@ -151,15 +152,8 @@ export function assertApiResult<T>(result: T | null | undefined, operation: stri
 }
 
 /**
- * Check if an array is empty or falsy.
- * Standardizes empty array checks with consistent behavior.
- */
-export function isEmptyArray<T>(arr: T[] | null | undefined): arr is null | undefined | [] {
-  return !arr || arr.length === 0;
-}
-
-/**
  * Assert that an array is not empty, throwing if it is.
+ * Uses lodash's isEmpty for the check.
  *
  * @param arr - The array to check
  * @param itemType - Description of the item type (for error message)
@@ -167,10 +161,10 @@ export function isEmptyArray<T>(arr: T[] | null | undefined): arr is null | unde
  * @throws Error if array is empty or falsy
  */
 export function assertNonEmptyArray<T>(arr: T[] | null | undefined, itemType: string): T[] {
-  if (isEmptyArray(arr)) {
+  if (isEmpty(arr)) {
     throw new Error(`At least one ${itemType} is required.`);
   }
-  return arr;
+  return arr as T[];
 }
 
 /**
