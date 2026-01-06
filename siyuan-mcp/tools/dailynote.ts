@@ -59,6 +59,7 @@ export class DailyNoteToolProvider extends McpToolsProvider {
                 name: z.string().describe('Notebook name'),
                 icon: z.string().describe('Notebook icon'),
                 sort: z.number().describe('Custom sort order'),
+                sortMode: z.number().describe('Sort mode (0=name, 1=updated, etc.)'),
                 closed: z.boolean().describe('Whether notebook is closed'),
                 newFlashcardCount: z.number().optional().describe('Count of new flashcards'),
                 dueFlashcardCount: z.number().optional().describe('Count of due flashcards'),
