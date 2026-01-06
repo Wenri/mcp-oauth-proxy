@@ -422,6 +422,24 @@ createErrorResponse("Invalid block ID");
 - **Returns array data** → use `createArrayResponse` with descriptive key name
 - **Never include redundant fields** like `{ success: true }` - if no error, it succeeded
 
+### outputSchema Requirements (CF Workers)
+
+**IMPORTANT**: When defining `outputSchema`, always use `z.object()` wrapper instead of raw shapes. Raw shapes cause `"[object Object]" is not valid JSON` errors in Cloudflare Workers:
+
+```typescript
+// ❌ WRONG - raw shape fails in CF Workers
+outputSchema: {
+  id: z.string(),
+  content: z.string(),
+},
+
+// ✅ CORRECT - use z.object() wrapper
+outputSchema: z.object({
+  id: z.string(),
+  content: z.string(),
+}),
+```
+
 ### Recursive Schemas with z.lazy()
 
 For recursive structures like document outlines, use `z.lazy()` with explicit type annotation:

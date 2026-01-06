@@ -21,6 +21,54 @@ import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/resultFilter';
 import { getAppId } from '..';
 
+/** SiYuan sort mode values (from kernel/util/sort.go) */
+const SORT_MODES = [
+  'Name ascending',
+  'Name descending',
+  'Updated ascending',
+  'Updated descending',
+  'Alphanumeric ascending',
+  'Alphanumeric descending',
+  'Custom',
+  'Ref count ascending',
+  'Ref count descending',
+  'Created ascending',
+  'Created descending',
+  'Size ascending',
+  'Size descending',
+  'Sub-doc count ascending',
+  'Sub-doc count descending',
+  'File tree',
+] as const;
+
+type SortMode = (typeof SORT_MODES)[number] | 'Unassigned';
+
+const SORT_MODE_NAMES: Record<number, SortMode> = {
+  0: 'Name ascending',
+  1: 'Name descending',
+  2: 'Updated ascending',
+  3: 'Updated descending',
+  4: 'Alphanumeric ascending',
+  5: 'Alphanumeric descending',
+  6: 'Custom',
+  7: 'Ref count ascending',
+  8: 'Ref count descending',
+  9: 'Created ascending',
+  10: 'Created descending',
+  11: 'Size ascending',
+  12: 'Size descending',
+  13: 'Sub-doc count ascending',
+  14: 'Sub-doc count descending',
+  15: 'File tree',
+  256: 'Unassigned',
+};
+
+const sortModeSchema = z.enum([...SORT_MODES, 'Unassigned']);
+
+function getSortModeName(sortMode: number): SortMode {
+  return SORT_MODE_NAMES[sortMode] ?? 'Unassigned';
+}
+
 export class DailyNoteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
@@ -50,7 +98,7 @@ export class DailyNoteToolProvider extends McpToolsProvider {
         description:
           'List all notebooks in SiYuan and return their metadata(such as id, open status, dailyNoteSavePath etc.).',
         inputSchema: {},
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of notebooks'),
           notebooks: z
             .array(
@@ -59,7 +107,7 @@ export class DailyNoteToolProvider extends McpToolsProvider {
                 name: z.string().describe('Notebook name'),
                 icon: z.string().describe('Notebook icon'),
                 sort: z.number().describe('Custom sort order'),
-                sortMode: z.number().describe('Sort mode (0=name, 1=updated, etc.)'),
+                sortMode: sortModeSchema.describe('Document sort mode'),
                 closed: z.boolean().describe('Whether notebook is closed'),
                 newFlashcardCount: z.number().optional().describe('Count of new flashcards'),
                 dueFlashcardCount: z.number().optional().describe('Count of due flashcards'),
@@ -73,7 +121,7 @@ export class DailyNoteToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of notebook metadata objects'),
-        },
+        }),
         handler: listNotebookHandler,
         title: lang('tool_title_list_notebook'),
         annotations: {
@@ -140,11 +188,17 @@ async function listNotebookHandler() {
 
   const augmentedNotebooks = await Promise.all(
     notebooks.map(async (notebook) => {
+      // Transform sortMode number to human-readable name
+      const baseNotebook = {
+        ...notebook,
+        sortMode: getSortModeName(notebook.sortMode),
+      };
+
       try {
         const confData = await getNotebookConf(notebook.id);
         if (confData && confData.conf) {
           return {
-            ...notebook,
+            ...baseNotebook,
             refCreateSaveBox: confData.conf.refCreateSaveBox,
             refCreateSavePath: confData.conf.refCreateSavePath,
             docCreateSaveBox: confData.conf.docCreateSaveBox,
@@ -156,7 +210,7 @@ async function listNotebookHandler() {
       } catch (error) {
         warnPush(`Failed to get conf for notebook ${notebook.id}`, error);
       }
-      return notebook;
+      return baseNotebook;
     })
   );
 

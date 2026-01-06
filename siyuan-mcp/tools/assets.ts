@@ -50,13 +50,13 @@ export class AssetToolProvider extends McpToolsProvider {
             .optional()
             .describe('Alt text for images when using insertAfterBlock (defaults to fileName)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           uploadedCount: z.number().describe('Number of files uploaded successfully'),
           failedCount: z.number().describe('Number of files that failed to upload'),
           succMap: z.record(z.string(), z.string()).describe('Map of file names to their asset paths'),
           errFiles: z.array(z.string()).describe('List of file names that failed to upload'),
           insertedBlockIds: z.array(z.string()).describe('IDs of inserted blocks (when insertAfterBlock is used)'),
-        },
+        }),
         handler: uploadAssetsHandler,
         title: lang('tool_title_upload_assets'),
         annotations: {

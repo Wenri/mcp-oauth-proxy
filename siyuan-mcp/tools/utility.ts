@@ -17,7 +17,7 @@ export class UtilityToolProvider extends McpToolsProvider {
         name: 'get_current_time',
         description: lang('tool_get_current_time'),
         inputSchema: {},
-        outputSchema: {
+        outputSchema: z.object({
           iso: z.string().describe('ISO 8601 formatted timestamp'),
           year: z.number().describe('Year (e.g., 2024)'),
           month: z.string().describe('Month (01-12)'),
@@ -31,7 +31,7 @@ export class UtilityToolProvider extends McpToolsProvider {
           formattedDateTime: z.string().describe('Formatted datetime (YYYY-MM-DD HH:MM:SS)'),
           timezoneOffset: z.number().describe('Timezone offset in minutes'),
           unixTimestamp: z.number().describe('Unix timestamp in seconds'),
-        },
+        }),
         handler: getCurrentTimeHandler,
         title: lang('tool_title_get_current_time'),
         annotations: {
@@ -50,9 +50,9 @@ export class UtilityToolProvider extends McpToolsProvider {
             .default(7000)
             .describe('How long to show the notification in milliseconds (default: 7000)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           success: z.boolean().describe('Whether the notification was sent successfully'),
-        },
+        }),
         handler: pushNotificationHandler,
         title: lang('tool_title_push_notification'),
         annotations: {
@@ -68,10 +68,10 @@ export class UtilityToolProvider extends McpToolsProvider {
         inputSchema: {
           path: z.string().describe('The document path to reindex (e.g., "/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy")'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           success: z.boolean().describe('Whether the reindex operation succeeded'),
           path: z.string().describe('The path that was reindexed'),
-        },
+        }),
         handler: reindexDocHandler,
         title: lang('tool_title_reindex_doc'),
         annotations: {
@@ -85,9 +85,9 @@ export class UtilityToolProvider extends McpToolsProvider {
         description:
           'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
         inputSchema: {},
-        outputSchema: {
+        outputSchema: z.object({
           success: z.boolean().describe('Whether the flush operation succeeded'),
-        },
+        }),
         handler: flushTransactionHandler,
         title: lang('tool_title_flush_transaction'),
         annotations: {

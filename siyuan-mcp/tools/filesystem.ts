@@ -27,13 +27,13 @@ export class FileSystemToolProvider extends McpToolsProvider {
             .string()
             .describe('Path to the file in workspace (e.g., "/data/assets/image.png", "/data/widgets/config.json")'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           path: z.string().describe('Path of the file'),
           type: z.enum(['text', 'image', 'audio', 'binary']).describe('Content type: text/image/audio (in extraContent), binary (download only)'),
           mimeType: z.string().describe('MIME type of the file'),
           downloadUrl: z.string().describe('URL to download the file'),
           expiresAt: z.string().nullable().describe('When the download URL expires'),
-        },
+        }),
         handler: readFileHandler,
         title: lang('tool_title_read_file'),
         annotations: { readOnlyHint: true },
@@ -95,7 +95,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
         inputSchema: {
           path: z.string().describe('Path to the directory (e.g., "/data/assets/", "/data/widgets/")'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of entries'),
           path: z.string().describe('Path of the directory'),
           entries: z
@@ -108,7 +108,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of file/directory entries'),
-        },
+        }),
         handler: listDirHandler,
         title: lang('tool_title_list_dir'),
         annotations: { readOnlyHint: true },
@@ -137,12 +137,12 @@ export class FileSystemToolProvider extends McpToolsProvider {
             .describe('Array of file/directory paths to archive (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
           name: z.string().optional().describe('Custom name for the archive (without .zip extension)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           fileName: z.string().describe('Name of the created zip file'),
           downloadUrl: z.string().describe('URL to download the zip file'),
           expiresAt: z.string().nullable().describe('When the download URL expires'),
           paths: z.array(z.string()).describe('Array of paths that were archived'),
-        },
+        }),
         handler: createArchiveHandler,
         title: lang('tool_title_create_archive'),
         annotations: { readOnlyHint: true },

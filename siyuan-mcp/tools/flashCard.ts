@@ -38,10 +38,10 @@ export class FlashcardToolProvider extends McpToolsProvider {
             .string()
             .describe('The Markdown-formatted content to append at the end of the new document.'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           docId: z.string().describe('ID of the newly created document'),
           cardCount: z.number().describe('Number of flashcards created'),
-        },
+        }),
         handler: addFlashCardMarkdown,
         title: 'Create Flashcards with New Doc',
         annotations: {

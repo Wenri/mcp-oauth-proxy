@@ -81,7 +81,7 @@ export class SearchToolProvider extends McpToolsProvider {
             1: Group by document (default) - returns hits organized by their parent documents
           `),
         },
-        outputSchema: {
+        outputSchema: z.object({
           page: z.number().describe('Current page number'),
           pageCount: z.number().describe('Total number of pages'),
           matchedBlockCount: z.number().describe('Total number of matching blocks'),
@@ -90,7 +90,7 @@ export class SearchToolProvider extends McpToolsProvider {
             z.array(groupedResultSchema),
             z.array(ungroupedResultSchema),
           ]).describe('Search results (format depends on groupBy setting)'),
-        },
+        }),
         handler: searchHandler,
         title: lang('tool_title_search'),
         annotations: {

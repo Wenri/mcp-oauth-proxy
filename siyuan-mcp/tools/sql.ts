@@ -9,8 +9,7 @@ import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
 import { McpToolsProvider } from './baseToolProvider';
 import { lang } from '../utils/lang';
-import { getBlockDBItem, cachedQuery, escapeSqlString } from '../syapi/custom';
-import { filterBlock } from '../utils/resultFilter';
+import { cachedQuery, escapeSqlString } from '../syapi/custom';
 import databaseSchema from '../static/siyuan-database-schema.md';
 import sqlCheatsheet from '../static/siyuan-sql-cheatsheet.md';
 
@@ -60,10 +59,10 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
         inputSchema: {
           stmt: z.string().describe('SQL statement to execute (read-only, writes do not persist)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of rows returned'),
           rows: z.array(z.any()).describe('Array of rows from the SQL query'),
-        },
+        }),
         handler: sqlHandler,
         title: lang('tool_title_query_sql'),
         annotations: {
@@ -80,7 +79,7 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
           snippetLength: z.number().optional().default(64).describe('Number of tokens around match in snippet (default: 64)'),
           caseSensitive: z.boolean().optional().default(false).describe('Use case-sensitive search (default: false)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of results found'),
           query: z.string().describe('The search query that was executed'),
           results: z
@@ -97,7 +96,7 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
               })
             )
             .describe('Array of matching blocks'),
-        },
+        }),
         handler: fulltextSearchHandler,
         title: lang('tool_title_fulltext_search'),
         annotations: {
@@ -115,20 +114,10 @@ async function sqlHandler(params: { stmt: string }) {
   const sqlResult = await queryAPI(stmt);
   debugPush('SQL result', sqlResult);
 
-  // Filter results if they contain id field
-  let filteredResult = sqlResult;
-  if (sqlResult.length > 0 && sqlResult.length < 300 && 'id' in sqlResult[0]) {
-    filteredResult = [];
-    for (const row of sqlResult) {
-      const id = row['id'];
-      const dbItem = await getBlockDBItem(id);
-      if (dbItem && (await filterBlock(id, dbItem)) === false) {
-        filteredResult.push(dbItem);
-      }
-    }
-  }
-
-  return createArrayResponse(filteredResult, 'rows');
+  // Return raw SQL results without per-row filtering
+  // (per-row filtering causes too many subrequests for large result sets)
+  // Users can use notebook/document filters in config for access control
+  return createArrayResponse(sqlResult, 'rows');
 }
 
 async function schemaHandler() {
@@ -175,24 +164,9 @@ async function fulltextSearchHandler(params: {
     LIMIT ${limit}
   `;
 
-  let sqlResult = await cachedQuery('/custom/fts', { query: safeQuery, limit, snippetLength, caseSensitive }, stmt);
+  const sqlResult = await cachedQuery('/custom/fts', { query: safeQuery, limit, snippetLength, caseSensitive }, stmt);
 
-  // Filter results
-  if (sqlResult.length > 0 && 'id' in sqlResult[0]) {
-    const filteredResult = [];
-    for (const row of sqlResult) {
-      const id = row['id'];
-      const dbItem = await getBlockDBItem(id);
-      if (dbItem && (await filterBlock(id, dbItem)) === false) {
-        filteredResult.push({
-          ...row,
-          type: dbItem.type,
-          subtype: dbItem.subtype,
-        });
-      }
-    }
-    sqlResult = filteredResult;
-  }
-
+  // Return raw FTS results without per-row filtering
+  // (per-row filtering causes too many subrequests)
   return createArrayResponse(sqlResult, 'results', { query });
 }

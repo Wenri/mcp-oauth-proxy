@@ -53,13 +53,13 @@ export class DocReadToolProvider extends McpToolsProvider {
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('The resolved block/document ID'),
           content: z.string().describe('The markdown content (sliced if offset/limit provided)'),
           offset: z.number().describe('The starting offset used'),
           hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
           totalLength: z.number().describe('Total length of the full content in characters'),
-        },
+        }),
         handler: blockReadHandler,
         title: lang('tool_title_read_doc_content_markdown'),
         annotations: { readOnlyHint: true },
@@ -79,13 +79,13 @@ export class DocReadToolProvider extends McpToolsProvider {
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('The resolved block/document ID'),
           kramdown: z.string().describe('Block content in Kramdown format (Markdown with IAL attributes like {: id="..." })'),
           offset: z.number().describe('The starting offset used'),
           hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
           totalLength: z.number().describe('Total length of the full content in characters'),
-        },
+        }),
         handler: kramdownReadHandler,
         title: lang('tool_title_get_block_kramdown'),
         annotations: { readOnlyHint: true },
@@ -98,11 +98,11 @@ export class DocReadToolProvider extends McpToolsProvider {
           id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('The block/document ID'),
           hpath: z.string().describe('Human-readable path (e.g., "/Notebook/Parent Doc/Child Doc")'),
           outline: z.array(outlineItemSchema).optional().describe('Document outline/TOC if includeOutline was true'),
-        },
+        }),
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
         annotations: { readOnlyHint: true },
@@ -114,10 +114,10 @@ export class DocReadToolProvider extends McpToolsProvider {
         inputSchema: {
           id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('The document ID'),
           outline: z.array(outlineItemSchema).describe('Hierarchical outline with headings'),
-        },
+        }),
         handler: getDocOutlineHandler,
         title: lang('tool_title_get_doc_outline'),
         annotations: { readOnlyHint: true },
@@ -129,10 +129,11 @@ export class DocReadToolProvider extends McpToolsProvider {
         inputSchema: {
           id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
         },
-        outputSchema: {
+        // Try passing pre-constructed Zod object schema instead of raw shape
+        outputSchema: z.object({
           id: z.string().describe('The document ID'),
           html: z.string().describe('The rendered HTML content of the document'),
-        },
+        }),
         handler: exportHtmlHandler,
         title: lang('tool_title_export_html'),
         annotations: { readOnlyHint: true },

@@ -25,7 +25,7 @@ export class RelationToolProvider extends McpToolsProvider {
               'The ID of the target document or block. The notebook where the target resides must be open.'
             ),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of backlinks found'),
           backlinks: z
             .array(
@@ -37,7 +37,7 @@ export class RelationToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of documents that reference the specified ID'),
-        },
+        }),
         handler: getDocBacklink,
         title: 'Get Note Relationship',
         annotations: {
@@ -57,7 +57,7 @@ export class RelationToolProvider extends McpToolsProvider {
               'The ID of the parent document or notebook. The notebook containing this document must be open.'
             ),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of sub-documents found'),
           docs: z
             .array(
@@ -78,7 +78,7 @@ export class RelationToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of sub-document metadata'),
-        },
+        }),
         handler: getChildrenDocs,
         title: 'Get Sub-Document Information',
         annotations: {
@@ -94,7 +94,7 @@ export class RelationToolProvider extends McpToolsProvider {
         inputSchema: {
           id: z.string().describe('The unique identifier (ID) of the parent block.'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           count: z.number().describe('Number of child blocks'),
           blocks: z
             .array(
@@ -107,7 +107,7 @@ export class RelationToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of child block metadata'),
-        },
+        }),
         handler: getChildBlocksTool,
         title: 'Get Child Blocks',
         annotations: {

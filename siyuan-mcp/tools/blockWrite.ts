@@ -30,12 +30,12 @@ export class BlockWriteToolProvider extends McpToolsProvider {
             .optional()
             .describe('Block ID or document hpath of the parent (must be a container like document or quote)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
           data: z.string().describe('The block data/content'),
           parentID: z.string().optional().describe('ID of the parent block'),
-        },
+        }),
         handler: insertBlockHandler,
         title: lang('tool_title_insert_block'),
         annotations: {
@@ -52,12 +52,12 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
           data: z.string().describe('The block data/content'),
           parentID: z.string().optional().describe('ID of the parent block'),
-        },
+        }),
         handler: prependBlockHandler,
         title: lang('tool_title_prepend_block'),
         annotations: {
@@ -74,12 +74,12 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
           data: z.string().describe('The block data/content'),
           parentID: z.string().optional().describe('ID of the parent block'),
-        },
+        }),
         handler: appendBlockHandler,
         title: lang('tool_title_append_block'),
         annotations: {

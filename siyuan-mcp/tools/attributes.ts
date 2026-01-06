@@ -40,9 +40,9 @@ export class AttributeToolProvider extends McpToolsProvider {
         inputSchema: {
           blockId: z.string().describe('The ID of the block to get attributes from.'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           attributes: z.record(z.string(), z.string()).describe('Object of attribute key-value pairs'),
-        },
+        }),
         handler: getBlockAttributesHandler,
         title: lang('tool_title_get_block_attributes'),
         annotations: {

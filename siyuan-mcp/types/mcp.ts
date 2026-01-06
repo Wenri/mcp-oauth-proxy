@@ -35,8 +35,9 @@ declare global {
         /**
          * The Zod schema for validating tool output (optional)
          * When provided, enables structuredContent in responses
+         * Must be a pre-constructed z.object() schema (not raw shape) for CF Workers compatibility
          */
-        outputSchema?: Record<string, z.ZodTypeAny>;
+        outputSchema?: z.ZodTypeAny;
 
         /**
          * The handler function for the tool

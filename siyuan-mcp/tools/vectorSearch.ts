@@ -101,9 +101,9 @@ export class DocVectorSearchProvider extends McpToolsProvider {
         inputSchema: {
           question: z.string().describe('Describe question about note here'),
         },
-        outputSchema: {
+        outputSchema: z.object({
           answer: z.any().describe('RAG-generated answer based on indexed documents'),
-        },
+        }),
         handler: (params: { question: string }) =>
           answerWithRAG(params, provider),
         title: lang('tool_title_generate_answer_with_doc'),
