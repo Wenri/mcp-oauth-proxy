@@ -61,10 +61,6 @@ export function getConfig(): SiyuanConfig {
   return config;
 }
 
-/** Check if context is initialized */
-export function hasContext(): boolean {
-  return config !== null;
-}
 
 // Re-export generateBlockId as generateNodeID for backward compatibility
 export { generateBlockId as generateNodeID } from './syapi/custom';

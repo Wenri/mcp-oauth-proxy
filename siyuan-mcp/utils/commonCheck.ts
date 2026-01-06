@@ -3,7 +3,7 @@
  */
 
 import { isEmpty } from 'lodash-es';
-import { getConfig, hasContext } from '..';
+import { getConfig } from '..';
 
 export function isValidStr(s: any): boolean {
   if (s == undefined || s == null || s === '') {
@@ -21,16 +21,12 @@ export function isBlankStr(s: any): boolean {
 export function isValidNotebookId(id: string): boolean {
   if (!isValidStr(id)) return false;
 
-  if (hasContext()) {
-    const config = getConfig();
-    const notebooks = config.notebooks;
-    if (notebooks && Array.isArray(notebooks)) {
-      return notebooks.some((nb: any) => nb.id === id);
-    }
+  const config = getConfig();
+  const notebooks = config.notebooks;
+  if (notebooks && Array.isArray(notebooks)) {
+    return notebooks.some((nb: any) => nb.id === id);
   }
 
-  // If no context or notebooks not available, return false (safe default)
-  // Better to let operations proceed than incorrectly reject valid block IDs
   return false;
 }
 
@@ -40,18 +36,15 @@ export function isMobile(): boolean {
 }
 
 export function isMacOs(): boolean {
-  if (hasContext()) {
-    const config = getConfig();
-    const os = config.system?.os?.toUpperCase() || '';
-    return (
-      os.includes('DARWIN') ||
-      os.includes('MAC') ||
-      os.includes('IPAD') ||
-      os.includes('IPHONE') ||
-      os.includes('IOS')
-    );
-  }
-  return false;
+  const config = getConfig();
+  const os = config.system?.os?.toUpperCase() || '';
+  return (
+    os.includes('DARWIN') ||
+    os.includes('MAC') ||
+    os.includes('IPAD') ||
+    os.includes('IPHONE') ||
+    os.includes('IOS')
+  );
 }
 
 export function isEventCtrlKey(event: { ctrlKey?: boolean; metaKey?: boolean }): boolean {
@@ -105,8 +98,6 @@ const parseVersion = (version: string): number[] => {
 };
 
 export function isCurrentVersionLessThan(version: string): boolean {
-  if (!hasContext()) return false;
-
   const config = getConfig();
   const currentVersion = config.system?.kernelVersion || '0.0.0';
 
