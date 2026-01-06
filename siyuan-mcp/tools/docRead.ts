@@ -32,7 +32,8 @@ const outlineBlockSchema: z.ZodType<OutlineBlock> = z.lazy(() =>
   })
 );
 
-// Recursive schema for outline path - matches kernel's OutlinePath structure
+// Recursive schema for outline path - matches kernel's Path struct
+// Note: blocks and children have omitempty in kernel, so they're optional
 const outlinePathSchema: z.ZodType<OutlinePath> = z.lazy(() =>
   z.object({
     id: z.string().describe('Block/Document ID'),
@@ -42,8 +43,8 @@ const outlinePathSchema: z.ZodType<OutlinePath> = z.lazy(() =>
     type: z.string().describe('Block type'),
     nodeType: z.string().describe('Node type'),
     subType: z.string().describe('Block subtype'),
-    blocks: z.array(outlineBlockSchema).describe('Heading blocks within this path'),
-    children: z.array(outlinePathSchema).describe('Nested outline paths'),
+    blocks: z.array(outlineBlockSchema).optional().describe('Heading blocks within this path'),
+    children: z.array(outlinePathSchema).optional().describe('Nested outline paths'),
     depth: z.number().describe('Depth level'),
     count: z.number().describe('Child count'),
     folded: z.boolean().describe('Whether folded in UI'),

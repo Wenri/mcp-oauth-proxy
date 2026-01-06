@@ -302,6 +302,7 @@ type OutlineBlock = {
 /**
  * Outline path entry.
  * Source: kernel/model/block.go Path struct
+ * Note: blocks and children have omitempty in kernel
  */
 type OutlinePath = {
   id: BlockId;
@@ -311,8 +312,8 @@ type OutlinePath = {
   type: string;
   nodeType: string;
   subType: string;
-  blocks: OutlineBlock[];
-  children: OutlinePath[];
+  blocks?: OutlineBlock[];
+  children?: OutlinePath[];
   depth: number;
   count: number;
   folded: boolean;

@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Related Repositories
+
+- **SiYuan Kernel Source**: `/Users/wenri/Git/siyuan-unlock` - Local copy of SiYuan Note kernel source code. Use this to check API response structures, types, and implementation details.
+
 ## Project Overview
 
 This is a **SiYuan Note MCP Server** with OAuth authentication via Cloudflare Access. It provides Model Context Protocol (MCP) tools for interacting with SiYuan Note, a privacy-first personal knowledge management system.

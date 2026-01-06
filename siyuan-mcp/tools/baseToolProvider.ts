@@ -6,9 +6,22 @@ import { generateNodeID } from '..';
 import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';
+import { generateToolSignature, generateToolTypeDoc } from '../utils/schemaDoc';
 
 export abstract class McpToolsProvider {
-    abstract getTools(): Promise<McpTool[]>;
+  abstract getTools(): Promise<McpTool[]>;
+
+  /** Generate signatures for all tools in this provider */
+  async getSignatures(): Promise<string[]> {
+    const tools = await this.getTools();
+    return tools.map(tool => generateToolSignature(tool));
+  }
+
+  /** Generate full type documentation for all tools in this provider */
+  async getTypeDocs(): Promise<string[]> {
+    const tools = await this.getTools();
+    return tools.map(tool => generateToolTypeDoc(tool));
+  }
 }
 
 export async function createNewDoc(
