@@ -20,9 +20,11 @@
  *   }
  */
 
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { SiyuanMCPConfig } from '..';
-import { createSiyuanMCPServer, initializeSiyuanMCPServer } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer } from '../siyuan-mcp';
+import pkg from '../package.json' with { type: 'json' };
 
 // Parse command line arguments
 function parseArgs(): SiyuanMCPConfig {
@@ -101,7 +103,7 @@ Environment Variables:
 // Main
 async function main() {
   const config = parseArgs();
-  const server = createSiyuanMCPServer();
+  const server = new McpServer({ name: pkg.name, version: pkg.version });
   await initializeSiyuanMCPServer(server, config);
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -11,14 +11,15 @@ import { accessApp } from './access-handler';
 import { initializeSiyuanMCPServer, setOAuthTokenExpiry, setGrantKey, logPush } from '../siyuan-mcp';
 import type { Env } from '..';
 import type { Props } from './workers-oauth-utils';
+import pkg from '../package.json' with { type: 'json' };
 
 /**
  * SiYuan MCP Agent for Cloudflare Workers
  */
 export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
   server = new McpServer({
-    name: 'siyuan-mcp',
-    version: '1.0.0',
+    name: pkg.name,
+    version: pkg.version,
   });
 
   async init() {

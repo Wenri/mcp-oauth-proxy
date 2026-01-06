@@ -137,16 +137,6 @@ export async function buildDownloadUrl(path: string): Promise<string> {
   return `/download/<token>${normalizedPath}`;
 }
 
-/**
- * Create a new SiYuan MCP server instance (sync)
- */
-export function createSiyuanMCPServer(): McpServer {
-  return new McpServer(
-    { name: 'siyuan-mcp', version: '1.0.0' },
-    { capabilities: { tools: {}, prompts: {}, resources: {} } }
-  );
-}
-
 /** Load and register all tools with the MCP server */
 async function loadTools(
   server: McpServer,
