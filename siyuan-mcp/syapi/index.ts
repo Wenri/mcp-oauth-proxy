@@ -897,6 +897,22 @@ export async function cachedPostRequest(data: Record<string, string | number | b
 }
 
 /**
+ * Check if a value is a valid BodyInit type that can be passed to Response constructor.
+ * Valid types: string, Blob, ArrayBuffer, TypedArray, DataView, ReadableStream, FormData, URLSearchParams
+ */
+function isValidBodyInit(value: unknown): value is BodyInit {
+  return (
+    typeof value === 'string' ||
+    value instanceof Blob ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) || // Covers all TypedArrays and DataView
+    value instanceof ReadableStream ||
+    value instanceof FormData ||
+    value instanceof URLSearchParams
+  );
+}
+
+/**
  * Cache a response body and return a Response object.
  * Handles both Uint8Array (already buffered) and ReadableStream (uses tee()).
  * @param body - Response body to cache
@@ -917,8 +933,15 @@ export function cacheResponse(
   if (isPlainObject(body) || Array.isArray(body)) {
     headers.set('Content-Type', 'application/json');
     data = JSON.stringify(body);
+  } else if (isValidBodyInit(body)) {
+    data = body;
   } else {
-    data = body as BodyInit;
+    // Throw for non-cacheable types like Date, Map, Set, class instances
+    const typeName = (body as object)?.constructor?.name ?? typeof body;
+    throw new Error(
+      `cacheResponse: unsupported body type "${typeName}". ` +
+        `Expected plain object, array, or BodyInit (string, Blob, ArrayBuffer, ReadableStream, etc.)`
+    );
   }
 
   if (cacheTtl > 0) {
