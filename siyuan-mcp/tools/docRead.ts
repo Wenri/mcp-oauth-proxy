@@ -69,15 +69,15 @@ export class DocReadToolProvider extends McpToolsProvider {
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
           refMode: z
-            .number()
+            .enum(['link', 'text', 'footnote'])
             .optional()
             .describe(
-              'Reference export mode: 0=anchor text, 1=anchor hash, 2=anchor+text, 3=text only, 4=blockquote (default: 4)'
+              'Block reference export mode: "footnote"=footnotes with anchor hash (default), "text"=anchor text only, "link"=siyuan:// protocol link'
             ),
           embedMode: z
-            .number()
+            .enum(['original', 'blockquote'])
             .optional()
-            .describe('Embed export mode: 0=original, 1=blockquote (default: 1)'),
+            .describe('Block embed export mode: "blockquote"=as blockquote (default), "original"=original text'),
           yfm: z
             .boolean()
             .optional()
@@ -171,15 +171,19 @@ export class DocReadToolProvider extends McpToolsProvider {
   }
 }
 
+// Map enum values to kernel numeric values
+const REF_MODE_MAP = { link: 2, text: 3, footnote: 4 } as const;
+const EMBED_MODE_MAP = { original: 0, blockquote: 1 } as const;
+
 async function blockReadHandler(params: {
   id: BlockId;
   offset?: number;
   limit?: number;
-  refMode?: number;
-  embedMode?: number;
+  refMode?: 'link' | 'text' | 'footnote';
+  embedMode?: 'original' | 'blockquote';
   yfm?: boolean;
 }) {
-  const { id, offset = 0, limit, refMode = 4, embedMode = 1, yfm = false } = params;
+  const { id, offset = 0, limit, refMode = 'footnote', embedMode = 'blockquote', yfm = false } = params;
   debugPush('Reading document content');
 
   const dbItem = await validateBlockAccess(id);
@@ -194,7 +198,11 @@ async function blockReadHandler(params: {
     }
   }
 
-  const markdown = await exportMdContent({ id: resolvedId, refMode, embedMode, yfm });
+  // Map enum to kernel numeric values
+  const refModeNum = REF_MODE_MAP[refMode];
+  const embedModeNum = EMBED_MODE_MAP[embedMode];
+
+  const markdown = await exportMdContent({ id: resolvedId, refMode: refModeNum, embedMode: embedModeNum, yfm });
 
   const config = getConfig();
   if (dbItem.type !== 'd' && isValidStr(markdown['content']) && config.export?.addTitle) {
