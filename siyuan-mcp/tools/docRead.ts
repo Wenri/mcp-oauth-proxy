@@ -162,17 +162,18 @@ async function blockReadHandler(params: { id: BlockId; offset?: number; limit?: 
   debugPush('Reading document content');
 
   const dbItem = await validateBlockAccess(id);
+  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
 
   let otherImg: ContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
-      otherImg = await getAssets(id);
+      otherImg = await getAssets(resolvedId);
     } catch (error) {
       errorPush('Error converting assets to images', error);
     }
   }
 
-  const markdown = await exportMdContent({ id, refMode: 4, embedMode: 1, yfm: false });
+  const markdown = await exportMdContent({ id: resolvedId, refMode: 4, embedMode: 1, yfm: false });
 
   const config = getConfig();
   if (dbItem.type !== 'd' && isValidStr(markdown['content']) && config.export?.addTitle) {
@@ -200,17 +201,18 @@ async function kramdownReadHandler(params: { id: BlockId; offset?: number; limit
   const { id, offset = 0, limit } = params;
 
   const dbItem = await validateBlockAccess(id);
+  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
 
   let otherImg: ContentBlock[] = [];
   if (dbItem.type !== 'd') {
     try {
-      otherImg = await getAssets(id);
+      otherImg = await getAssets(resolvedId);
     } catch (error) {
       errorPush('Error converting assets to images', error);
     }
   }
 
-  const result = assertApiResult(await getKramdown(id), 'get block kramdown content');
+  const result = assertApiResult(await getKramdown(resolvedId), 'get block kramdown content');
   const content = result.kramdown;
   const sliced = limit !== undefined ? content.slice(offset, offset + limit) : content.slice(offset);
   const hasMore = limit !== undefined ? offset + limit < content.length : false;
