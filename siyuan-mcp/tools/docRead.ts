@@ -15,24 +15,40 @@ import { validateBlockAccess } from '../utils/resultFilter';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
-// Recursive schema for outline items
-type OutlineItem = {
-  id: string;
-  name: string;
-  type: string;
-  depth: number;
-  count: number;
-  children?: OutlineItem[];
-};
-
-const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
+// Recursive schema for outline - matches kernel's OutlineBlock structure
+const outlineBlockSchema: z.ZodType<OutlineBlock> = z.lazy(() =>
   z.object({
     id: z.string().describe('Block ID'),
-    name: z.string().describe('Heading text'),
-    type: z.string().describe('Always "outline"'),
+    rootID: z.string().describe('Document ID this block belongs to'),
+    box: z.string().describe('Notebook ID'),
+    path: z.string().describe('File path within notebook'),
+    content: z.string().describe('Heading text content'),
+    type: z.string().describe('Block type (e.g., "h" for heading)'),
+    subType: z.string().describe('Block subtype (e.g., "h1", "h2")'),
     depth: z.number().describe('Heading depth level'),
     count: z.number().describe('Child block count'),
-    children: z.array(outlineItemSchema).optional().describe('Nested outline items'),
+    folded: z.boolean().describe('Whether the block is folded in UI'),
+    children: z.array(outlineBlockSchema).describe('Nested heading blocks'),
+  })
+);
+
+// Recursive schema for outline path - matches kernel's OutlinePath structure
+const outlinePathSchema: z.ZodType<OutlinePath> = z.lazy(() =>
+  z.object({
+    id: z.string().describe('Block/Document ID'),
+    box: z.string().describe('Notebook ID'),
+    name: z.string().describe('Display name'),
+    hPath: z.string().describe('Human-readable path'),
+    type: z.string().describe('Block type'),
+    nodeType: z.string().describe('Node type'),
+    subType: z.string().describe('Block subtype'),
+    blocks: z.array(outlineBlockSchema).describe('Heading blocks within this path'),
+    children: z.array(outlinePathSchema).describe('Nested outline paths'),
+    depth: z.number().describe('Depth level'),
+    count: z.number().describe('Child count'),
+    folded: z.boolean().describe('Whether folded in UI'),
+    updated: z.string().describe('Last updated timestamp'),
+    created: z.string().describe('Creation timestamp'),
   })
 );
 
@@ -101,7 +117,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         outputSchema: z.object({
           id: z.string().describe('The block/document ID'),
           hpath: z.string().describe('Human-readable path (e.g., "/Notebook/Parent Doc/Child Doc")'),
-          outline: z.array(outlineItemSchema).optional().describe('Document outline/TOC if includeOutline was true'),
+          outline: z.array(outlinePathSchema).optional().describe('Document outline/TOC if includeOutline was true'),
         }),
         handler: getHPathHandler,
         title: lang('tool_title_get_hpath'),
@@ -116,7 +132,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         }),
         outputSchema: z.object({
           id: z.string().describe('The document ID'),
-          outline: z.array(outlineItemSchema).describe('Hierarchical outline with headings'),
+          outline: z.array(outlinePathSchema).describe('Hierarchical outline with headings'),
         }),
         handler: getDocOutlineHandler,
         title: lang('tool_title_get_doc_outline'),
@@ -264,13 +280,13 @@ async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }
 
   const hpath = assertApiResult(await getHPathByIDAPI(resolvedId), 'get the human-readable path');
 
-  const result: { id: BlockId; hpath: string; outline?: OutlineItem[] } = { id: resolvedId, hpath };
+  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id: resolvedId, hpath };
 
   if (includeOutline) {
     const docId = extractDocumentId(dbItem);
-    const rawOutline = await getDocOutlineAPI(docId);
-    if (rawOutline) {
-      result.outline = transformOutline(rawOutline);
+    const outline = await getDocOutlineAPI(docId);
+    if (outline) {
+      result.outline = outline;
     }
   }
 
@@ -283,75 +299,10 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
 
   const dbItem = await validateBlockAccess(id);
   const docId = extractDocumentId(dbItem);
-  const rawOutline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
+  const outline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
 
-  // Transform kernel OutlinePath[] to OutlineItem[] (matching our schema)
-  const outline = transformOutline(rawOutline);
-
+  // Pass through kernel's OutlinePath[] directly (no transformation)
   return createJsonResponse({ id: docId, outline });
-}
-
-/**
- * Transform kernel OutlinePath/OutlineBlock structure to flat OutlineItem format.
- * Kernel returns: { name, blocks: OutlineBlock[], children: OutlinePath[], depth, count, ... }
- * We return: { id, name, type, depth, count, children?: OutlineItem[] }
- */
-function transformOutline(paths: OutlinePath[]): OutlineItem[] {
-  if (!paths || !Array.isArray(paths)) return [];
-
-  return paths.map((path) => {
-    // Combine blocks and children into a single children array
-    const childItems: OutlineItem[] = [];
-
-    // Process blocks (OutlineBlock[]) - these are the nested heading blocks
-    if (path.blocks && Array.isArray(path.blocks)) {
-      childItems.push(...transformBlocks(path.blocks));
-    }
-
-    // Process children (OutlinePath[]) - these are nested outline paths
-    if (path.children && Array.isArray(path.children)) {
-      childItems.push(...transformOutline(path.children));
-    }
-
-    const item: OutlineItem = {
-      id: path.id,
-      name: path.name,
-      type: path.type || 'outline',
-      depth: path.depth,
-      count: path.count || childItems.length,
-    };
-
-    if (childItems.length > 0) {
-      item.children = childItems;
-    }
-
-    return item;
-  });
-}
-
-/**
- * Transform OutlineBlock[] to OutlineItem[] format.
- */
-function transformBlocks(blocks: OutlineBlock[]): OutlineItem[] {
-  if (!blocks || !Array.isArray(blocks)) return [];
-
-  return blocks.map((block) => {
-    const childItems = block.children ? transformBlocks(block.children) : [];
-
-    const item: OutlineItem = {
-      id: block.id,
-      name: block.content || '',
-      type: block.type || 'outline',
-      depth: block.depth,
-      count: block.count || childItems.length,
-    };
-
-    if (childItems.length > 0) {
-      item.children = childItems;
-    }
-
-    return item;
-  });
 }
 
 async function exportHtmlHandler(params: { id: BlockId }) {
