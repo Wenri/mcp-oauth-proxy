@@ -249,7 +249,7 @@ export async function addblockAttrAPI(attrs: BlockAttrs, blockid: BlockId): Prom
 }
 
 /** Batch set block attributes */
-export async function batchSetBlockAttrs(blockAttrs: string): Promise<void> {
+export async function batchSetBlockAttrs(blockAttrs: { id: BlockId; attrs: BlockAttrs }[]): Promise<void> {
   const url = '/api/attr/batchSetBlockAttrs';
   const response = await postRequest({ blockAttrs }, url) as APIResponse<null> & { msg?: string };
   if (response.code !== 0) {
