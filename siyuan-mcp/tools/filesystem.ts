@@ -22,11 +22,11 @@ export class FileSystemToolProvider extends McpToolsProvider {
         name: 'siyuan_read_file',
         description:
           'Read a file from SiYuan workspace. For text files, returns content in structured data. For media files (images/audio), returns metadata in structured data and the binary content as separate MCP content blocks. For other binary files, returns metadata with download URL only.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z
             .string()
             .describe('Path to the file in workspace (e.g., "/data/assets/image.png", "/data/widgets/config.json")'),
-        },
+        }),
         outputSchema: z.object({
           path: z.string().describe('Path of the file'),
           type: z.enum(['text', 'image', 'audio', 'binary']).describe('Content type: text/image/audio (in extraContent), binary (download only)'),
@@ -42,7 +42,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
         name: 'siyuan_write_file',
         description:
           'Write content to a file in SiYuan workspace. Content can be text, base64-encoded binary, JSON object/array, or a URL to fetch from.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('Path to write the file (e.g., "/data/widgets/config.json")'),
           content: z.union([
             z.string().describe('Text, base64/hex-encoded binary, or URL (see type parameter)'),
@@ -50,7 +50,7 @@ export class FileSystemToolProvider extends McpToolsProvider {
             z.array(jsonValueSchema).describe('JSON array (auto-serialized)'),
           ]).describe('File content to write'),
           type: z.enum(['text', 'base64', 'hex', 'json', 'url']).optional().describe('Content type: text (default for strings), base64, hex, json (auto for objects/arrays), url (fetch from URL)'),
-        },
+        }),
         handler: writeFileHandler,
         title: lang('tool_title_write_file'),
         annotations: {
@@ -62,9 +62,9 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_remove_file',
         description: 'Delete a file or directory from SiYuan workspace.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('Path to the file or directory to delete'),
-        },
+        }),
         handler: removeFileHandler,
         title: lang('tool_title_remove_file'),
         annotations: {
@@ -76,10 +76,10 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_rename_file',
         description: 'Rename or move a file within SiYuan workspace.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('Current path of the file'),
           newPath: z.string().describe('New path for the file'),
-        },
+        }),
         handler: renameFileHandler,
         title: lang('tool_title_rename_file'),
         annotations: {
@@ -92,9 +92,9 @@ export class FileSystemToolProvider extends McpToolsProvider {
         name: 'siyuan_list_dir',
         description:
           'List contents of a directory in SiYuan workspace. Returns file/directory names with metadata.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('Path to the directory (e.g., "/data/assets/", "/data/widgets/")'),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of entries'),
           path: z.string().describe('Path of the directory'),
@@ -116,9 +116,9 @@ export class FileSystemToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_create_dir',
         description: 'Create a new directory in SiYuan workspace.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('Path for the new directory (e.g., "/data/assets/my-folder/")'),
-        },
+        }),
         handler: createDirHandler,
         title: lang('tool_title_create_dir'),
         annotations: {
@@ -131,12 +131,12 @@ export class FileSystemToolProvider extends McpToolsProvider {
         name: 'siyuan_create_archive',
         description:
           'Create a zip archive from files or directories in SiYuan workspace. Returns a download URL for the zip file. Can archive any workspace path including assets, widgets, notebooks, etc.',
-        inputSchema: {
+        inputSchema: z.object({
           paths: z
             .array(z.string())
             .describe('Array of file/directory paths to archive (e.g., ["/data/assets/", "/data/widgets/config.json"])'),
           name: z.string().optional().describe('Custom name for the archive (without .zip extension)'),
-        },
+        }),
         outputSchema: z.object({
           fileName: z.string().describe('Name of the created zip file'),
           downloadUrl: z.string().describe('URL to download the zip file'),

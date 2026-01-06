@@ -20,7 +20,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_create_flashcards_with_new_doc',
         description: 'Create New Document, and Make Flashcards with Specific Method',
-        inputSchema: {
+        inputSchema: z.object({
           parentId: z
             .string()
             .describe('The ID of the parent document where the new document will be created.'),
@@ -37,7 +37,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
           markdownContent: z
             .string()
             .describe('The Markdown-formatted content to append at the end of the new document.'),
-        },
+        }),
         outputSchema: z.object({
           docId: z.string().describe('ID of the newly created document'),
           cardCount: z.number().describe('Number of flashcards created'),
@@ -53,7 +53,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_create_flashcards',
         description: 'Create flashcards from one or more block IDs.',
-        inputSchema: {
+        inputSchema: z.object({
           blockIds: z
             .array(z.string())
             .describe('The IDs of the blocks to be converted into flashcards.'),
@@ -61,7 +61,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
             .string()
             .optional()
             .describe('The ID of the deck to add the cards to. If not provided, a default deck will be used.'),
-        },
+        }),
         handler: createFlashcardsHandler,
         title: 'Create Flashcards',
         annotations: {
@@ -73,7 +73,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_delete_flashcards',
         description: 'Delete flashcards from a deck using their corresponding block IDs.',
-        inputSchema: {
+        inputSchema: z.object({
           blockIds: z
             .array(z.string())
             .describe('The IDs of the blocks corresponding to the flashcards to be deleted.'),
@@ -83,7 +83,7 @@ export class FlashcardToolProvider extends McpToolsProvider {
             .describe(
               'The ID of the deck to remove the cards from. If not provided, a default deck will be used.'
             ),
-        },
+        }),
         handler: deleteFlashcardsHandler,
         title: 'Delete Flashcards',
         annotations: {

@@ -20,14 +20,14 @@ export class DocWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_append_markdown_to_doc',
         description: 'Append Markdown content to the end of a document in SiYuan.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z
             .string()
             .describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
           markdownContent: z
             .string()
             .describe('The Markdown-formatted text to append to the end of the specified document.'),
-        },
+        }),
         handler: appendBlockHandler,
         title: lang('tool_title_append_markdown_to_doc'),
         annotations: {
@@ -40,7 +40,7 @@ export class DocWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_create_new_note_with_markdown_content',
         description:
           'Create a new note under a parent document in SiYuan with a specified title and Markdown content.',
-        inputSchema: {
+        inputSchema: z.object({
           parentId: z
             .string()
             .describe(
@@ -48,7 +48,7 @@ export class DocWriteToolProvider extends McpToolsProvider {
             ),
           title: z.string().describe('The title of the new note to be created.'),
           markdownContent: z.string().describe('The Markdown content of the new note.'),
-        },
+        }),
         handler: createNewNoteUnder,
         title: lang('tool_title_create_new_note_with_markdown_content'),
         annotations: {
@@ -60,10 +60,10 @@ export class DocWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_rename_doc',
         description: 'Rename a document.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
           title: z.string().describe('The new title for the document'),
-        },
+        }),
         handler: renameDocHandler,
         title: lang('tool_title_rename_doc'),
         annotations: {
@@ -75,9 +75,9 @@ export class DocWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_remove_doc',
         description: 'Delete a document. This action moves the document to trash and is irreversible.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
-        },
+        }),
         handler: removeDocHandler,
         title: lang('tool_title_remove_doc'),
         annotations: {
@@ -90,13 +90,13 @@ export class DocWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_move_docs',
         description:
           'Move one or more documents to a new location. Accepts either document IDs or full paths (notebook/path format).',
-        inputSchema: {
+        inputSchema: z.object({
           fromDocs: z
             .array(z.string())
             .describe('Array of document IDs or full paths (e.g., "20210808180117-abc" or "notebook123/path/to/doc.sy")'),
           toNotebook: z.string().describe('Target notebook ID'),
           toPath: z.string().describe('Target path within the notebook (e.g., "/" for root, or "/Parent Doc" for subdoc)'),
-        },
+        }),
         handler: moveDocsHandler,
         title: lang('tool_title_move_docs'),
         annotations: {

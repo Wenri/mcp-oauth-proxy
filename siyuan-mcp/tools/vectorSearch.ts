@@ -98,9 +98,9 @@ export class DocVectorSearchProvider extends McpToolsProvider {
         name: 'siyuan_generate_answer_with_doc',
         description:
           'This tool provides a Retrieval-Augmented Generation (RAG) based Q&A capability. It generates context-aware answers using only the notes that the user has explicitly indexed from their siyuan-notes. Please note: the tool does not access or use all documents—only those that have been indexed by the user.',
-        inputSchema: {
+        inputSchema: z.object({
           question: z.string().describe('Describe question about note here'),
-        },
+        }),
         outputSchema: z.object({
           answer: z.any().describe('RAG-generated answer based on indexed documents'),
         }),

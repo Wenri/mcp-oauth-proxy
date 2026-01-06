@@ -35,7 +35,7 @@ export class AssetToolProvider extends McpToolsProvider {
         name: 'siyuan_upload_assets',
         description:
           'Upload one or more files to SiYuan assets. Provide either content (base64/JSON) or a URL to fetch from. Can optionally auto-insert all uploaded assets into a document in order.',
-        inputSchema: {
+        inputSchema: z.object({
           files: z.array(fileSchema).describe('Array of files to upload'),
           assetsDirPath: z
             .string()
@@ -49,7 +49,7 @@ export class AssetToolProvider extends McpToolsProvider {
             .string()
             .optional()
             .describe('Alt text for images when using insertAfterBlock (defaults to fileName)'),
-        },
+        }),
         outputSchema: z.object({
           uploadedCount: z.number().describe('Number of files uploaded successfully'),
           failedCount: z.number().describe('Number of files that failed to upload'),

@@ -18,14 +18,14 @@ export class AttributeToolProvider extends McpToolsProvider {
         name: 'siyuan_set_block_attributes',
         description:
           "Set, update, or delete attributes for a specific block. To delete an attribute, set its value to an empty string.",
-        inputSchema: {
+        inputSchema: z.object({
           blockId: z.string().describe('The ID of the block to modify.'),
           attributes: z
             .record(z.string(), z.string())
             .describe(
               "An object of key-value pairs representing the attributes to set. Setting an attribute to an empty string ('') will delete it."
             ),
-        },
+        }),
         handler: setBlockAttributesHandler,
         title: lang('tool_title_set_block_attributes'),
         annotations: {
@@ -37,9 +37,9 @@ export class AttributeToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_get_block_attributes',
         description: 'Get all attributes of a specific block.',
-        inputSchema: {
+        inputSchema: z.object({
           blockId: z.string().describe('The ID of the block to get attributes from.'),
-        },
+        }),
         outputSchema: z.object({
           attributes: z.record(z.string(), z.string()).describe('Object of attribute key-value pairs'),
         }),
@@ -53,7 +53,7 @@ export class AttributeToolProvider extends McpToolsProvider {
         name: 'siyuan_batch_set_attributes',
         description:
           'Set attributes on multiple blocks at once. More efficient than calling set_block_attributes multiple times.',
-        inputSchema: {
+        inputSchema: z.object({
           blocks: z
             .array(
               z.object({
@@ -62,7 +62,7 @@ export class AttributeToolProvider extends McpToolsProvider {
               })
             )
             .describe('Array of blocks with their attributes to set'),
-        },
+        }),
         handler: batchSetAttributesHandler,
         title: lang('tool_title_batch_set_attributes'),
         annotations: {

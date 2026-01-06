@@ -21,7 +21,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_insert_block',
         description:
           'Insert a new block at a specified position. Content must be in markdown format. Position is anchored by one of: `nextID` (ID of block after), `previousID` (ID of block before), or `parentID` (parent block ID). `nextID` has highest priority.',
-        inputSchema: {
+        inputSchema: z.object({
           data: z.string().describe('The markdown content to insert'),
           nextID: z.string().optional().describe('Block ID of the block after the insertion point'),
           previousID: z.string().optional().describe('Block ID of the block before the insertion point'),
@@ -29,7 +29,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
             .string()
             .optional()
             .describe('Block ID or document hpath of the parent (must be a container like document or quote)'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
@@ -48,10 +48,10 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_prepend_block',
         description:
           'Insert a new block at the beginning of a parent block\'s children. Content must be in markdown format.',
-        inputSchema: {
+        inputSchema: z.object({
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
@@ -70,10 +70,10 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_append_block',
         description:
           'Insert a new block at the end of a parent block\'s children. Content must be in markdown format.',
-        inputSchema: {
+        inputSchema: z.object({
           data: z.string().describe('The markdown content to insert'),
           parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('ID of the newly inserted block'),
           action: z.string().describe('The operation action performed'),
@@ -92,10 +92,10 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_update_block',
         description:
           'Update an existing block\'s content by ID. Content should be in Kramdown format. Using markdown format will lose block attributes.',
-        inputSchema: {
+        inputSchema: z.object({
           data: z.string().describe('The new content in Kramdown format'),
           id: z.string().describe('Block ID of the block to update'),
-        },
+        }),
         handler: updateBlockHandler,
         title: lang('tool_title_update_block'),
         annotations: {
@@ -107,9 +107,9 @@ export class BlockWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_delete_block',
         description: 'Delete a block by its ID. This action is irreversible.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID of the block to delete'),
-        },
+        }),
         handler: deleteBlockHandler,
         title: lang('tool_title_delete_block'),
         annotations: {
@@ -122,11 +122,11 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         name: 'siyuan_move_block',
         description:
           'Move a block to a new position. Specify either parentID (to move as child of a container) or previousID (to move after a specific block). If both are provided, previousID takes precedence.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID of the block to move'),
           parentID: z.string().optional().describe('Block ID or document hpath of the new parent (must be a container)'),
           previousID: z.string().optional().describe('Block ID of the block after which to place the moved block'),
-        },
+        }),
         handler: moveBlockHandler,
         title: lang('tool_title_move_block'),
         annotations: {
@@ -138,9 +138,9 @@ export class BlockWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_fold_block',
         description: 'Fold (collapse) a block to hide its children. Works on headings and other container blocks.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID of the block to fold'),
-        },
+        }),
         handler: foldBlockHandler,
         title: lang('tool_title_fold_block'),
         annotations: {
@@ -152,9 +152,9 @@ export class BlockWriteToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_unfold_block',
         description: 'Unfold (expand) a block to show its children.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID of the block to unfold'),
-        },
+        }),
         handler: unfoldBlockHandler,
         title: lang('tool_title_unfold_block'),
         annotations: {

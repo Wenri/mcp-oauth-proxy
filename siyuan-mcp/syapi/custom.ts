@@ -321,11 +321,15 @@ export async function resolveIdOrHPath(input: string): Promise<BlockId | null> {
 
     // Look up notebook by name
     const notebooks = await getNodebookList();
+    debugPush(`Resolving hpath: "${input}" -> notebook="${notebookName}", docPath="${docPath}"`);
+    debugPush(`Available notebooks: ${notebooks.map(nb => nb.name).join(', ')}`);
+
     const notebook = notebooks.find(nb => nb.name === notebookName);
     if (!notebook) {
-      debugPush(`Notebook not found: ${notebookName}`);
+      debugPush(`Notebook not found: "${notebookName}"`);
       return null;
     }
+    debugPush(`Found notebook: ${notebook.id} (${notebook.name})`);
 
     // Resolve document path within notebook
     if (segments.length === 1) {
@@ -334,6 +338,7 @@ export async function resolveIdOrHPath(input: string): Promise<BlockId | null> {
     }
 
     const docId = await getDocIDByHPath(notebook.id, docPath);
+    debugPush(`getDocIDByHPath(${notebook.id}, "${docPath}") -> ${docId}`);
     return docId;
   }
 

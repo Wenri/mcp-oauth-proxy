@@ -3,19 +3,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 declare global {
     /**
-     * Infer handler argument types from a Zod schema record
-     */
-    type InferSchemaArgs<TSchema extends Record<string, z.ZodTypeAny>> = {
-        [K in keyof TSchema]: z.infer<TSchema[K]>
-    };
-
-    /**
      * Tool definition for SiYuan MCP tools
      * Matches the SDK's registerTool API structure
-     *
-     * @template TSchema - The Zod schema record type, defaults to empty for tools with no params
      */
-    interface McpTool<TSchema extends Record<string, z.ZodTypeAny> = Record<string, z.ZodTypeAny>> {
+    interface McpTool {
         /** The unique name of the tool */
         name: string;
 
@@ -27,10 +18,9 @@ declare global {
 
         /**
          * The Zod schema for validating tool input arguments
-         * This should be a record of Zod validators
-         * For tools with no parameters, use {} (empty object)
+         * Must be a pre-constructed z.object() schema (not raw shape) for CF Workers compatibility
          */
-        inputSchema?: TSchema;
+        inputSchema?: z.ZodTypeAny;
 
         /**
          * The Zod schema for validating tool output (optional)
@@ -41,10 +31,9 @@ declare global {
 
         /**
          * The handler function for the tool
-         * Args type is inferred from inputSchema
-         * Using method syntax for bivariance to allow heterogeneous tool arrays
+         * Handler receives parsed args and optional extra context
          */
-        handler(args: InferSchemaArgs<TSchema>, extra?: unknown): Promise<CallToolResult>;
+        handler(args: any, extra?: unknown): Promise<CallToolResult>;
 
         /** Optional hints about tool behavior */
         annotations?: {

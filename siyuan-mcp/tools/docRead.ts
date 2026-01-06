@@ -42,7 +42,7 @@ export class DocReadToolProvider extends McpToolsProvider {
       {
         name: 'siyuan_read_doc_content_markdown',
         description: 'Retrieve the content of a document or block by its ID or path',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           offset: z
             .number()
@@ -52,7 +52,7 @@ export class DocReadToolProvider extends McpToolsProvider {
             .number()
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('The resolved block/document ID'),
           content: z.string().describe('The markdown content (sliced if offset/limit provided)'),
@@ -68,7 +68,7 @@ export class DocReadToolProvider extends McpToolsProvider {
         name: 'siyuan_get_block_kramdown',
         description:
           'Get block content in Kramdown format from SiYuan. Unlike plain text, Kramdown preserves all rich formatting including colors, attributes, and IDs. Use this tool before modifying blocks to ensure formatting is preserved.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           offset: z
             .number()
@@ -78,7 +78,7 @@ export class DocReadToolProvider extends McpToolsProvider {
             .number()
             .optional()
             .describe('Maximum characters to return (default: unlimited)'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('The resolved block/document ID'),
           kramdown: z.string().describe('Block content in Kramdown format (Markdown with IAL attributes like {: id="..." })'),
@@ -94,10 +94,10 @@ export class DocReadToolProvider extends McpToolsProvider {
         name: 'siyuan_get_hpath',
         description:
           'Get the human-readable path (hpath) for a document or block. Optionally includes document outline for context.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
           includeOutline: z.boolean().optional().describe('If true, also returns the document outline/TOC'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('The block/document ID'),
           hpath: z.string().describe('Human-readable path (e.g., "/Notebook/Parent Doc/Child Doc")'),
@@ -111,9 +111,9 @@ export class DocReadToolProvider extends McpToolsProvider {
         name: 'siyuan_get_doc_outline',
         description:
           'Get the outline (table of contents) of a document. Returns headings hierarchy which helps understand document structure.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
-        },
+        }),
         outputSchema: z.object({
           id: z.string().describe('The document ID'),
           outline: z.array(outlineItemSchema).describe('Hierarchical outline with headings'),
@@ -126,10 +126,9 @@ export class DocReadToolProvider extends McpToolsProvider {
         name: 'siyuan_export_html',
         description:
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
-        },
-        // Try passing pre-constructed Zod object schema instead of raw shape
+        }),
         outputSchema: z.object({
           id: z.string().describe('The document ID'),
           html: z.string().describe('The rendered HTML content of the document'),

@@ -18,13 +18,13 @@ export class RelationToolProvider extends McpToolsProvider {
         name: 'siyuan_get_doc_backlinks',
         description:
           "Retrieve all documents or blocks that reference a specified document or block within the workspace. The result includes the referencing document's ID, name, notebook ID, and path. Useful for understanding backlinks and document relationships within the knowledge base.",
-        inputSchema: {
+        inputSchema: z.object({
           id: z
             .string()
             .describe(
               'The ID of the target document or block. The notebook where the target resides must be open.'
             ),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of backlinks found'),
           backlinks: z
@@ -50,13 +50,13 @@ export class RelationToolProvider extends McpToolsProvider {
         name: 'siyuan_list_sub_docs',
         description:
           'Retrieve the basic information of sub-documents under a specified document within the SiYuan workspace. Useful for analyzing document structure and hierarchy relationships.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z
             .string()
             .describe(
               'The ID of the parent document or notebook. The notebook containing this document must be open.'
             ),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of sub-documents found'),
           docs: z
@@ -91,9 +91,9 @@ export class RelationToolProvider extends McpToolsProvider {
         name: 'siyuan_get_children_blocks',
         description:
           'Get all child blocks under a parent block by its ID. This includes directly nested blocks and blocks under headings. Long block content will be abbreviated. Useful for understanding block hierarchy and content organization.',
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().describe('The unique identifier (ID) of the parent block.'),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of child blocks'),
           blocks: z

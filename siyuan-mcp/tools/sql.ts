@@ -20,7 +20,7 @@ export class SqlToolProvider extends McpToolsProvider {
         name: 'siyuan_database_schema',
         description:
           'Provides the SiYuan database schema, including table names, field names, and their relationships, to help construct valid SQL queries for retrieving notes or note content. Returns the schema in markdown format.',
-        inputSchema: {},
+        inputSchema: z.object({}),
         handler: schemaHandler,
         title: lang('tool_title_database_schema'),
         annotations: {
@@ -31,7 +31,7 @@ export class SqlToolProvider extends McpToolsProvider {
         name: 'siyuan_sql_cheatsheet',
         description:
           'Provides a SQL cheatsheet with query examples for SiYuan database, including FTS5 full-text search, window functions, JSON operations, and common patterns.',
-        inputSchema: {},
+        inputSchema: z.object({}),
         handler: cheatsheetHandler,
         title: lang('tool_title_sql_cheatsheet'),
         annotations: {
@@ -56,9 +56,9 @@ ORDER BY score LIMIT 20
 \`\`\`
 
 Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' for query examples.`,
-        inputSchema: {
+        inputSchema: z.object({
           stmt: z.string().describe('SQL statement to execute (read-only, writes do not persist)'),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of rows returned'),
           rows: z.array(z.any()).describe('Array of rows from the SQL query'),
@@ -73,12 +73,12 @@ Use 'siyuan_database_schema' for schema reference and 'siyuan_sql_cheatsheet' fo
         name: 'siyuan_fulltext_search',
         description:
           'Fast full-text search using FTS5 with BM25 relevance ranking. Returns matching blocks with highlighted snippets. Supports FTS5 query syntax: AND (implicit), OR, NOT, "exact phrase", prefix*, column:term.',
-        inputSchema: {
+        inputSchema: z.object({
           query: z.string().describe('FTS5 search query. Examples: "neural network", "python OR javascript", "machine NOT learning", "\\"exact phrase\\"", "neuro*"'),
           limit: z.number().optional().default(20).describe('Maximum results to return (default: 20)'),
           snippetLength: z.number().optional().default(64).describe('Number of tokens around match in snippet (default: 64)'),
           caseSensitive: z.boolean().optional().default(false).describe('Use case-sensitive search (default: false)'),
-        },
+        }),
         outputSchema: z.object({
           count: z.number().describe('Number of results found'),
           query: z.string().describe('The search query that was executed'),

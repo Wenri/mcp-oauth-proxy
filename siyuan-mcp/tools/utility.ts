@@ -16,7 +16,7 @@ export class UtilityToolProvider extends McpToolsProvider {
       {
         name: 'get_current_time',
         description: lang('tool_get_current_time'),
-        inputSchema: {},
+        inputSchema: z.object({}),
         outputSchema: z.object({
           iso: z.string().describe('ISO 8601 formatted timestamp'),
           year: z.number().describe('Year (e.g., 2024)'),
@@ -42,14 +42,14 @@ export class UtilityToolProvider extends McpToolsProvider {
         name: 'siyuan_push_notification',
         description:
           'Push a notification message to the SiYuan UI. Useful for notifying the user about task progress or completion.',
-        inputSchema: {
+        inputSchema: z.object({
           message: z.string().describe('The notification message to display'),
           timeout: z
             .number()
             .optional()
             .default(7000)
             .describe('How long to show the notification in milliseconds (default: 7000)'),
-        },
+        }),
         outputSchema: z.object({
           success: z.boolean().describe('Whether the notification was sent successfully'),
         }),
@@ -65,9 +65,9 @@ export class UtilityToolProvider extends McpToolsProvider {
         name: 'siyuan_reindex_doc',
         description:
           'Reindex a document tree. Useful after batch operations to ensure the index is up to date.',
-        inputSchema: {
+        inputSchema: z.object({
           path: z.string().describe('The document path to reindex (e.g., "/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy")'),
-        },
+        }),
         outputSchema: z.object({
           success: z.boolean().describe('Whether the reindex operation succeeded'),
           path: z.string().describe('The path that was reindexed'),
@@ -84,7 +84,7 @@ export class UtilityToolProvider extends McpToolsProvider {
         name: 'siyuan_flush_transaction',
         description:
           'Flush pending database transactions. Call this after write operations (insert/update/delete blocks) if you need to immediately query the updated data. SiYuan uses async write queues for performance, so this ensures all pending writes are committed.',
-        inputSchema: {},
+        inputSchema: z.object({}),
         outputSchema: z.object({
           success: z.boolean().describe('Whether the flush operation succeeded'),
         }),
