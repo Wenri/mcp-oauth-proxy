@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -106,37 +106,6 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         },
       },
       {
-        name: 'siyuan_delete_block',
-        description: 'Delete a block by its ID. This action is irreversible.',
-        inputSchema: z.object({
-          id: z.string().describe('Block ID of the block to delete'),
-        }),
-        handler: deleteBlockHandler,
-        title: lang('tool_title_delete_block'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: true,
-          idempotentHint: true,
-        },
-      },
-      {
-        name: 'siyuan_move_block',
-        description:
-          'Move a block to a new position. Specify either parentID (to move as child of a container) or previousID (to move after a specific block). If both are provided, previousID takes precedence.',
-        inputSchema: z.object({
-          id: z.string().describe('Block ID of the block to move'),
-          parentID: z.string().optional().describe('Block ID or document hpath of the new parent (must be a container)'),
-          previousID: z.string().optional().describe('Block ID of the block after which to place the moved block'),
-        }),
-        handler: moveBlockHandler,
-        title: lang('tool_title_move_block'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: true,
-        },
-      },
-      {
         name: 'siyuan_fold_block',
         description: 'Fold (collapse) a block to hide its children. Works on headings and other container blocks.',
         inputSchema: z.object({
@@ -162,6 +131,51 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           readOnlyHint: false,
           destructiveHint: false,
           idempotentHint: true,
+        },
+      },
+      {
+        name: 'siyuan_delete_block',
+        description: 'Delete one or more blocks by their IDs. This action is irreversible.',
+        inputSchema: z.object({
+          ids: z.array(z.string()).describe('Block ID(s) to delete'),
+        }),
+        outputSchema: z.object({
+          deleted: z.array(z.string()).describe('Block IDs successfully deleted'),
+          failed: z.array(z.object({
+            id: z.string().describe('Block ID that failed'),
+            error: z.string().describe('Error reason'),
+          })).optional().describe('Blocks that failed to delete with error details'),
+        }),
+        handler: deleteBlocksHandler,
+        title: lang('tool_title_delete_block'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+        },
+      },
+      {
+        name: 'siyuan_move_block',
+        description:
+          'Move one or more blocks to a new position. Blocks are moved in order, maintaining their relative sequence. Specify either parentID (to move as children) or previousID (to move after a specific block).',
+        inputSchema: z.object({
+          ids: z.array(z.string()).describe('Block ID(s) to move (in desired order)'),
+          parentID: z.string().optional().describe('Block ID or hpath of the new parent container'),
+          previousID: z.string().optional().describe('Block ID after which to place the first moved block'),
+        }),
+        outputSchema: z.object({
+          moved: z.array(z.string()).describe('Block IDs successfully moved'),
+          failed: z.array(z.object({
+            id: z.string().describe('Block ID that failed'),
+            error: z.string().describe('Error reason'),
+          })).optional().describe('Blocks that failed to move with error details'),
+        }),
+        handler: moveBlocksHandler,
+        title: lang('tool_title_move_block'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
         },
       },
     ];
@@ -330,50 +344,6 @@ async function updateBlockHandler(params: { data: string; id: BlockId }) {
   }
 }
 
-async function deleteBlockHandler(params: { id: BlockId }) {
-  const { id } = params;
-  debugPush('Delete block API called');
-
-  const blockDbItem = await validateBlockAccess(id);
-
-  if (blockDbItem.type === 'd') {
-    throw new Error('Cannot delete document blocks. Use siyuan_remove_doc instead.');
-  }
-
-  assertApiResult(await removeBlockAPI(id), 'delete the block');
-  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
-  // taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
-  return createSuccessResponse('Block deleted');
-}
-
-async function moveBlockHandler(params: { id: BlockId; parentID?: BlockId; previousID?: BlockId }) {
-  const { id, parentID, previousID } = params;
-  debugPush('Move block API called');
-
-  if (!parentID && !previousID) {
-    throw new Error('Please provide either parentID or previousID to specify the target position.');
-  }
-
-  const blockDbItem = await validateBlockAccess(id);
-  const resolvedId = blockDbItem.id;
-
-  // Validate target block exists and resolve IDs (handles hpath)
-  let resolvedPreviousID: BlockId | undefined;
-  let resolvedParentID: BlockId | undefined;
-
-  if (previousID) {
-    const prevDbItem = await validateBlockAccess(previousID);
-    resolvedPreviousID = prevDbItem.id;
-  }
-  if (parentID && !previousID) {
-    const parentDbItem = await validateBlockAccess(parentID);
-    resolvedParentID = parentDbItem.id;
-  }
-
-  assertApiResult(await moveBlockAPI(resolvedId, resolvedParentID, resolvedPreviousID), 'move the block');
-  return createSuccessResponse('Block moved');
-}
-
 async function foldBlockHandler(params: { id: BlockId }) {
   const { id } = params;
   debugPush('Fold block API called');
@@ -390,4 +360,106 @@ async function unfoldBlockHandler(params: { id: BlockId }) {
   await validateBlockAccess(id);
   assertApiResult(await unfoldBlockAPI(id), 'unfold the block');
   return createSuccessResponse('Block unfolded');
+}
+
+async function deleteBlocksHandler(params: { ids: BlockId[] }) {
+  const { ids } = params;
+  debugPush('Delete blocks API called', ids.length);
+
+  if (ids.length === 0) {
+    return createJsonResponse({ deleted: [] });
+  }
+
+  const deleted: BlockId[] = [];
+  const failed: { id: BlockId; error: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      const blockDbItem = await validateBlockAccess(id);
+
+      if (blockDbItem.type === 'd') {
+        failed.push({ id, error: 'Cannot delete document blocks. Use siyuan_remove_doc instead.' });
+        continue;
+      }
+
+      assertApiResult(await removeBlockAPI(id), 'delete the block');
+      deleted.push(id);
+    } catch (e) {
+      failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  const result = {
+    deleted,
+    ...(failed.length > 0 && { failed }),
+  };
+
+  if (failed.length > 0) {
+    const errorMsg = `Failed to delete ${failed.length} of ${ids.length} blocks`;
+    return createErrorResponse(errorMsg, result);
+  }
+
+  return createJsonResponse(result);
+}
+
+async function moveBlocksHandler(params: { ids: BlockId[]; parentID?: BlockId; previousID?: BlockId }) {
+  const { ids, parentID, previousID } = params;
+  debugPush('Move blocks API called', ids.length);
+
+  if (ids.length === 0) {
+    return createJsonResponse({ moved: [] });
+  }
+
+  if (!parentID && !previousID) {
+    throw new Error('Please provide either parentID or previousID to specify the target position.');
+  }
+
+  // Resolve target IDs once
+  let resolvedParentID: BlockId | undefined;
+  let currentPreviousID: BlockId | undefined;
+
+  if (previousID) {
+    const prevDbItem = await validateBlockAccess(previousID);
+    currentPreviousID = prevDbItem.id;
+  }
+  if (parentID && !previousID) {
+    const parentDbItem = await validateBlockAccess(parentID);
+    resolvedParentID = parentDbItem.id;
+  }
+
+  const moved: BlockId[] = [];
+  const failed: { id: BlockId; error: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      const blockDbItem = await validateBlockAccess(id);
+      const resolvedId = blockDbItem.id;
+
+      assertApiResult(
+        await moveBlockAPI(resolvedId, resolvedParentID, currentPreviousID),
+        'move the block'
+      );
+
+      // Update previousID to the just-moved block for next iteration
+      // This maintains the order of blocks in the array
+      currentPreviousID = resolvedId;
+      resolvedParentID = undefined; // Only use parentID for first block
+
+      moved.push(id);
+    } catch (e) {
+      failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  const result = {
+    moved,
+    ...(failed.length > 0 && { failed }),
+  };
+
+  if (failed.length > 0) {
+    const errorMsg = `Failed to move ${failed.length} of ${ids.length} blocks`;
+    return createErrorResponse(errorMsg, result);
+  }
+
+  return createJsonResponse(result);
 }

@@ -199,12 +199,24 @@ export function createAudioContent(base64Data: string, mimeType: string): AudioC
 /**
  * Error response for failed tool calls.
  * Sets `isError: true` to signal failure to MCP clients.
+ *
+ * @param errorMessage - Human-readable error message
+ * @param structuredData - Optional structured data to include (e.g., partial results)
  */
-export function createErrorResponse(errorMessage: string): CallToolResult {
-  return {
+export function createErrorResponse<T extends StructuredContent>(
+  errorMessage: string,
+  structuredData?: T
+): CallToolResult {
+  const result: CallToolResult = {
     content: [{ type: "text", text: errorMessage }],
     isError: true,
   };
+
+  if (structuredData !== undefined) {
+    result.structuredContent = ensureSerializable(structuredData);
+  }
+
+  return result;
 }
 
 /**

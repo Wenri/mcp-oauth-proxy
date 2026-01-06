@@ -167,7 +167,7 @@ Each tool provider implements `McpToolsProvider` interface:
 
 Available tool categories:
 - **Document Operations**: read, write, create, move, rename, delete, outline, HTML export
-- **Block Operations**: insert, update, delete, move, fold/unfold blocks
+- **Block Operations**: insert, update, delete (batch), move (batch), fold/unfold blocks
 - **Search**: FTS5 full-text search (BM25 ranking, snippets), SQL queries, vector search (RAG)
 - **SQL**: query with advanced features (REGEXP, window functions, JSON), database schema, SQL cheatsheet
 - **Organization**: daily notes, flashcards, attributes (single & batch), relations
@@ -414,12 +414,14 @@ createArrayResponse(rows, 'rows', { query });    // { count: N, query: "...", ro
 
 // Error responses (sets isError: true)
 createErrorResponse("Invalid block ID");
+createErrorResponse("Failed to delete 2 of 5 blocks", { deleted: [...], failed: [...] });
 ```
 
 **Response pattern guidelines:**
 - **Creates new entity** → return structured data with new ID (e.g., `createJsonResponse`)
 - **Modifies existing entity** → return simple success message (e.g., `createSuccessResponse`)
 - **Returns array data** → use `createArrayResponse` with descriptive key name
+- **Batch operations with partial failure** → use `createErrorResponse` with structured data containing both successful IDs and failed items with error reasons
 - **Never include redundant fields** like `{ success: true }` - if no error, it succeeded
 
 ### outputSchema Requirements (CF Workers)
