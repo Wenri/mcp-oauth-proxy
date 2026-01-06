@@ -21,7 +21,7 @@ export class AttributeToolProvider extends McpToolsProvider {
         inputSchema: {
           blockId: z.string().describe('The ID of the block to modify.'),
           attributes: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .describe(
               "An object of key-value pairs representing the attributes to set. Setting an attribute to an empty string ('') will delete it."
             ),
@@ -41,7 +41,7 @@ export class AttributeToolProvider extends McpToolsProvider {
           blockId: z.string().describe('The ID of the block to get attributes from.'),
         },
         outputSchema: {
-          attributes: z.record(z.string()).describe('Object of attribute key-value pairs'),
+          attributes: z.record(z.string(), z.string()).describe('Object of attribute key-value pairs'),
         },
         handler: getBlockAttributesHandler,
         title: lang('tool_title_get_block_attributes'),
@@ -58,7 +58,7 @@ export class AttributeToolProvider extends McpToolsProvider {
             .array(
               z.object({
                 id: z.string().describe('The block ID'),
-                attrs: z.record(z.string()).describe('Attributes to set on this block'),
+                attrs: z.record(z.string(), z.string()).describe('Attributes to set on this block'),
               })
             )
             .describe('Array of blocks with their attributes to set'),

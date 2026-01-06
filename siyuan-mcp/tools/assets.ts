@@ -53,7 +53,7 @@ export class AssetToolProvider extends McpToolsProvider {
         outputSchema: {
           uploadedCount: z.number().describe('Number of files uploaded successfully'),
           failedCount: z.number().describe('Number of files that failed to upload'),
-          succMap: z.record(z.string()).describe('Map of file names to their asset paths'),
+          succMap: z.record(z.string(), z.string()).describe('Map of file names to their asset paths'),
           errFiles: z.array(z.string()).describe('List of file names that failed to upload'),
           insertedBlockIds: z.array(z.string()).describe('IDs of inserted blocks (when insertAfterBlock is used)'),
         },
