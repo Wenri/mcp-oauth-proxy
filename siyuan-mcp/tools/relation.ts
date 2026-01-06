@@ -8,7 +8,7 @@ import { createArrayResponse } from '../utils/mcpResponse';
 import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
-import { getDocDBitem } from '../syapi/custom';
+import { getDocDBitem, resolveIdOrHPath } from '../syapi/custom';
 import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
 
 export class RelationToolProvider extends McpToolsProvider {
@@ -54,7 +54,7 @@ export class RelationToolProvider extends McpToolsProvider {
           id: z
             .string()
             .describe(
-              'The ID of the parent document or notebook. The notebook containing this document must be open.'
+              'Document/notebook ID or hpath (e.g., "20241231-abc" or "/NotebookName" or "/NotebookName/Doc"). The notebook must be open.'
             ),
         }),
         outputSchema: z.object({
@@ -150,26 +150,35 @@ async function getDocBacklink(params: { id: string }) {
 }
 
 async function getChildrenDocs(params: { id: string }) {
-  const { id } = params;
+  const { id: input } = params;
 
   const notebookList = await getNodebookList();
   const notebookIds = notebookList.map((item) => item.id);
-  const sqlResult = await getDocDBitem(id);
 
-  if (sqlResult && await filterBlock(id, sqlResult)) {
+  // Resolve hpath to ID if needed (e.g., "/NotebookName" or "/NotebookName/Doc")
+  const resolvedId = await resolveIdOrHPath(input);
+  if (!resolvedId) {
+    throw new Error(
+      `Invalid ID or path: "${input}". Provide a valid document/notebook ID or hpath like "/NotebookName" or "/NotebookName/Doc".`
+    );
+  }
+
+  const sqlResult = await getDocDBitem(resolvedId);
+
+  if (sqlResult && await filterBlock(resolvedId, sqlResult)) {
     throw new Error(
       'The specified document or block is excluded by the user settings. So cannot write or read.'
     );
   }
 
   let result: IFile[] = [];
-  if (sqlResult == null && !notebookIds.includes(id)) {
+  if (sqlResult == null && !notebookIds.includes(resolvedId)) {
     throw new Error(
       'The queried ID does not exist, or does not correspond to a document or notebook. Please check if the ID is correct.'
     );
   } else if (sqlResult == null) {
     // It's a notebook ID - list root documents
-    result = await listDocsByPathT({ notebook: id, path: '/' });
+    result = await listDocsByPathT({ notebook: resolvedId, path: '/' });
   } else {
     // It's a document - list subdocuments from the document's directory
     // Document path is like /20241231-abc.sy, subdocs are in /20241231-abc/
