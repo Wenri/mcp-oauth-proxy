@@ -164,24 +164,3 @@ export function filterSearchBlocksResult(inputDataList: any[]) {
         };
     });
 }
-
-export function formatSearchResult(responseObj: any, requestObj: FullTextSearchQuery): string {
-    const pageDesp = `This is page ${requestObj['page'] ?? '1'} of a paginated API response.
-${responseObj['matchedRootCount']} documents and ${responseObj['matchedBlockCount']} content blocks matched the search, across ${responseObj['pageCount']} total pages.`;
-
-    let data = null;
-    const anyResult =
-        responseObj['blocks'] == null || responseObj['blocks'].length == 0
-            ? null
-            : responseObj['blocks'][0];
-
-    if (requestObj.groupBy == 1 || anyResult?.children) {
-        data = filterGroupSearchBlocksResult(responseObj['blocks']);
-    } else {
-        data = filterSearchBlocksResult(responseObj['blocks']);
-    }
-
-    return `${pageDesp}
-Search Result:
-${JSON.stringify(data)}`;
-}

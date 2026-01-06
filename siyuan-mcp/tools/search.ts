@@ -4,13 +4,38 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
 import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
-import { formatSearchResult } from '../utils/resultFilter';
+import { filterGroupSearchBlocksResult, filterSearchBlocksResult } from '../utils/resultFilter';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import searchSyntax from '../static/query_syntax.md';
+
+// Schema for grouped search results (when groupBy=1)
+const groupedResultSchema = z.object({
+  notebookId: z.string().describe('Notebook ID'),
+  path: z.string().describe('Document path'),
+  docId: z.string().describe('Document ID'),
+  docName: z.string().describe('Document name/title'),
+  hPath: z.string().describe('Human-readable path'),
+  tag: z.string().describe('Document tags'),
+  memo: z.string().describe('Document memo'),
+  children: z.array(z.string()).describe('Matching content snippets in this document'),
+});
+
+// Schema for ungrouped search results (when groupBy=0)
+const ungroupedResultSchema = z.object({
+  notebookId: z.string().describe('Notebook ID'),
+  path: z.string().describe('Document path'),
+  docId: z.string().describe('Document ID'),
+  blockId: z.string().describe('Block ID'),
+  content: z.string().describe('Block content (markdown)'),
+  docHumanPath: z.string().describe('Human-readable document path'),
+  tag: z.string().describe('Block tags'),
+  memo: z.string().describe('Block memo'),
+  alias: z.string().describe('Block alias'),
+});
 
 export class SearchToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -55,6 +80,16 @@ export class SearchToolProvider extends McpToolsProvider {
             0: No grouping - returns individual blocks matching the search criteria
             1: Group by document (default) - returns hits organized by their parent documents
           `),
+        },
+        outputSchema: {
+          page: z.number().describe('Current page number'),
+          pageCount: z.number().describe('Total number of pages'),
+          matchedBlockCount: z.number().describe('Total number of matching blocks'),
+          matchedRootCount: z.number().describe('Total number of matching documents'),
+          results: z.union([
+            z.array(groupedResultSchema),
+            z.array(ungroupedResultSchema),
+          ]).describe('Search results (format depends on groupBy setting)'),
         },
         handler: searchHandler,
         title: lang('tool_title_search'),
@@ -101,9 +136,22 @@ async function searchHandler(params: {
   queryObj.types!.databaseBlock = includingDatabase;
 
   const response = await fullTextSearchBlock(queryObj);
-  const result = formatSearchResult(response, queryObj);
+
+  // Determine result format based on groupBy setting
+  const anyResult = response?.blocks?.[0] as Record<string, unknown> | undefined;
+  const isGrouped = groupBy === 1 || !!anyResult?.children;
+  const results = isGrouped
+    ? filterGroupSearchBlocksResult(response?.blocks)
+    : filterSearchBlocksResult(response?.blocks);
+
   debugPush('Search tool finished');
-  return createSuccessResponse(result);
+  return createJsonResponse({
+    page: page ?? 1,
+    pageCount: response?.pageCount ?? 0,
+    matchedBlockCount: response?.matchedBlockCount ?? 0,
+    matchedRootCount: response?.matchedRootCount ?? 0,
+    results,
+  });
 }
 
 async function querySyntaxHandler() {
