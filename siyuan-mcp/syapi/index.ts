@@ -126,6 +126,12 @@ export async function kernelFetch(url: string, init?: RequestInit): Promise<Resp
   }
   const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
   const headers = buildKernelHeaders(authToken, cfServiceClientId, cfServiceClientSecret);
+
+  // Don't set Content-Type for FormData - let the runtime set it with boundary
+  if (init?.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
   return fetch(fullUrl, {
     ...init,
     headers: { ...headers, ...(init?.headers as Record<string, string>) },
@@ -146,7 +152,16 @@ export async function postRequest(data: any, url: string): Promise<any> {
     const text = await response.text();
     throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
   }
-  return response.json();
+  const text = await response.text();
+  if (!text) {
+    // Empty response body - return success indicator
+    return { code: 0 };
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Kernel ${url} returned invalid JSON: ${text.slice(0, 100)}`);
+  }
 }
 
 export async function getResponseData(promiseResponse: Promise<any>): Promise<any> {
@@ -212,7 +227,8 @@ export async function listDocsByPathT({
     warnPush('listDocsByPath error:', response.msg);
     return [];
   }
-  return response.data.files;
+  // Defensive handling - files may be undefined, null, or empty
+  return response.data.files ?? [];
 }
 
 /** Get block attributes (cached) */
@@ -233,13 +249,12 @@ export async function addblockAttrAPI(attrs: BlockAttrs, blockid: BlockId): Prom
 }
 
 /** Batch set block attributes */
-export async function batchSetBlockAttrs(blockAttrs: string): Promise<null> {
+export async function batchSetBlockAttrs(blockAttrs: string): Promise<void> {
   const url = '/api/attr/batchSetBlockAttrs';
-  const response = await postRequest({ blockAttrs }, url) as APIResponse<null>;
-  if (response.code === 0 && response.data != null) {
-    return response.data;
+  const response = await postRequest({ blockAttrs }, url) as APIResponse<null> & { msg?: string };
+  if (response.code !== 0) {
+    throw new Error(response.msg || `Batch set attrs failed with code ${response.code}`);
   }
-  return null;
 }
 
 /** Update block content */
@@ -380,36 +395,36 @@ export async function moveBlockAPI(
   id: BlockId,
   parentID?: BlockId,
   previousID?: BlockId
-): Promise<boolean> {
+): Promise<true> {
   const url = '/api/block/moveBlock';
   const response = await postRequest({ id, parentID, previousID }, url);
   if (response.code === 0) {
     return true;
   }
   warnPush('Move block failed:', response);
-  return false;
+  throw new Error(response.msg || 'Move block failed');
 }
 
 /** Fold block */
-export async function foldBlockAPI(id: BlockId): Promise<boolean> {
+export async function foldBlockAPI(id: BlockId): Promise<true> {
   const url = '/api/block/foldBlock';
   const response = await postRequest({ id }, url);
   if (response.code === 0) {
     return true;
   }
   warnPush('Fold block failed:', response);
-  return false;
+  throw new Error(response.msg || 'Fold block failed');
 }
 
 /** Unfold block */
-export async function unfoldBlockAPI(id: BlockId): Promise<boolean> {
+export async function unfoldBlockAPI(id: BlockId): Promise<true> {
   const url = '/api/block/unfoldBlock';
   const response = await postRequest({ id }, url);
   if (response.code === 0) {
     return true;
   }
   warnPush('Unfold block failed:', response);
-  return false;
+  throw new Error(response.msg || 'Unfold block failed');
 }
 
 /** Get block Kramdown source (cached for 60s) */
@@ -498,8 +513,8 @@ export async function pushMsgAPI(msgText: string, timeout: number = 7000): Promi
 /** Reindex document tree */
 export async function reindexDoc(docpath: string): Promise<number> {
   const url = '/api/filetree/reindexTree';
-  await postRequest({ path: docpath }, url);
-  return 0;
+  const response = await postRequest({ path: docpath }, url) as { code: number };
+  return response.code === 0 ? 0 : -1;
 }
 
 /** Flush pending database transactions and invalidate API cache */
@@ -1074,15 +1089,18 @@ export async function putFileAPI(
     const text = await response.text();
     throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
   }
-  const result = await response.json() as { code: number };
-  return result.code === 0;
+  const result = await response.json() as { code: number; msg?: string };
+  if (result.code !== 0) {
+    throw new Error(result.msg || `File operation failed with code ${result.code}`);
+  }
+  return true;
 }
 
 /** Upload assets (images, files) to SiYuan */
 export async function uploadAPI(
   assetsDirPath: string,
   files: { name: string; data: Blob }[]
-): Promise<{ succMap: Record<string, string>; errFiles: string[] } | null> {
+): Promise<{ succMap: Record<string, string>; errFiles: string[] }> {
   const url = '/api/asset/upload';
 
   const formData = new FormData();
@@ -1103,14 +1121,17 @@ export async function uploadAPI(
   }
   const result = await response.json() as {
     code: number;
+    msg?: string;
     data?: { succMap: Record<string, string>; errFiles: string[] };
   };
 
-  if (result.code === 0 && result.data) {
-    return result.data;
+  if (result.code !== 0) {
+    throw new Error(result.msg || `Upload failed with code ${result.code}`);
   }
-  warnPush('Upload failed:', result);
-  return null;
+  if (!result.data) {
+    throw new Error('Upload response missing data');
+  }
+  return result.data;
 }
 
 /** Export resources (files/folders) as zip */

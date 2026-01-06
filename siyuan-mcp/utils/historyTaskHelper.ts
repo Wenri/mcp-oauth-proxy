@@ -1,11 +1,14 @@
 /**
  * History task helper for tracking MCP operations
- * Uses file-based storage via kernel API
+ *
+ * DISABLED: Singleton pattern with mutable state causes race conditions in CF Workers.
+ * The taskManager singleton shared state across requests, leading to intermittent
+ * "[object Object]" JSON serialization errors.
  */
 
-import { getJSONFile, putJSONFile } from '../syapi';
+// import { getJSONFile, putJSONFile } from '../syapi';
 
-const TASKS_FILE_PATH = '/data/storage/petal/syplugin-anMCPServer/tasks.json';
+// const TASKS_FILE_PATH = '/data/storage/petal/syplugin-anMCPServer/tasks.json';
 
 export const TASK_STATUS = {
   PENDING: 0,
@@ -13,6 +16,7 @@ export const TASK_STATUS = {
   REJECTED: -1,
 };
 
+/*
 interface Task {
   id: number;
   modifiedIds: string[];
@@ -37,9 +41,6 @@ class TaskManager {
     this.initialized = false;
   }
 
-  /**
-   * Initialize: load task data from file
-   */
   async init(): Promise<void> {
     if (this.initialized) return;
 
@@ -53,21 +54,14 @@ class TaskManager {
       }
       this.initialized = true;
     } catch {
-      // File doesn't exist yet, start with empty tasks
       this.initialized = true;
     }
   }
 
-  /**
-   * Persist task data to file
-   */
   private async save(): Promise<void> {
     await putJSONFile(this.filePath, { tasks: this.tasks }, false);
   }
 
-  /**
-   * Insert a new task
-   */
   async insert(
     ids: string | string[],
     content: string,
@@ -97,9 +91,6 @@ class TaskManager {
     return this.tasks.find((task) => task.id === taskId);
   }
 
-  /**
-   * Mark task as approved
-   */
   async solve(taskId: number): Promise<void> {
     await this.init();
     const task = this.getTaskById(taskId);
@@ -110,9 +101,6 @@ class TaskManager {
     }
   }
 
-  /**
-   * Mark task as rejected
-   */
   async reject(taskId: number): Promise<void> {
     await this.init();
     const task = this.getTaskById(taskId);
@@ -123,9 +111,6 @@ class TaskManager {
     }
   }
 
-  /**
-   * Reject all pending tasks
-   */
   async rejectAll(): Promise<void> {
     await this.init();
     this.tasks.forEach((task) => {
@@ -137,9 +122,6 @@ class TaskManager {
     await this.save();
   }
 
-  /**
-   * List all tasks
-   */
   listAll(sortOrder: 'asc' | 'desc' = 'desc'): Task[] {
     const sortedTasks = [...this.tasks].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
@@ -149,9 +131,6 @@ class TaskManager {
     return sortedTasks;
   }
 
-  /**
-   * List pending tasks
-   */
   list(sortOrder: 'asc' | 'desc' = 'desc'): Task[] {
     const pendingTasks = this.tasks.filter((task) => task.status === TASK_STATUS.PENDING);
     const sortedPendingTasks = pendingTasks.sort((a, b) => {
@@ -162,9 +141,6 @@ class TaskManager {
     return sortedPendingTasks;
   }
 
-  /**
-   * Clean old tasks
-   */
   async clean(days: number, cleanUnapproved = false): Promise<void> {
     await this.init();
     const cutoffDate = new Date();
@@ -192,3 +168,4 @@ class TaskManager {
 }
 
 export const taskManager = new TaskManager();
+*/

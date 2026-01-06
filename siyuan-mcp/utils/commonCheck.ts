@@ -29,8 +29,9 @@ export function isValidNotebookId(id: string): boolean {
     }
   }
 
-  // Notebook ID format: typically 20-char alphanumeric
-  return /^[a-zA-Z0-9\-]+$/.test(id) && id.length >= 14;
+  // If no context or notebooks not available, return false (safe default)
+  // Better to let operations proceed than incorrectly reject valid block IDs
+  return false;
 }
 
 export function isMobile(): boolean {

@@ -109,9 +109,6 @@ async function uploadAssetsHandler(params: {
   // Upload all files (ProcessedFile extends Blob, so f IS the blob)
   const filesToUpload = processedFiles.map(f => ({ name: f.name, data: f }));
   const result = await uploadAPI(assetsDirPath, filesToUpload);
-  if (!result) {
-    throw new Error('Failed to upload assets.');
-  }
 
   // Auto-insert blocks if requested (in order)
   const insertedBlockIds: string[] = [];

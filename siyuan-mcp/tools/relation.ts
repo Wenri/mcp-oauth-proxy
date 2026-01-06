@@ -156,25 +156,46 @@ async function getChildrenDocs(params: { id: string }) {
   const notebookIds = notebookList.map((item) => item.id);
   const sqlResult = await getDocDBitem(id);
 
-  if (await filterBlock(id, sqlResult)) {
+  if (sqlResult && await filterBlock(id, sqlResult)) {
     throw new Error(
       'The specified document or block is excluded by the user settings. So cannot write or read.'
     );
   }
 
-  let result = null;
+  let result: IFile[] = [];
   if (sqlResult == null && !notebookIds.includes(id)) {
     throw new Error(
       'The queried ID does not exist, or does not correspond to a document or notebook. Please check if the ID is correct.'
     );
   } else if (sqlResult == null) {
-    // It's a notebook ID
+    // It's a notebook ID - list root documents
     result = await listDocsByPathT({ notebook: id, path: '/' });
   } else {
-    result = await listDocsByPathT({ notebook: sqlResult['box'], path: sqlResult['path'] });
+    // It's a document - list subdocuments from the document's directory
+    // Document path is like /20241231-abc.sy, subdocs are in /20241231-abc/
+    // Remove .sy extension to get the directory path for child documents
+    const docDirPath = sqlResult['path'].replace(/\.sy$/, '');
+    result = await listDocsByPathT({ notebook: sqlResult['box'], path: docDirPath });
   }
 
-  return createArrayResponse(result, 'docs');
+  // Sanitize result to ensure JSON-serializable (remove any unexpected properties)
+  const sanitizedDocs = result.map((doc) => ({
+    path: doc.path ?? '',
+    name: doc.name ?? '',
+    icon: doc.icon ?? '',
+    id: doc.id ?? '',
+    count: doc.count ?? 0,
+    size: doc.size ?? 0,
+    hSize: doc.hSize ?? '',
+    mtime: doc.mtime ?? 0,
+    ctime: doc.ctime ?? 0,
+    hMtime: doc.hMtime ?? '',
+    hCtime: doc.hCtime ?? '',
+    sort: doc.sort ?? 0,
+    subFileCount: doc.subFileCount ?? 0,
+  }));
+
+  return createArrayResponse(sanitizedDocs, 'docs');
 }
 
 async function getChildBlocksTool(params: { id: string }) {

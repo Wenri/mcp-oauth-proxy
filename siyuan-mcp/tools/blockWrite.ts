@@ -9,7 +9,8 @@ import { McpToolsProvider } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr, assertApiResult } from '../utils/commonCheck';
-import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
+// DISABLED: taskManager causes race conditions in CF Workers
+// import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { extractNodeParagraphIds } from '../utils/common';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { getConfig } from '..';
@@ -203,17 +204,36 @@ async function insertBlockHandler(params: {
   }
 
   const dbItem = await validateBlockAccess(anchorID);
+  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
 
   if (anchorType === 'parentID' && isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
+  // Pass resolved ID to API (raw input might be hpath)
+  const apiParams = {
+    data,
+    dataType: 'markdown' as const,
+    nextID: anchorType === 'nextID' ? resolvedId : undefined,
+    previousID: anchorType === 'previousID' ? resolvedId : undefined,
+    parentID: anchorType === 'parentID' ? resolvedId : undefined,
+  };
+
   const response = assertApiResult(
-    await insertBlockOriginAPI({ data, dataType: 'markdown', nextID, previousID, parentID }),
+    await insertBlockOriginAPI(apiParams),
     'insert the block'
   );
-  taskManager.insert(response[0].doOperations[0].id, data, 'insertBlock', { parentID }, TASK_STATUS.APPROVED);
-  return createJsonResponse(response[0].doOperations[0]);
+  const op = response[0].doOperations[0];
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(op.id, data, 'insertBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
+
+  // Return only the fields defined in outputSchema (data may be object in API response)
+  return createJsonResponse({
+    id: op.id,
+    action: op.action,
+    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
+    parentID: op.parentID || undefined,
+  });
 }
 
 async function prependBlockHandler(params: { data: string; parentID: BlockId }) {
@@ -225,14 +245,23 @@ async function prependBlockHandler(params: { data: string; parentID: BlockId }) 
   }
 
   const dbItem = await validateBlockAccess(parentID);
+  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
 
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
-  const response = assertApiResult(await prependBlockAPI(data, parentID), 'prepend the block');
-  taskManager.insert(response.id, data, 'prependBlock', { parentID }, TASK_STATUS.APPROVED);
-  return createJsonResponse(response);
+  const op = assertApiResult(await prependBlockAPI(data, resolvedId), 'prepend the block');
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(op.id, data, 'prependBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
+
+  // Return only the fields defined in outputSchema
+  return createJsonResponse({
+    id: op.id,
+    action: op.action,
+    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
+    parentID: op.parentID || undefined,
+  });
 }
 
 async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
@@ -244,27 +273,36 @@ async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
   }
 
   const dbItem = await validateBlockAccess(parentID);
+  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
 
   if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
     throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
   }
 
-  const result = assertApiResult(await appendBlockAPI(data, parentID), 'append to the block');
+  const op = assertApiResult(await appendBlockAPI(data, resolvedId), 'append to the block');
 
   const paragraphIds: BlockId[] = [];
   if (dbItem.type === 'l') {
-    const listItems = extractNodeParagraphIds(result.data);
+    const listItems = extractNodeParagraphIds(op.data);
     if (listItems.length > 0) {
       paragraphIds.push(...listItems);
     } else {
-      paragraphIds.push(result.id);
+      paragraphIds.push(op.id);
     }
   } else {
-    paragraphIds.push(result.id);
+    paragraphIds.push(op.id);
   }
 
-  taskManager.insert(paragraphIds, data, 'appendBlock', { parentID }, TASK_STATUS.APPROVED);
-  return createJsonResponse(result);
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(paragraphIds, data, 'appendBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
+
+  // Return only the fields defined in outputSchema
+  return createJsonResponse({
+    id: op.id,
+    action: op.action,
+    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
+    parentID: op.parentID || undefined,
+  });
 }
 
 async function updateBlockHandler(params: { data: string; id: BlockId }) {
@@ -282,10 +320,12 @@ async function updateBlockHandler(params: { data: string; id: BlockId }) {
 
   if (autoApprove) {
     assertApiResult(await updateBlockAPI(data, id), 'update the block');
-    taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.APPROVED);
+    // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+    // taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.APPROVED);
     return createSuccessResponse('Block updated');
   } else {
-    taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.PENDING);
+    // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+    // taskManager.insert(id, data, 'updateBlock', {}, TASK_STATUS.PENDING);
     return createSuccessResponse('Block update pending approval');
   }
 }
@@ -301,7 +341,8 @@ async function deleteBlockHandler(params: { id: BlockId }) {
   }
 
   assertApiResult(await removeBlockAPI(id), 'delete the block');
-  taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(id, '', 'deleteBlock', {}, TASK_STATUS.APPROVED);
   return createSuccessResponse('Block deleted');
 }
 
@@ -313,17 +354,23 @@ async function moveBlockHandler(params: { id: BlockId; parentID?: BlockId; previ
     throw new Error('Please provide either parentID or previousID to specify the target position.');
   }
 
-  await validateBlockAccess(id);
+  const blockDbItem = await validateBlockAccess(id);
+  const resolvedId = blockDbItem.id;
 
-  // Validate target block exists
+  // Validate target block exists and resolve IDs (handles hpath)
+  let resolvedPreviousID: BlockId | undefined;
+  let resolvedParentID: BlockId | undefined;
+
   if (previousID) {
-    await validateBlockAccess(previousID);
+    const prevDbItem = await validateBlockAccess(previousID);
+    resolvedPreviousID = prevDbItem.id;
   }
   if (parentID && !previousID) {
-    await validateBlockAccess(parentID);
+    const parentDbItem = await validateBlockAccess(parentID);
+    resolvedParentID = parentDbItem.id;
   }
 
-  assertApiResult(await moveBlockAPI(id, parentID, previousID), 'move the block');
+  assertApiResult(await moveBlockAPI(resolvedId, resolvedParentID, resolvedPreviousID), 'move the block');
   return createSuccessResponse('Block moved');
 }
 

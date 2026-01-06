@@ -10,7 +10,8 @@ import { isADocId } from '../syapi/custom';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
+// DISABLED: taskManager causes race conditions in CF Workers
+// import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
 import { assertApiResult, assertNonEmptyArray } from '../utils/commonCheck';
 
@@ -119,7 +120,8 @@ async function appendBlockHandler(params: { id: DocumentId; markdownContent: str
   await validateBlockAccess(id, true);
 
   const result = assertApiResult(await appendBlockAPI(markdownContent, id), 'append to the document');
-  taskManager.insert(result.id, markdownContent, 'appendToDocEnd', { docId: id }, TASK_STATUS.APPROVED);
+  // DISABLED: taskManager causes race conditions in CF Workers
+  // taskManager.insert(result.id, markdownContent, 'appendToDocEnd', { docId: id }, TASK_STATUS.APPROVED);
   return createSuccessResponse(result.id);
 }
 
@@ -136,7 +138,8 @@ async function createNewNoteUnder(params: { parentId: NotebookId | DocumentId; t
   const { result, newDocId } = await createNewDocWithParentId(parentId, title, markdownContent);
 
   if (result) {
-    taskManager.insert(newDocId, markdownContent, 'createNewNoteUnder', {}, TASK_STATUS.APPROVED);
+    // DISABLED: taskManager causes race conditions in CF Workers
+    // taskManager.insert(newDocId, markdownContent, 'createNewNoteUnder', {}, TASK_STATUS.APPROVED);
     return createSuccessResponse(newDocId);
   }
 
@@ -160,7 +163,8 @@ async function removeDocHandler(params: { id: DocumentId }) {
   const docInfo = await validateBlockAccess(id, true);
 
   assertApiResult(await removeDocAPI(docInfo.box, docInfo.path), 'remove the document');
-  taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
+  // DISABLED: taskManager causes race conditions in CF Workers
+  // taskManager.insert(id, '', 'removeDoc', {}, TASK_STATUS.APPROVED);
   return createSuccessResponse('Document removed');
 }
 

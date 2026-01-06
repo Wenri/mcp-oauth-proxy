@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { addblockAttrAPI, getblockAttr, batchSetBlockAttrs } from '../syapi';
 import { McpToolsProvider } from './baseToolProvider';
-import { isValidStr, assertNonEmptyArray, assertApiResult } from '../utils/commonCheck';
+import { isValidStr, assertNonEmptyArray } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { validateBlockAccess } from '../utils/resultFilter';
 
@@ -145,6 +145,6 @@ async function batchSetAttributesHandler(params: { blocks: { id: BlockId; attrs:
 
   // Format for batchSetBlockAttrs API: JSON string of array
   const blockAttrs = JSON.stringify(blocks);
-  assertApiResult(await batchSetBlockAttrs(blockAttrs), 'batch update attributes');
+  await batchSetBlockAttrs(blockAttrs);
   return createSuccessResponse(`Updated ${blocks.length} blocks`);
 }

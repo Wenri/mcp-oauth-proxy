@@ -17,7 +17,8 @@ import { isValidStr } from '../utils/commonCheck';
 import { lang } from '../utils/lang';
 import { McpToolsProvider } from './baseToolProvider';
 import { debugPush, warnPush } from '../logger';
-import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
+// DISABLED: taskManager causes race conditions in CF Workers
+// import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/resultFilter';
 import { getAppId } from '..';
 
@@ -175,7 +176,8 @@ async function appendToDailynoteHandler(params: { notebookId: NotebookId; markdo
     throw new Error('Internal Error: failed to create dailynote');
   }
 
-  taskManager.insert(id, markdownContent, 'appendToDailyNote', {}, TASK_STATUS.APPROVED);
+  // DISABLED: taskManager causes race conditions in CF Workers
+  // taskManager.insert(id, markdownContent, 'appendToDailyNote', {}, TASK_STATUS.APPROVED);
   return createSuccessResponse(newBlockId);
 }
 

@@ -264,13 +264,13 @@ async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }
 
   const hpath = assertApiResult(await getHPathByIDAPI(resolvedId), 'get the human-readable path');
 
-  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id: resolvedId, hpath };
+  const result: { id: BlockId; hpath: string; outline?: OutlineItem[] } = { id: resolvedId, hpath };
 
   if (includeOutline) {
     const docId = extractDocumentId(dbItem);
-    const outline = await getDocOutlineAPI(docId);
-    if (outline) {
-      result.outline = outline;
+    const rawOutline = await getDocOutlineAPI(docId);
+    if (rawOutline) {
+      result.outline = transformOutline(rawOutline);
     }
   }
 
@@ -283,9 +283,75 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
 
   const dbItem = await validateBlockAccess(id);
   const docId = extractDocumentId(dbItem);
-  const outline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
+  const rawOutline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
+
+  // Transform kernel OutlinePath[] to OutlineItem[] (matching our schema)
+  const outline = transformOutline(rawOutline);
 
   return createJsonResponse({ id: docId, outline });
+}
+
+/**
+ * Transform kernel OutlinePath/OutlineBlock structure to flat OutlineItem format.
+ * Kernel returns: { name, blocks: OutlineBlock[], children: OutlinePath[], depth, count, ... }
+ * We return: { id, name, type, depth, count, children?: OutlineItem[] }
+ */
+function transformOutline(paths: OutlinePath[]): OutlineItem[] {
+  if (!paths || !Array.isArray(paths)) return [];
+
+  return paths.map((path) => {
+    // Combine blocks and children into a single children array
+    const childItems: OutlineItem[] = [];
+
+    // Process blocks (OutlineBlock[]) - these are the nested heading blocks
+    if (path.blocks && Array.isArray(path.blocks)) {
+      childItems.push(...transformBlocks(path.blocks));
+    }
+
+    // Process children (OutlinePath[]) - these are nested outline paths
+    if (path.children && Array.isArray(path.children)) {
+      childItems.push(...transformOutline(path.children));
+    }
+
+    const item: OutlineItem = {
+      id: path.id,
+      name: path.name,
+      type: path.type || 'outline',
+      depth: path.depth,
+      count: path.count || childItems.length,
+    };
+
+    if (childItems.length > 0) {
+      item.children = childItems;
+    }
+
+    return item;
+  });
+}
+
+/**
+ * Transform OutlineBlock[] to OutlineItem[] format.
+ */
+function transformBlocks(blocks: OutlineBlock[]): OutlineItem[] {
+  if (!blocks || !Array.isArray(blocks)) return [];
+
+  return blocks.map((block) => {
+    const childItems = block.children ? transformBlocks(block.children) : [];
+
+    const item: OutlineItem = {
+      id: block.id,
+      name: block.content || '',
+      type: block.type || 'outline',
+      depth: block.depth,
+      count: block.count || childItems.length,
+    };
+
+    if (childItems.length > 0) {
+      item.children = childItems;
+    }
+
+    return item;
+  });
 }
 
 async function exportHtmlHandler(params: { id: BlockId }) {

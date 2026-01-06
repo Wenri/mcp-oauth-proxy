@@ -38,6 +38,26 @@ export function createSuccessResponse(
 }
 
 /**
+ * Ensure data is JSON-serializable by round-tripping through JSON.
+ * This removes any non-serializable properties (functions, symbols, etc.)
+ * and ensures consistent serialization.
+ */
+function ensureSerializable<T>(data: T): T {
+  try {
+    const json = JSON.stringify(data);
+    if (json === undefined) {
+      // JSON.stringify returns undefined for unsupported types
+      return { error: "Data contains unsupported types" } as T;
+    }
+    return JSON.parse(json);
+  } catch (e) {
+    // If serialization fails, return a safe fallback with error info
+    const errMsg = e instanceof Error ? e.message : String(e);
+    return { error: `Serialization failed: ${errMsg}` } as T;
+  }
+}
+
+/**
  * JSON response helper - returns both human-readable text and machine-readable structured content.
  *
  * @param data - Object matching the tool's outputSchema definition
@@ -64,13 +84,39 @@ export function createJsonResponse<T extends StructuredContent>(
   data: T,
   extraContent: ContentBlock[] = []
 ): CallToolResult {
-  return {
+  // Ensure data is JSON-serializable to avoid "[object Object]" errors
+  const safeData = ensureSerializable(data);
+
+  // Use YAML for human-readable output, fall back to JSON if YAML fails
+  let textContent: string;
+  try {
+    textContent = YAML.stringify(safeData).trimEnd();
+  } catch {
+    // YAML stringify failed, use JSON as fallback
+    textContent = JSON.stringify(safeData, null, 2);
+  }
+
+  // Build the result - structuredContent can cause issues with the MCP SDK
+  // if not properly serializable, so we verify it first
+  const result: CallToolResult = {
     content: [
-      { type: "text", text: YAML.stringify(data).trimEnd() },
+      { type: "text", text: textContent },
       ...extraContent,
     ],
-    structuredContent: data,
   };
+
+  // Only include structuredContent if it's a simple object (no deep nesting issues)
+  // Test serialization explicitly to avoid "[object Object]" errors in transport
+  try {
+    const testJson = JSON.stringify(safeData);
+    if (testJson && testJson !== 'undefined' && !testJson.includes('[object Object]')) {
+      result.structuredContent = safeData;
+    }
+  } catch {
+    // Skip structuredContent if serialization has any issues
+  }
+
+  return result;
 }
 
 /**

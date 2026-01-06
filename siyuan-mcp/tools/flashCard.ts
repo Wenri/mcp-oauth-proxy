@@ -8,7 +8,8 @@ import { isValidStr } from '../utils/commonCheck';
 import { createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, createNewDocWithParentId } from './baseToolProvider';
 import { z } from 'zod';
-import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
+// DISABLED: taskManager causes race conditions in CF Workers
+// import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterBlock } from '../utils/resultFilter';
 import { getConfig } from '..';
 
@@ -130,9 +131,10 @@ async function addFlashCardMarkdown(
   }
 
   const { result, newDocId } = await createNewDocWithParentId(parentId, docTitle, markdownContent);
-  if (result) {
-    taskManager.insert(newDocId, markdownContent, 'createNewNoteWithFlashCard', {}, TASK_STATUS.APPROVED);
-  }
+  // DISABLED: taskManager causes race conditions in CF Workers
+  // if (result) {
+  //   taskManager.insert(newDocId, markdownContent, 'createNewNoteWithFlashCard', {}, TASK_STATUS.APPROVED);
+  // }
 
   if (result) {
     // Parse document and add cards
