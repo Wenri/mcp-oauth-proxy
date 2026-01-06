@@ -125,10 +125,11 @@ async function appendBlockHandler(params: { id: DocumentId; markdownContent: str
   return createSuccessResponse(result.id);
 }
 
-async function createNewNoteUnder(params: { parentId: NotebookId | DocumentId; title: string; markdownContent: string }) {
+async function createNewNoteUnder(params: { parentId: NotebookId | DocumentId | string; title: string; markdownContent: string }) {
   const { parentId, title, markdownContent } = params;
 
-  if (await filterBlock(parentId, null)) {
+  // Only check filter for IDs, not hpaths (hpaths start with '/')
+  if (!parentId.startsWith('/') && await filterBlock(parentId, null)) {
     throw new Error(
       'The specified document or block is excluded by the user settings, so cannot create a new note under it.'
     );
