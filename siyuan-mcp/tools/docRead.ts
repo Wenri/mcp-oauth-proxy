@@ -158,10 +158,21 @@ export class DocReadToolProvider extends McpToolsProvider {
           'Export a document as HTML. Useful for getting a rendered preview of the document content.',
         inputSchema: z.object({
           id: z.string().describe('Document ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),
+          offset: z
+            .number()
+            .optional()
+            .describe('Starting character offset for partial reading (default: 0)'),
+          limit: z
+            .number()
+            .optional()
+            .describe('Maximum characters to return (default: unlimited)'),
         }),
         outputSchema: z.object({
           id: z.string().describe('The document ID'),
-          html: z.string().describe('The rendered HTML content of the document'),
+          html: z.string().describe('The rendered HTML content (sliced if offset/limit provided)'),
+          offset: z.number().describe('The starting offset used'),
+          hasMore: z.boolean().describe('Whether there is more content beyond the current slice'),
+          totalLength: z.number().describe('Total length of the full HTML in characters'),
         }),
         handler: exportHtmlHandler,
         title: lang('tool_title_export_html'),
@@ -336,13 +347,22 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
   return createJsonResponse({ id: docId, outline });
 }
 
-async function exportHtmlHandler(params: { id: BlockId }) {
-  const { id } = params;
+async function exportHtmlHandler(params: { id: BlockId; offset?: number; limit?: number }) {
+  const { id, offset = 0, limit } = params;
   debugPush('Export HTML API called');
 
   const dbItem = await validateBlockAccess(id);
   const docId = extractDocumentId(dbItem);
   const html = assertApiResult(await getDocPreview(docId), 'export document as HTML');
 
-  return createJsonResponse({ id: docId, html });
+  const sliced = limit !== undefined ? html.slice(offset, offset + limit) : html.slice(offset);
+  const hasMore = limit !== undefined ? offset + limit < html.length : false;
+
+  return createJsonResponse({
+    id: docId,
+    html: sliced,
+    offset,
+    hasMore,
+    totalLength: html.length,
+  });
 }
