@@ -1,19 +1,25 @@
 /**
  * Static file exports
- * All files are exported with kebab-case names matching their filenames
+ *
+ * Uses getter functions to avoid module initialization order issues
+ * with text imports in Wrangler's bundler.
  */
 
-import databaseSchemaContent from './siyuan-database-schema.md';
-import sqlCheatsheetContent from './siyuan-sql-cheatsheet.md';
-import querySyntaxContent from './query_syntax.md';
-import promptCreateCardsCNContent from './prompt_create_cards_system_CN.md';
-import promptQueryCNContent from './prompt_dynamic_query_system_CN.md';
+import databaseSchemaContent from './siyuan-database-schema.txt';
+import sqlCheatsheetContent from './siyuan-sql-cheatsheet.txt';
+import querySyntaxContent from './query_syntax.txt';
+import promptCreateCardsCNContent from './prompt_create_cards_system_CN.txt';
+import promptQueryCNContent from './prompt_dynamic_query_system_CN.txt';
 import { generateAllToolSignatures, generateAllToolTypes } from '../tools';
 
-// Named exports for direct import (static files)
-export const databaseSchema = databaseSchemaContent;
-export const sqlCheatsheet = sqlCheatsheetContent;
-export const querySyntax = querySyntaxContent;
+// Getter functions for static content (defers access to runtime)
+export const getDatabaseSchema = () => databaseSchemaContent;
+export const getSqlCheatsheet = () => sqlCheatsheetContent;
+export const getQuerySyntax = () => querySyntaxContent;
+export const getPromptCreateCardsCN = () => promptCreateCardsCNContent;
+export const getPromptQueryCN = () => promptQueryCNContent;
+
+// Legacy named exports for prompts (used by siyuan-mcp/index.ts)
 export const promptCreateCardsCN = promptCreateCardsCNContent;
 export const promptQueryCN = promptQueryCNContent;
 
@@ -21,28 +27,33 @@ export const promptQueryCN = promptQueryCNContent;
 export const getToolTypes = generateAllToolTypes;
 export const getToolSignatures = generateAllToolSignatures;
 
-/** Map of URL paths to static content for HTTP serving */
-export const files: Record<string, string> = {
-  'database-schema': databaseSchema,
-  'sql-cheatsheet': sqlCheatsheet,
-  'query-syntax': querySyntax,
-  'prompt-create-cards-cn': promptCreateCardsCN,
-  'prompt-query-cn': promptQueryCN,
+/** Static content registry */
+const staticFiles: Record<string, () => string> = {
+  'database-schema': getDatabaseSchema,
+  'sql-cheatsheet': getSqlCheatsheet,
+  'query-syntax': getQuerySyntax,
+  'prompt-create-cards-cn': getPromptCreateCardsCN,
+  'prompt-query-cn': getPromptQueryCN,
 };
 
-/** Map of URL paths to dynamic content generators */
-export const dynamicFiles: Record<string, () => Promise<string>> = {
+/** Dynamic content registry */
+const dynamicFiles: Record<string, () => Promise<string>> = {
   'tool-types': getToolTypes,
   'tool-signatures': getToolSignatures,
 };
 
 /** Get content by path (supports both static and dynamic) */
 export async function getFileContent(path: string): Promise<string | null> {
-  if (path in files) {
-    return files[path];
+  if (path in staticFiles) {
+    return staticFiles[path]();
   }
   if (path in dynamicFiles) {
     return dynamicFiles[path]();
   }
   return null;
+}
+
+/** Get all available static file paths */
+export function getStaticFilePaths(): string[] {
+  return Object.keys(staticFiles);
 }

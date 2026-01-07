@@ -25,8 +25,8 @@ import {
 import { initKernel, getFileAPIv2, normalizePath } from "../siyuan-mcp/syapi";
 import { decryptGrant } from "../siyuan-mcp/utils/crypto";
 
-// Import static files map
-import { files as staticFiles } from "../siyuan-mcp/static";
+// Import static files accessor
+import { getFileContent } from "../siyuan-mcp/static";
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
 type HonoEnv = { Bindings: EnvWithOAuth };
@@ -52,9 +52,9 @@ app.onError((error, c) => {
 });
 
 // Static file routes (public, no auth required)
-app.get("/static/:name", (c) => {
+app.get("/static/:name", async (c) => {
 	const name = c.req.param("name");
-	const content = staticFiles[name];
+	const content = await getFileContent(name);
 	if (!content) {
 		return c.text("Not found", 404);
 	}

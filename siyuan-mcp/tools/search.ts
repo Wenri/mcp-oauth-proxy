@@ -10,7 +10,7 @@ import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { filterGroupSearchBlocksResult, filterSearchBlocksResult } from '../utils/resultFilter';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import searchSyntax from '../static/query_syntax.md';
+import { getQuerySyntax } from '../static';
 
 // Schema for grouped search results (when groupBy=1)
 const groupedResultSchema = z.object({
@@ -155,5 +155,5 @@ async function searchHandler(params: {
 }
 
 async function querySyntaxHandler() {
-  return createSuccessResponse(searchSyntax);
+  return createSuccessResponse(getQuerySyntax());
 }
