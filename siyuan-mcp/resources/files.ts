@@ -17,19 +17,18 @@ export class FileResourceProvider extends McpResourceProvider {
       'file',
       new ResourceTemplate('syfile://{+path}', {
         list: async () => {
-          // List top-level directories as starting points
+          // List files in /data/ (exclude directories - they're not readable via syfile://)
           const entries = await readDirAPI('/data/');
           if (!entries) {
             return { resources: [] };
           }
           return {
             resources: entries
-              .filter((e: { isDir: boolean }) => e.isDir)
+              .filter((e: { isDir: boolean }) => !e.isDir)
               .map((e: { name: string }) => ({
-                uri: `syfile:///data/${e.name}/`,
+                uri: `syfile:///data/${e.name}`,
                 name: e.name,
-                description: 'directory',
-                mimeType: 'inode/directory',
+                mimeType: 'application/octet-stream',
               })),
           };
         },

@@ -19,7 +19,9 @@
     { "pattern": "sy.wenri.me/mcp*", "zone_name": "wenri.me" },
     { "pattern": "sy.wenri.me/sse*", "zone_name": "wenri.me" },
     // Download proxy (authenticated file downloads)
-    { "pattern": "sy.wenri.me/download/*", "zone_name": "wenri.me" }
+    { "pattern": "sy.wenri.me/download/*", "zone_name": "wenri.me" },
+    // Static files (public, no auth)
+    { "pattern": "sy.wenri.me/static/*", "zone_name": "wenri.me" }
   ],
 
   // KV namespace for OAuth state management and RAG indexing queue

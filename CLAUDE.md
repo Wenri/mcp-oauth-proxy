@@ -154,14 +154,11 @@ Provides OAuth helper functions:
 
 ### siyuan-mcp/index.ts - MCP Server Core
 
-Provides two factory functions:
-- `createSiyuanMCPServer()` - Creates new McpServer instance
-- `initializeSiyuanMCPServer(server, config)` - Initializes with tools and prompts
+- `initializeSiyuanMCPServer(server, config)` - Initializes server with tools, prompts, and resources
 
 Context management:
-- `initializeContext()` - Fetches SiYuan config from kernel
-- `kernelFetch()` - Authenticated fetch to SiYuan kernel
 - `getConfig()` - Returns current SiYuan configuration
+- `getTokenTtl()` - Returns remaining OAuth token TTL
 
 ### Tool Providers
 
@@ -333,6 +330,9 @@ npx @modelcontextprotocol/inspector@latest
 - `POST /mcp` - JSON-RPC over HTTP
 - `GET /sse` - Server-Sent Events transport
 
+### Static Endpoints (public, no auth)
+- `GET /static/:name` - Static documentation files (database-schema, sql-cheatsheet, query-syntax)
+
 ## Token Storage (KV) and Cookies
 
 **KV Storage:**
@@ -390,6 +390,41 @@ npx @modelcontextprotocol/inspector@latest
    - Add Service Auth policy to your SiYuan Access application
 7. Deploy: `npm run deploy`
 8. Test OAuth flow with MCP Inspector
+
+## MCP Resources
+
+MCP resources provide read-only access to content via URI schemes:
+
+### Documentation Resources
+Static documentation served via MCP `resources/read`:
+- `database-schema` - SiYuan database schema reference
+- `sql-cheatsheet` - SQL query examples for SiYuan
+- `query-syntax` - Full-text search syntax reference
+
+### File Resources (`syfile://`)
+Access any file in SiYuan workspace:
+```
+syfile:///data/assets/image.png
+syfile:///data/widgets/config.json
+```
+
+- `resources/list` returns files only (directories excluded - not readable)
+- Supports both text and binary files (binary returned as base64 blob)
+
+## Static Files Architecture
+
+Static content (documentation, prompts) uses `.txt` extension due to Wrangler's `.md` loader issues.
+
+**Pattern**: Getter functions to avoid module initialization order issues:
+```typescript
+// siyuan-mcp/static/index.ts
+import content from './file.txt';
+export const getContent = () => content;  // Getter defers access to runtime
+
+// Consumer
+import { getContent } from '../static';
+const text = getContent();  // Called at runtime, not module load
+```
 
 ## Adding New Tools
 
