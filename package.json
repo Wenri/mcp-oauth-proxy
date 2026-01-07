@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.2.2",
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "agents": "^0.3.3",
     "hono": "^4.11.3",
     "lodash-es": "^4.17.22",
