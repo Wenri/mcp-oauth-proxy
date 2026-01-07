@@ -5,7 +5,8 @@
  * CHANGE FROM UPSTREAM: Removed DOM-dependent functions (getActiveEditorIds, etc.)
  */
 
-import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getCacheKey, cacheResponse, getNodebookList, getDocIDByHPath } from './index';
+import { queryAPI, listDocsByPathT, getTreeStat, listDocTree, getRiffDecks, getNodebookList, getDocIDByHPath } from './index';
+import { getCacheKey, cacheResponse } from './cache';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush } from '../logger';
 

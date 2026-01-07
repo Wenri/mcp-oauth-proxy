@@ -2,182 +2,22 @@
  * SiYuan Kernel API wrapper
  */
 
-import { waitUntil } from 'cloudflare:workers';
-import isPlainObject from 'lodash-es/isPlainObject';
 import { warnPush, errorPush } from '../logger';
+import {
+  getCacheKey,
+  cacheResponse,
+  cachedPostRequest,
+  invalidateCache,
+  DEFAULT_FILE_CACHE_TTL,
+  DEFAULT_API_CACHE_TTL,
+} from './cache';
+import { initKernel, buildKernelHeaders, kernelFetch, postRequest, getBaseUrl, getResponseData } from './http';
 
-// ============================================================================
-// Kernel connection state
-// ============================================================================
+// Re-export cache utilities for backwards compatibility
+export { getCacheKey, cacheResponse, cachedPostRequest, DEFAULT_FILE_CACHE_TTL, DEFAULT_API_CACHE_TTL };
 
-let baseUrl: string = '';
-let authToken: string | undefined;
-let cfServiceClientId: string | undefined;
-let cfServiceClientSecret: string | undefined;
-
-/**
- * Build a cache key URL from path and optional params.
- * Uses URL object to ensure consistent key format.
- * Supports arrays as repeated keys (e.g., paths=a&paths=b).
- */
-export function getCacheKey(path: string, params?: Record<string, string | number | boolean | string[]>): string {
-  const cacheUrl = new URL(path, baseUrl);
-  if (params) {
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (Array.isArray(value)) {
-        // Repeated keys for arrays
-        for (const item of value) {
-          searchParams.append(key, item);
-        }
-      } else {
-        searchParams.append(key, String(value));
-      }
-    }
-    cacheUrl.search = searchParams.toString();
-  }
-  return cacheUrl.href;
-}
-
-/** All API endpoints that use caching */
-const CACHED_ENDPOINTS = [
-  '/api/attr/getBlockAttrs',
-  '/api/notebook/lsNotebooks',
-  '/api/notebook/getNotebookConf',
-  '/api/block/getChildBlocks',
-  '/api/block/getBlockKramdown',
-  '/api/block/getDocInfo',
-  '/api/block/getTreeStat',
-  '/api/filetree/getDoc',
-  '/api/filetree/listDocsByPath',
-  '/api/filetree/listDocTree',
-  '/api/filetree/getHPathByID',
-  '/api/filetree/getIDsByHPath',
-  '/api/outline/getDocOutline',
-  '/api/export/preview',
-  '/api/export/exportMdContent',
-  '/api/ref/getBacklink2',
-  '/api/riff/getRiffDecks',
-  '/api/search/fullTextSearchBlock',
-  '/api/file/getFile',
-  '/api/file/readDir',
-  // Custom SQL query cache paths (used by cachedQuery)
-  '/custom/isDoc',
-  '/custom/doc',
-  '/custom/block',
-  '/custom/assets',
-  '/custom/fts',
-  '/custom/childWordCount',
-  '/custom/childDocExist',
-  '/custom/docHasAv',
-  '/custom/docBlockCount',
-  '/custom/docEmpty',
-  '/custom/headingIds',
-  '/custom/superBlockIds',
-  '/custom/highlightBlockIds',
-];
-
-/**
- * Initialize kernel connection
- * @param url - Kernel base URL
- * @param token - SiYuan API token
- * @param serviceClientId - CF Access Service Token client ID
- * @param serviceClientSecret - CF Access Service Token client secret
- */
-export function initKernel(
-  url: string,
-  token?: string,
-  serviceClientId?: string,
-  serviceClientSecret?: string
-): void {
-  baseUrl = url.replace(/\/$/, '');
-  authToken = token;
-  cfServiceClientId = serviceClientId;
-  cfServiceClientSecret = serviceClientSecret;
-}
-
-/**
- * Build auth headers for SiYuan kernel requests.
- */
-export function buildKernelHeaders(
-  token?: string,
-  serviceClientId?: string,
-  serviceClientSecret?: string
-): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Token ${token}`;
-  }
-  if (serviceClientId && serviceClientSecret) {
-    headers['CF-Access-Client-Id'] = serviceClientId;
-    headers['CF-Access-Client-Secret'] = serviceClientSecret;
-  }
-  return headers;
-}
-
-/**
- * Fetch from SiYuan kernel with authentication.
- */
-export async function kernelFetch(url: string, init?: RequestInit): Promise<Response> {
-  if (!baseUrl && !url.startsWith('http')) {
-    throw new Error('Kernel not initialized. Call initKernel first.');
-  }
-  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-  const headers = buildKernelHeaders(authToken, cfServiceClientId, cfServiceClientSecret);
-
-  // Don't set Content-Type for FormData - let the runtime set it with boundary
-  if (init?.body instanceof FormData) {
-    delete headers['Content-Type'];
-  }
-
-  return fetch(fullUrl, {
-    ...init,
-    headers: { ...headers, ...(init?.headers as Record<string, string>) },
-  });
-}
-
-/**
- * Send POST request to SiYuan kernel API
- * @param data Request body
- * @param url API endpoint (e.g., /api/query/sql)
- */
-export async function postRequest(data: any, url: string): Promise<any> {
-  const response = await kernelFetch(url, {
-    body: JSON.stringify(data),
-    method: 'POST',
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Kernel ${url} returned ${response.status}: ${text.slice(0, 100)}`);
-  }
-  const text = await response.text();
-  if (!text) {
-    // Empty response body - return success indicator
-    return { code: 0 };
-  }
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new Error(`Kernel ${url} returned invalid JSON: ${text.slice(0, 100)}`);
-  }
-}
-
-export async function getResponseData(promiseResponse: Promise<any>): Promise<any> {
-  const response = await promiseResponse;
-  if (response.code !== 0 || response.data == null) {
-    return null;
-  }
-  return response.data;
-}
-
-export async function checkResponse(response: any): Promise<number> {
-  if (response.code === 0) {
-    return 0;
-  }
-  return -1;
-}
+// Re-export HTTP utilities for backwards compatibility
+export { initKernel, buildKernelHeaders, kernelFetch, postRequest, getResponseData };
 
 /** SQL query API - returns array of Block or other row types */
 export async function queryAPI(sqlstmt: string): Promise<Block[]> {
@@ -245,7 +85,7 @@ export async function getblockAttr(blockid: BlockId): Promise<BlockAttrs> {
 export async function addblockAttrAPI(attrs: BlockAttrs, blockid: BlockId): Promise<number> {
   const url = '/api/attr/setBlockAttrs';
   const result = await postRequest({ id: blockid, attrs }, url);
-  return checkResponse(result);
+  return result.code === 0 ? 0 : -1;
 }
 
 /** Batch set block attributes */
@@ -532,12 +372,7 @@ export async function flushTransaction(): Promise<number> {
   const url = '/api/sqlite/flushTransaction';
   const response = await postRequest({}, url);
   if (response.code === 0) {
-    // Invalidate cached API responses
-    const cache = caches.default;
-    const deletePromises = CACHED_ENDPOINTS.map((endpoint) =>
-      cache.delete(`${baseUrl}${endpoint}`, { ignoreSearch: true } as CacheQueryOptions)
-    );
-    waitUntil(Promise.all(deletePromises));
+    invalidateCache();
     return 0;
   }
   return -1;
@@ -872,106 +707,6 @@ export function isTextExtension(path: string): boolean {
   return textExtensions.includes(ext);
 }
 
-/** Default cache TTL: 1 hour for files, 60s for API responses */
-const DEFAULT_FILE_CACHE_TTL = 3600;
-const DEFAULT_API_CACHE_TTL = 180;
-
-/**
- * Cached POST request for JSON APIs.
- * Caches successful responses (code === 0) for the specified TTL.
- * @param data - Request body (must be flat object with primitive values)
- * @param url - API endpoint
- * @param cacheTtl - Cache TTL in seconds (0 = no caching)
- * @returns Parsed JSON response
- */
-export async function cachedPostRequest(data: Record<string, string | number | boolean>, url: string, cacheTtl: number = DEFAULT_API_CACHE_TTL): Promise<any> {
-  const cacheKey = getCacheKey(url, data);
-
-  // Check cache first
-  if (cacheTtl > 0) {
-    const cached = await caches.default.match(cacheKey);
-    if (cached) {
-      return cached.json();
-    }
-  }
-
-  // Fetch from kernel
-  const response = await postRequest(data, url);
-
-  // Cache using cacheResponse helper
-  if (cacheTtl > 0 && response.code === 0) {
-    cacheResponse(response, new Headers(), cacheKey, cacheTtl);
-  }
-
-  return response;
-}
-
-/**
- * Check if a value is a valid BodyInit type that can be passed to Response constructor.
- * Valid types: string, Blob, ArrayBuffer, TypedArray, DataView, ReadableStream, FormData, URLSearchParams
- */
-function isValidBodyInit(value: unknown): value is BodyInit {
-  return (
-    typeof value === 'string' ||
-    value instanceof Blob ||
-    value instanceof ArrayBuffer ||
-    ArrayBuffer.isView(value) || // Covers all TypedArrays and DataView
-    value instanceof ReadableStream ||
-    value instanceof FormData ||
-    value instanceof URLSearchParams
-  );
-}
-
-/**
- * Cache a response body and return a Response object.
- * Handles both Uint8Array (already buffered) and ReadableStream (uses tee()).
- * @param body - Response body to cache
- * @param headers - Response headers (Cache-Control will be added for caching)
- * @param cacheKey - Cache key URL
- * @param cacheTtl - Cache TTL in seconds (0 = no caching)
- * @returns Response object for the caller
- */
-export function cacheResponse(
-  body: BodyInit | object,
-  headers: Headers,
-  cacheKey: string,
-  cacheTtl: number
-): Response {
-  // Auto-stringify objects and arrays to JSON
-  // Note: isPlainObject returns false for arrays, so we need to check both
-  let data: BodyInit;
-  if (isPlainObject(body) || Array.isArray(body)) {
-    headers.set('Content-Type', 'application/json');
-    data = JSON.stringify(body);
-  } else if (isValidBodyInit(body)) {
-    data = body;
-  } else {
-    // Throw for non-cacheable types like Date, Map, Set, class instances
-    const typeName = (body as object)?.constructor?.name ?? typeof body;
-    throw new Error(
-      `cacheResponse: unsupported body type "${typeName}". ` +
-        `Expected plain object, array, or BodyInit (string, Blob, ArrayBuffer, ReadableStream, etc.)`
-    );
-  }
-
-  if (cacheTtl > 0) {
-    const cache = caches.default;
-    const cacheHeaders = new Headers(headers);
-    cacheHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
-
-    // ReadableStream needs tee() to split for cache vs return
-    if (data instanceof ReadableStream) {
-      const [cacheStream, returnStream] = data.tee();
-      waitUntil(cache.put(cacheKey, new Response(cacheStream, { status: 200, headers: cacheHeaders })));
-      return new Response(returnStream, { status: 200, headers });
-    }
-
-    waitUntil(cache.put(cacheKey, new Response(data, { status: 200, headers: cacheHeaders })));
-  }
-
-  return new Response(data, { status: 200, headers });
-}
-
 /** Normalize file path: ensure leading slash, collapse double slashes, remove trailing slash */
 export function normalizePath(path: string): string {
   return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
@@ -980,7 +715,7 @@ export function normalizePath(path: string): string {
 /** Get file from workspace - returns Response directly for efficient streaming */
 export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_FILE_CACHE_TTL): Promise<Response | null> {
   const normalizedPath = normalizePath(path);
-  const cacheKey = `${baseUrl}/file${normalizedPath}`;
+  const cacheKey = `${getBaseUrl()}/file${normalizedPath}`;
 
   // Always check cache first
   const cached = await caches.default.match(cacheKey);
