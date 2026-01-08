@@ -15,11 +15,48 @@ import { getBaseUrl, postRequest } from './http';
 export const DEFAULT_FILE_CACHE_TTL = 3600;
 export const DEFAULT_API_CACHE_TTL = 180;
 
-/** All API endpoints that use caching */
+/** Cache version for invalidation. Incrementing this orphans all existing cache entries.
+ *  Initialized to startup timestamp to ensure uniqueness across worker restarts. */
+let cacheVersion = Date.now();
+
+/** Write endpoints that can cause cache to become outdated */
+export const WRITE_ENDPOINTS = [
+  // Block modifications
+  '/api/attr/setBlockAttrs',
+  '/api/attr/batchSetBlockAttrs',
+  '/api/block/updateBlock',
+  '/api/block/insertBlock',
+  '/api/block/prependBlock',
+  '/api/block/appendBlock',
+  '/api/block/deleteBlock',
+  '/api/block/moveBlock',
+  '/api/block/foldBlock',
+  '/api/block/unfoldBlock',
+  // Document operations
+  '/api/filetree/createDailyNote',
+  '/api/filetree/createDocWithMd',
+  '/api/filetree/createDoc',
+  '/api/filetree/renameDoc',
+  '/api/filetree/removeDoc',
+  '/api/filetree/moveDocs',
+  '/api/filetree/reindexTree',
+  // Flashcards
+  '/api/riff/addRiffCards',
+  '/api/riff/removeRiffCards',
+  // File operations
+  '/api/file/putFile',
+  '/api/file/removeFile',
+  '/api/file/renameFile',
+  // Assets
+  '/api/asset/upload',
+];
+
+/** All API endpoints that use caching (read operations) */
 export const CACHED_ENDPOINTS = [
   '/api/attr/getBlockAttrs',
   '/api/notebook/lsNotebooks',
   '/api/notebook/getNotebookConf',
+  '/api/notebook/getNotebookInfo',
   '/api/block/getChildBlocks',
   '/api/block/getBlockKramdown',
   '/api/block/getDocInfo',
@@ -62,23 +99,24 @@ export const CACHED_ENDPOINTS = [
 /**
  * Build a cache key URL from path and optional params.
  * Uses URL object to ensure consistent key format.
+ * Includes cache version for invalidation support.
  * Supports arrays as repeated keys (e.g., paths=a&paths=b).
  */
 export function getCacheKey(path: string, params?: Record<string, string | number | boolean | string[]>): string {
   const cacheUrl = new URL(path, getBaseUrl());
+  // Add cache version to all keys for invalidation support
+  cacheUrl.searchParams.set('_v', String(cacheVersion));
   if (params) {
-    const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (Array.isArray(value)) {
         // Repeated keys for arrays
         for (const item of value) {
-          searchParams.append(key, item);
+          cacheUrl.searchParams.append(key, item);
         }
       } else {
-        searchParams.append(key, String(value));
+        cacheUrl.searchParams.append(key, String(value));
       }
     }
-    cacheUrl.search = searchParams.toString();
   }
   return cacheUrl.href;
 }
@@ -188,18 +226,33 @@ export async function cachedPostRequest(data: Record<string, string | number | b
 }
 
 // ============================================================================
+// Write request with cache invalidation
+// ============================================================================
+
+/**
+ * POST request for write operations that invalidates cache on success.
+ * Use this for any endpoint in WRITE_ENDPOINTS.
+ * @param data Request body
+ * @param url API endpoint
+ * @returns Parsed JSON response
+ */
+export async function writePostRequest(data: any, url: string): Promise<any> {
+  const response = await postRequest(data, url);
+  if (response.code === 0) {
+    invalidateCache();
+  }
+  return response;
+}
+
+// ============================================================================
 // Cache invalidation
 // ============================================================================
 
 /**
- * Invalidate all cached API responses.
- * Called after database transactions are flushed.
+ * Invalidate all cached API responses by incrementing the cache version.
+ * Old cache entries become orphaned and expire naturally based on their TTL.
+ * Called after write operations or when flushing database transactions.
  */
 export function invalidateCache(): void {
-  const cache = caches.default;
-  const baseUrl = getBaseUrl();
-  const deletePromises = CACHED_ENDPOINTS.map((endpoint) =>
-    cache.delete(`${baseUrl}${endpoint}`, { ignoreSearch: true } as CacheQueryOptions)
-  );
-  waitUntil(Promise.all(deletePromises));
+  cacheVersion++;
 }

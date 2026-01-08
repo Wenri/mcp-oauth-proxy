@@ -7,6 +7,7 @@ import {
   getCacheKey,
   cacheResponse,
   cachedPostRequest,
+  writePostRequest,
   invalidateCache,
   DEFAULT_FILE_CACHE_TTL,
   DEFAULT_API_CACHE_TTL,
@@ -14,7 +15,7 @@ import {
 import { initKernel, buildKernelHeaders, kernelFetch, postRequest, getBaseUrl, getResponseData } from './http';
 
 // Re-export cache utilities for backwards compatibility
-export { getCacheKey, cacheResponse, cachedPostRequest, DEFAULT_FILE_CACHE_TTL, DEFAULT_API_CACHE_TTL };
+export { getCacheKey, cacheResponse, cachedPostRequest, writePostRequest, DEFAULT_FILE_CACHE_TTL, DEFAULT_API_CACHE_TTL };
 
 // Re-export HTTP utilities for backwards compatibility
 export { initKernel, buildKernelHeaders, kernelFetch, postRequest, getResponseData };
@@ -84,14 +85,14 @@ export async function getblockAttr(blockid: BlockId): Promise<BlockAttrs> {
 /** Set block attributes */
 export async function addblockAttrAPI(attrs: BlockAttrs, blockid: BlockId): Promise<number> {
   const url = '/api/attr/setBlockAttrs';
-  const result = await postRequest({ id: blockid, attrs }, url);
+  const result = await writePostRequest({ id: blockid, attrs }, url);
   return result.code === 0 ? 0 : -1;
 }
 
 /** Batch set block attributes */
 export async function batchSetBlockAttrs(blockAttrs: { id: BlockId; attrs: BlockAttrs }[]): Promise<void> {
   const url = '/api/attr/batchSetBlockAttrs';
-  const response = await postRequest({ blockAttrs }, url) as APIResponse<null> & { msg?: string };
+  const response = await writePostRequest({ blockAttrs }, url) as APIResponse<null> & { msg?: string };
   if (response.code !== 0) {
     throw new Error(response.msg || `Batch set attrs failed with code ${response.code}`);
   }
@@ -104,7 +105,7 @@ export async function updateBlockAPI(
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/updateBlock';
-  const response = await postRequest({ dataType: textType, data: text, id: blockid }, url);
+  const response = await writePostRequest({ dataType: textType, data: text, id: blockid }, url);
   try {
     if (response.code === 0 && response.data?.[0]?.doOperations?.[0]?.id) {
       return response.data[0].doOperations[0];
@@ -146,7 +147,7 @@ export async function insertBlockAPI(
       break;
   }
 
-  const response = await postRequest(data, url);
+  const response = await writePostRequest(data, url);
   try {
     if (response.code === 0 && response.data?.[0]?.doOperations?.[0]?.id) {
       return response.data[0].doOperations[0];
@@ -176,7 +177,7 @@ export async function insertBlockOriginAPI({
   parentID?: BlockId;
 }): Promise<Transaction[]> {
   const payload = { dataType, data, nextID, previousID, parentID };
-  const response = await postRequest(payload, '/api/block/insertBlock');
+  const response = await writePostRequest(payload, '/api/block/insertBlock');
   if (!response.data?.[0]?.doOperations?.[0]?.id) {
     throw new Error('Insert block failed: No operations returned');
   }
@@ -190,7 +191,7 @@ export async function prependBlockAPI(
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/prependBlock';
-  const response = await postRequest({ dataType: textType, data: text, parentID: parentId }, url);
+  const response = await writePostRequest({ dataType: textType, data: text, parentID: parentId }, url);
   try {
     if (response.code === 0 && response.data?.[0]?.doOperations?.[0]?.id) {
       return response.data[0].doOperations[0];
@@ -208,7 +209,7 @@ export async function appendBlockAPI(
   textType: 'markdown' | 'dom' = 'markdown'
 ): Promise<BlockOperation | null> {
   const url = '/api/block/appendBlock';
-  const response = await postRequest({ dataType: textType, data: text, parentID: parentId }, url);
+  const response = await writePostRequest({ dataType: textType, data: text, parentID: parentId }, url);
   try {
     if (response.code === 0 && response.data?.[0]?.doOperations?.[0]?.id) {
       return response.data[0].doOperations[0];
@@ -222,7 +223,7 @@ export async function appendBlockAPI(
 /** Delete block */
 export async function removeBlockAPI(blockid: BlockId): Promise<boolean> {
   const url = '/api/block/deleteBlock';
-  const response = await postRequest({ id: blockid }, url);
+  const response = await writePostRequest({ id: blockid }, url);
   if (response.code === 0) {
     return true;
   }
@@ -237,7 +238,7 @@ export async function moveBlockAPI(
   previousID?: BlockId
 ): Promise<true> {
   const url = '/api/block/moveBlock';
-  const response = await postRequest({ id, parentID, previousID }, url);
+  const response = await writePostRequest({ id, parentID, previousID }, url);
   if (response.code === 0) {
     return true;
   }
@@ -248,7 +249,7 @@ export async function moveBlockAPI(
 /** Fold block */
 export async function foldBlockAPI(id: BlockId): Promise<true> {
   const url = '/api/block/foldBlock';
-  const response = await postRequest({ id }, url);
+  const response = await writePostRequest({ id }, url);
   if (response.code === 0) {
     return true;
   }
@@ -259,7 +260,7 @@ export async function foldBlockAPI(id: BlockId): Promise<true> {
 /** Unfold block */
 export async function unfoldBlockAPI(id: BlockId): Promise<true> {
   const url = '/api/block/unfoldBlock';
-  const response = await postRequest({ id }, url);
+  const response = await writePostRequest({ id }, url);
   if (response.code === 0) {
     return true;
   }
@@ -363,7 +364,7 @@ export async function pushMsgAPI(msgText: string, timeout: number = 7000): Promi
 /** Reindex document tree */
 export async function reindexDoc(docpath: string): Promise<number> {
   const url = '/api/filetree/reindexTree';
-  const response = await postRequest({ path: docpath }, url) as { code: number };
+  const response = await writePostRequest({ path: docpath }, url) as { code: number };
   return response.code === 0 ? 0 : -1;
 }
 
@@ -401,7 +402,7 @@ export async function exportMdContent({
 /** Create daily note */
 export async function createDailyNote(notebook: NotebookId, app: string): Promise<DocumentId> {
   const url = '/api/filetree/createDailyNote';
-  const response = await postRequest({ app, notebook }, url) as APIResponse<{ id: DocumentId }>;
+  const response = await writePostRequest({ app, notebook }, url) as APIResponse<{ id: DocumentId }>;
   if (response.code === 0) {
     return response.data.id;
   }
@@ -500,7 +501,7 @@ export async function createDocWithMdAPI(
   md: string
 ): Promise<DocumentId | null> {
   const url = '/api/filetree/createDocWithMd';
-  const response = await postRequest({ notebook: notebookid, path: hpath, markdown: md }, url) as APIResponse<{ id: DocumentId }>;
+  const response = await writePostRequest({ notebook: notebookid, path: hpath, markdown: md }, url) as APIResponse<{ id: DocumentId }>;
   if (response.code === 0 && response.data?.id) {
     return response.data.id;
   }
@@ -514,7 +515,7 @@ export async function renameDocAPI(
   title: string
 ): Promise<boolean> {
   const url = '/api/filetree/renameDoc';
-  const response = await postRequest({ notebook, path, title }, url);
+  const response = await writePostRequest({ notebook, path, title }, url);
   if (response.code === 0) {
     return true;
   }
@@ -528,7 +529,7 @@ export async function removeDocAPI(
   path: string
 ): Promise<boolean> {
   const url = '/api/filetree/removeDoc';
-  const response = await postRequest({ notebook, path }, url);
+  const response = await writePostRequest({ notebook, path }, url);
   if (response.code === 0) {
     return true;
   }
@@ -543,7 +544,7 @@ export async function moveDocsAPI(
   toPath: string
 ): Promise<boolean> {
   const url = '/api/filetree/moveDocs';
-  const response = await postRequest({ fromPaths, toNotebook, toPath }, url);
+  const response = await writePostRequest({ fromPaths, toNotebook, toPath }, url);
   if (response.code === 0) {
     return true;
   }
@@ -578,7 +579,7 @@ export async function addRiffCards(
   oldCardsNum = -1
 ): Promise<number | null> {
   const url = '/api/riff/addRiffCards';
-  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
+  const response = await writePostRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
   if (response.code === 0 && response.data?.size !== undefined) {
     if (oldCardsNum < 0) {
       return response.data.size;
@@ -596,7 +597,7 @@ export async function removeRiffCards(
   oldCardsNum = -1
 ): Promise<number | null> {
   const url = '/api/riff/removeRiffCards';
-  const response = await postRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
+  const response = await writePostRequest({ deckID: deckId, blockIDs: ids }, url) as APIResponse<{ size: number }>;
   if (response.code === 0 && response.data?.size !== undefined) {
     if (oldCardsNum < 0) {
       return response.data.size;
@@ -639,7 +640,7 @@ export async function createDocWithPath(
   listDocTree = false
 ): Promise<boolean> {
   const url = '/api/filetree/createDoc';
-  const response = await postRequest(
+  const response = await writePostRequest(
     { notebook: notebookid, path, md: contentMd, title, listDocTree },
     url
   );
@@ -808,14 +809,14 @@ export async function putJSONFile(path: string, object: any, format = false): Pr
 /** Remove file from workspace */
 export async function removeFileAPI(path: string): Promise<boolean> {
   const url = '/api/file/removeFile';
-  const response = await postRequest({ path }, url);
+  const response = await writePostRequest({ path }, url);
   return response.code === 0;
 }
 
 /** Rename file in workspace */
 export async function renameFileAPI(path: string, newPath: string): Promise<boolean> {
   const url = '/api/file/renameFile';
-  const response = await postRequest({ path, newPath }, url);
+  const response = await writePostRequest({ path, newPath }, url);
   return response.code === 0;
 }
 
@@ -862,6 +863,7 @@ export async function putFileAPI(
   if (result.code !== 0) {
     throw new Error(result.msg || `File operation failed with code ${result.code}`);
   }
+  invalidateCache();
   return true;
 }
 
@@ -900,6 +902,7 @@ export async function uploadAPI(
   if (!result.data) {
     throw new Error('Upload response missing data');
   }
+  invalidateCache();
   return result.data;
 }
 
