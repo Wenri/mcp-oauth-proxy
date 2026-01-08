@@ -4,15 +4,16 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponse, createJsonResponse } from '../utils/mcpResponse';
-import { DEFAULT_FILTER, fullTextSearchBlock } from '../syapi';
+import { createSuccessResponse, createJsonResponse, createErrorResponse } from '../utils/mcpResponse';
+import { DEFAULT_FILTER, fullTextSearchBlock, getNotebookInfo, getNodebookList } from '../syapi';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
-import { filterGroupSearchBlocksResult, filterSearchBlocksResult } from '../utils/resultFilter';
+import { filterGroupSearchBlocksResult, filterSearchBlocksResult, validateBlockAccess } from '../utils/resultFilter';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { getQuerySyntax } from '../static';
+import { isValidIdFormat } from '../syapi/custom';
 
-// Schema for grouped search results (when groupBy=1)
+// Schema for grouped search results (when grouped=true)
 const groupedResultSchema = z.object({
   notebookId: z.string().describe('Notebook ID'),
   path: z.string().describe('Document path'),
@@ -24,7 +25,7 @@ const groupedResultSchema = z.object({
   children: z.array(z.string()).describe('Matching content snippets in this document'),
 });
 
-// Schema for ungrouped search results (when groupBy=0)
+// Schema for ungrouped search results (when grouped=false)
 const ungroupedResultSchema = z.object({
   notebookId: z.string().describe('Notebook ID'),
   path: z.string().describe('Document path'),
@@ -39,47 +40,33 @@ const ungroupedResultSchema = z.object({
 
 export class SearchToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
-    // Note: Original upstream returns empty array with "// # 16" comment
-    // We keep the tools available for CF Worker implementation
     return [
       defineTool({
-        name: 'siyuan_search',
+        name: 'siyuan_find_block',
         description:
-          'Perform a keyword-based full-text search across blocks in SiYuan (e.g., paragraphs, headings). This tool only matches literal text content in document bodies or headings. For dynamic queries (dailynote(i.e. diary), path restrictions, date ranges), use sql with `siyuan_query_sql` tool instead. Results are grouped by their containing documents with limit page size 10.',
+          'Find blocks by text content using full-text search. Searches paragraphs, headings, and other content blocks. Optionally filter by document or notebook using the scope parameter. For complex queries with date ranges, path restrictions, or metadata filtering, use `siyuan_query_sql` instead.',
         inputSchema: z.object({
-          query: z.string().describe('The keyword or phrase to search for across content blocks.'),
+          query: z.string().describe('Text to search for in block content'),
+          scope: z
+            .string()
+            .optional()
+            .describe('Limit search scope: document ID, document hpath (e.g., "/Notebook/Doc"), or notebook ID'),
+          fuzzy: z
+            .boolean()
+            .default(true)
+            .describe('Use fuzzy keyword matching (true, default) or query syntax for exact phrases (false)'),
           page: z
             .number()
             .default(1)
-            .describe('The page number of the search results to return (starting from 1).'),
-          includingCodeBlock: z
+            .describe('Page number (starting from 1), 10 results per page'),
+          grouped: z
             .boolean()
-            .default(false)
-            .describe('Whether to include code blocks in the search results.'),
-          includingDatabase: z
-            .boolean()
-            .default(false)
-            .describe('Whether to include database blocks in the search results.'),
-          method: z
-            .number()
-            .default(0)
-            .describe(
-              'Search method: 0 for keyword search, 1 for query syntax (see `siyuan_query_syntax`), 2 for regular expression matching.'
-            ),
-          orderBy: z.number().default(0).describe(`Sorting method for results:
-            0: By block type (default)
-            1: By creation time (ascending)
-            2: By creation time (descending)
-            3: By update time (ascending)
-            4: By update time (descending)
-            5: By content order (only when grouped by document)
-            6: By relevance (ascending)
-            7: By relevance (descending)
-          `),
-          groupBy: z.number().default(1).describe(`Grouping method for results:
-            0: No grouping - returns individual blocks matching the search criteria
-            1: Group by document (default) - returns hits organized by their parent documents
-          `),
+            .default(true)
+            .describe('Group results by document (true, default) or return individual blocks (false)'),
+          orderBy: z
+            .enum(['relevance', 'created', 'updated'])
+            .default('relevance')
+            .describe('Sort order: relevance (default), created, or updated'),
         }),
         outputSchema: z.object({
           page: z.number().describe('Current page number'),
@@ -89,9 +76,9 @@ export class SearchToolProvider extends McpToolsProvider {
           results: z.union([
             z.array(groupedResultSchema),
             z.array(ungroupedResultSchema),
-          ]).describe('Search results (format depends on groupBy setting)'),
+          ]).describe('Search results (format depends on grouped setting)'),
         }),
-        handler: searchHandler,
+        handler: findBlockHandler,
         title: lang('tool_title_search'),
         annotations: {
           readOnlyHint: true,
@@ -112,39 +99,91 @@ export class SearchToolProvider extends McpToolsProvider {
   }
 }
 
-async function searchHandler(params: {
+// Map orderBy enum to kernel numeric values
+const ORDER_BY_MAP = {
+  relevance: 7, // By relevance (descending)
+  created: 2,   // By creation time (descending)
+  updated: 4,   // By update time (descending)
+} as const;
+
+/**
+ * Resolve scope to paths array for search API.
+ * Scope can be: document ID, document hpath, or notebook ID.
+ */
+async function resolveScopeToPaths(scope: string): Promise<string[]> {
+  // Try to resolve as document (ID or hpath)
+  try {
+    const block = await validateBlockAccess(scope);
+    // Found a block - use its notebook and path
+    return [`${block.box}${block.path}`];
+  } catch {
+    // Not a valid block/document - try as notebook ID
+  }
+
+  // Check if it's a notebook ID (direct lookup)
+  if (isValidIdFormat(scope)) {
+    const notebook = await getNotebookInfo(scope);
+    if (notebook) {
+      return [`${scope}/`];
+    }
+  }
+
+  // If starts with /, might be a notebook name only (e.g., "/MyNotebook")
+  if (scope.startsWith('/')) {
+    const notebookName = scope.split('/').filter(s => s.length > 0)[0];
+    if (notebookName) {
+      const notebooks = await getNodebookList();
+      const notebook = notebooks.find(nb => nb.name === notebookName);
+      if (notebook) {
+        return [`${notebook.id}/`];
+      }
+    }
+  }
+
+  throw new Error(`Invalid scope: "${scope}". Provide a document ID, hpath (e.g., "/Notebook/Doc"), or notebook ID.`);
+}
+
+async function findBlockHandler(params: {
   query: string;
+  scope?: string;
+  fuzzy: boolean;
   page: number;
-  includingCodeBlock: boolean;
-  includingDatabase: boolean;
-  method: number;
-  orderBy: number;
-  groupBy: number;
+  grouped: boolean;
+  orderBy: 'relevance' | 'created' | 'updated';
 }) {
-  const { query, page, includingCodeBlock, includingDatabase, method, orderBy, groupBy } = params;
-  debugPush('Search tool called', params);
+  const { query, scope, fuzzy, page, grouped, orderBy } = params;
+  debugPush('Find block tool called', params);
+
+  // Build paths filter from scope
+  let paths: string[] = [];
+  if (scope) {
+    try {
+      paths = await resolveScopeToPaths(scope);
+    } catch (error) {
+      return createErrorResponse((error as Error).message);
+    }
+  }
 
   const queryObj: FullTextSearchQuery = {
     query,
     page,
+    paths,
     types: { ...DEFAULT_FILTER },
-    orderBy,
-    method,
-    groupBy,
+    orderBy: ORDER_BY_MAP[orderBy],
+    method: fuzzy ? 0 : 1, // 0 = keyword, 1 = query syntax
+    groupBy: grouped ? 1 : 0,
   };
-  queryObj.types!.codeBlock = includingCodeBlock;
-  queryObj.types!.databaseBlock = includingDatabase;
 
   const response = await fullTextSearchBlock(queryObj);
 
-  // Determine result format based on groupBy setting
+  // Determine result format based on grouped setting
   const anyResult = response?.blocks?.[0] as Record<string, unknown> | undefined;
-  const isGrouped = groupBy === 1 || !!anyResult?.children;
+  const isGrouped = grouped || !!anyResult?.children;
   const results = isGrouped
     ? filterGroupSearchBlocksResult(response?.blocks)
     : filterSearchBlocksResult(response?.blocks);
 
-  debugPush('Search tool finished');
+  debugPush('Find block tool finished');
   return createJsonResponse({
     page: page ?? 1,
     pageCount: response?.pageCount ?? 0,
