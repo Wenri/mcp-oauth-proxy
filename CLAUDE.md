@@ -169,7 +169,7 @@ Each tool provider implements `McpToolsProvider` interface:
 Available tool categories:
 - **Document Operations**: read, write, create, move, rename, delete, outline, HTML export
 - **Block Operations**: insert, update, delete (batch), move (batch), fold/unfold blocks
-- **Search**: FTS5 full-text search (BM25 ranking, snippets), SQL queries, vector search (RAG)
+- **Search**: `siyuan_find_block` (full-text search with scope filter), SQL queries, vector search (RAG)
 - **SQL**: query with advanced features (REGEXP, window functions, JSON), database schema, SQL cheatsheet
 - **Organization**: daily notes, flashcards, attributes (single & batch), relations
 - **Assets**: upload assets (batch support, JSON auto-serialize, auto-insert into docs), file system operations
@@ -213,6 +213,40 @@ siyuan_read_doc_content_markdown({ id: "/MyNotes/Projects/Todo" })
 // Response includes resolved ID
 { id: "20241231120000-abc1234", content: "...", offset: 0, hasMore: false, totalLength: 500 }
 ```
+
+### Search Tool
+
+`siyuan_find_block` - Full-text search with unified scope parameter:
+
+```typescript
+siyuan_find_block({
+  query: "search text",           // required
+  scope: "/Notebook/Doc",         // optional: doc ID, hpath, or notebook ID
+  fuzzy: true,                    // default true (keyword), false = query syntax
+  page: 1,                        // default 1, 10 results per page
+  grouped: true,                  // default true (group by document)
+  orderBy: "relevance"            // relevance | created | updated
+})
+```
+
+The `scope` parameter auto-resolves (in order):
+1. Document ID or hpath → search within that document
+2. Notebook ID → search within that notebook
+3. `/NotebookName` → search within notebook by name
+
+### Utility Tools: Reindex and Flush
+
+**`siyuan_flush_transaction`** - Flush pending database writes. Use before search/query operations to ensure recent writes are visible.
+
+**`siyuan_reindex_doc`** - Rebuild document search index. Usually NOT needed because:
+- All MCP write operations (`insert_block`, `update_block`, etc.) automatically update the index
+- SiYuan validates index consistency on startup
+
+**When to use `siyuan_reindex_doc`:**
+- External file modifications (edited `.sy` files directly on disk)
+- Database corruption or search index out of sync
+- After bulk filesystem operations using OS tools (not SiYuan API)
+- Resolving sync conflicts from cloud storage
 
 ## Environment Configuration
 
