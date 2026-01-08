@@ -388,6 +388,35 @@ npx @modelcontextprotocol/inspector@latest
 - **Service Token Auth**: Worker-to-kernel requests authenticated via CF Access Service Tokens
 - **Linked App Token**: User's CF Access token forwarded to kernel via `cf-access-token` header
 - **Read-Only Mode**: Configurable tool restrictions for safety
+- **X-SiYuan-Key Header**: Alternative authentication using SiYuan kernel token (see below)
+
+## X-SiYuan-Key Header Authentication
+
+As an alternative to the full OAuth flow, MCP clients can authenticate using the `X-SiYuan-Key` header with the same token as `SIYUAN_KERNEL_TOKEN`.
+
+**Use cases:**
+- CI/CD pipelines
+- Trusted backend services
+- Quick testing without OAuth setup
+
+**Usage:**
+
+```bash
+# With curl
+curl -X POST https://sy.wenri.me/mcp \
+  -H "X-SiYuan-Key: YOUR_SIYUAN_KERNEL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+
+# Add to Claude Code
+claude mcp add siyuan https://sy.wenri.me/sse \
+  -t sse -H "X-SiYuan-Key: YOUR_TOKEN"
+```
+
+**Security notes:**
+- Reuses `SIYUAN_KERNEL_TOKEN` - no additional secret needed
+- Bypasses CF Access identity - no user email/name in logs
+- For production with audit requirements, prefer OAuth flow
 
 ## Common Issues
 

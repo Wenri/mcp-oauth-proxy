@@ -72,12 +72,29 @@ export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
 }
 
 /**
+ * Validate X-SiYuan-Key header against SIYUAN_KERNEL_TOKEN
+ */
+function validateSiyuanKey(key: string, env: Env): Props | null {
+  if (!env.SIYUAN_KERNEL_TOKEN || key !== env.SIYUAN_KERNEL_TOKEN) {
+    return null;
+  }
+  return {
+    accessToken: '',
+    email: 'siyuan-key-auth',
+    login: 'siyuan-key-user',
+    name: 'SiYuan Key Auth',
+    workerBaseUrl: '',
+  };
+}
+
+/**
  * OAuthProvider configuration
  *
  * Acts as OAuth Provider to MCP clients, and as OAuth Client to CF Access.
+ * Also supports X-SiYuan-Key header auth using SIYUAN_KERNEL_TOKEN.
  */
 export default new OAuthProvider({
-  // API handlers (require valid access token)
+  // API handlers (require valid access token or X-SiYuan-Key)
   apiHandlers: {
     '/sse': SiyuanMCP.serveSSE('/sse'),
     '/mcp': SiyuanMCP.serve('/mcp'),
@@ -89,4 +106,15 @@ export default new OAuthProvider({
   // Default handler for OAuth flow (redirects to CF Access)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultHandler: accessApp as any,
+  // X-SiYuan-Key header authentication (bypasses OAuth)
+  resolveExternalToken: async ({ request, env }: { request: Request; env: unknown }) => {
+    const siyuanKey = request.headers.get('X-SiYuan-Key');
+    if (!siyuanKey) return null;
+
+    const props = validateSiyuanKey(siyuanKey, env as Env);
+    if (!props) return null;
+
+    props.workerBaseUrl = new URL(request.url).origin;
+    return { props };
+  },
 });
