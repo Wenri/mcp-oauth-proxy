@@ -16,6 +16,7 @@ import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
 // Recursive schema for outline - matches kernel's OutlineBlock structure
+// Note: children can be null when there are no child blocks
 const outlineBlockSchema: z.ZodType<OutlineBlock> = z.lazy(() =>
   z.object({
     id: z.string().describe('Block ID'),
@@ -28,7 +29,7 @@ const outlineBlockSchema: z.ZodType<OutlineBlock> = z.lazy(() =>
     depth: z.number().describe('Heading depth level'),
     count: z.number().describe('Child block count'),
     folded: z.boolean().describe('Whether the block is folded in UI'),
-    children: z.array(outlineBlockSchema).describe('Nested heading blocks'),
+    children: z.array(outlineBlockSchema).nullable().describe('Nested heading blocks (null if none)'),
   })
 );
 

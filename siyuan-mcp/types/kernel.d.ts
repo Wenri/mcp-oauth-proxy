@@ -296,7 +296,7 @@ type OutlineBlock = {
   depth: number;
   count: number;
   folded: boolean;
-  children: OutlineBlock[];
+  children: OutlineBlock[] | null;
 };
 
 /**
