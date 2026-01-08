@@ -15,44 +15,74 @@ import { validateBlockAccess } from '../utils/resultFilter';
 import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 
-// Recursive schema for outline - matches kernel's OutlineBlock structure
-// Note: children can be null when there are no child blocks
-const outlineBlockSchema: z.ZodType<OutlineBlock> = z.lazy(() =>
+// Minimal outline types - only essential fields for TOC
+type MinimalOutlineBlock = {
+  id: string;
+  content: string;
+  subType: string;
+  depth: number;
+  children?: MinimalOutlineBlock[];
+};
+
+type MinimalOutlinePath = {
+  id: string;
+  name: string;
+  subType: string;
+  depth: number;
+  blocks?: MinimalOutlineBlock[];
+  children?: MinimalOutlinePath[];
+};
+
+const outlineBlockSchema: z.ZodType<MinimalOutlineBlock> = z.lazy(() =>
   z.object({
     id: z.string().describe('Block ID'),
-    rootID: z.string().describe('Document ID this block belongs to'),
-    box: z.string().describe('Notebook ID'),
-    path: z.string().describe('File path within notebook'),
     content: z.string().describe('Heading text content'),
-    type: z.string().describe('Block type (e.g., "h" for heading)'),
-    subType: z.string().describe('Block subtype (e.g., "h1", "h2")'),
+    subType: z.string().describe('Heading level (h1, h2, h3, etc.)'),
     depth: z.number().describe('Heading depth level'),
-    count: z.number().describe('Child block count'),
-    folded: z.boolean().describe('Whether the block is folded in UI'),
-    children: z.array(outlineBlockSchema).nullable().describe('Nested heading blocks (null if none)'),
+    children: z.array(outlineBlockSchema).optional().describe('Nested heading blocks'),
   })
 );
 
-// Recursive schema for outline path - matches kernel's Path struct
-// Note: blocks and children have omitempty in kernel, so they're optional
-const outlinePathSchema: z.ZodType<OutlinePath> = z.lazy(() =>
+const outlinePathSchema: z.ZodType<MinimalOutlinePath> = z.lazy(() =>
   z.object({
     id: z.string().describe('Block/Document ID'),
-    box: z.string().describe('Notebook ID'),
-    name: z.string().describe('Display name'),
-    hPath: z.string().describe('Human-readable path'),
-    type: z.string().describe('Block type'),
-    nodeType: z.string().describe('Node type'),
-    subType: z.string().describe('Block subtype'),
-    blocks: z.array(outlineBlockSchema).optional().describe('Heading blocks within this path'),
-    children: z.array(outlinePathSchema).optional().describe('Nested outline paths'),
+    name: z.string().describe('Heading text'),
+    subType: z.string().describe('Heading level (h1, h2, h3, etc.)'),
     depth: z.number().describe('Depth level'),
-    count: z.number().describe('Child count'),
-    folded: z.boolean().describe('Whether folded in UI'),
-    updated: z.string().describe('Last updated timestamp'),
-    created: z.string().describe('Creation timestamp'),
+    blocks: z.array(outlineBlockSchema).optional().describe('Child heading blocks'),
+    children: z.array(outlinePathSchema).optional().describe('Nested outline paths'),
   })
 );
+
+// Extract only essential fields from outline data
+function cleanOutlineBlock(block: OutlineBlock): MinimalOutlineBlock {
+  const cleaned: MinimalOutlineBlock = {
+    id: block.id,
+    content: block.content,
+    subType: block.subType,
+    depth: block.depth,
+  };
+  if (block.children && block.children.length > 0) {
+    cleaned.children = block.children.map(cleanOutlineBlock);
+  }
+  return cleaned;
+}
+
+function cleanOutlinePath(path: OutlinePath): MinimalOutlinePath {
+  const cleaned: MinimalOutlinePath = {
+    id: path.id,
+    name: path.name,
+    subType: path.subType,
+    depth: path.depth,
+  };
+  if (path.blocks && path.blocks.length > 0) {
+    cleaned.blocks = path.blocks.map(cleanOutlineBlock);
+  }
+  if (path.children && path.children.length > 0) {
+    cleaned.children = path.children.map(cleanOutlinePath);
+  }
+  return cleaned;
+}
 
 export class DocReadToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -324,13 +354,13 @@ async function getHPathHandler(params: { id: BlockId; includeOutline?: boolean }
 
   const hpath = assertApiResult(await getHPathByIDAPI(resolvedId), 'get the human-readable path');
 
-  const result: { id: BlockId; hpath: string; outline?: OutlinePath[] } = { id: resolvedId, hpath };
+  const result: { id: BlockId; hpath: string; outline?: MinimalOutlinePath[] } = { id: resolvedId, hpath };
 
   if (includeOutline) {
     const docId = extractDocumentId(dbItem);
     const outline = await getDocOutlineAPI(docId);
     if (outline) {
-      result.outline = outline;
+      result.outline = outline.map(cleanOutlinePath);
     }
   }
 
@@ -345,8 +375,8 @@ async function getDocOutlineHandler(params: { id: BlockId }) {
   const docId = extractDocumentId(dbItem);
   const outline = assertApiResult(await getDocOutlineAPI(docId), 'get document outline');
 
-  // Pass through kernel's OutlinePath[] directly (no transformation)
-  return createJsonResponse({ id: docId, outline });
+  // Strip null values from outline before returning
+  return createJsonResponse({ id: docId, outline: outline.map(cleanOutlinePath) });
 }
 
 async function exportHtmlHandler(params: { id: BlockId; offset?: number; limit?: number }) {
