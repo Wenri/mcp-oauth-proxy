@@ -1,13 +1,16 @@
 # SiYuan MCP Server
 
-A Model Context Protocol (MCP) server for [SiYuan Note](https://b3log.org/siyuan/) with OAuth authentication via Cloudflare Access. Enables AI assistants like Claude to interact with your SiYuan knowledge base through a secure, authenticated API.
+A Model Context Protocol (MCP) server for [SiYuan Note](https://b3log.org/siyuan/) with pluggable authentication. Enables AI assistants like Claude to interact with your SiYuan knowledge base through a secure, authenticated API.
 
 ## Features
 
 - **Full SiYuan Integration**: Read, write, search, and manage documents, blocks, flashcards, and more
-- **OAuth 2.1 + PKCE**: Secure authentication via Cloudflare Access (supports Okta, Azure AD, Google, etc.)
+- **Pluggable Authentication**:
+  - OAuth 2.1 + PKCE via Cloudflare Access (supports Okta, Azure AD, Google, etc.)
+  - Simple API key authentication via `X-SiYuan-Key` header
+- **Multi-Worker Architecture**: Separate auth and MCP backend for flexibility
 - **Two Deployment Modes**:
-  - **Cloudflare Workers**: OAuth-protected MCP server accessible via HTTP/SSE
+  - **Cloudflare Workers**: Production deployment with multiple auth options
   - **CLI (stdio)**: Standalone MCP server for direct Claude Desktop integration
 - **RAG Support**: Optional vector search integration for semantic document retrieval
 - **Read-Only Mode**: Configurable restrictions for safe read-only access
@@ -18,7 +21,21 @@ A Model Context Protocol (MCP) server for [SiYuan Note](https://b3log.org/siyuan
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Cloudflare Workers Mode                          │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  MCP Client → OAuth → Cloudflare Access → SiYuan MCP → SiYuan Kernel   │
+│                                                                         │
+│  ┌─────────────────────────────┐     ┌─────────────────────────────┐   │
+│  │ CF Access Auth (sy.wenri.org)│     │ API Key Auth (api-sy.wenri.org)│
+│  │ - OAuth flow (/authorize)   │     │ - X-SiYuan-Key validation   │   │
+│  │ - /download (grant-based)   │     │ - /download (stateless)     │   │
+│  └──────────────┬──────────────┘     └──────────────┬──────────────┘   │
+│                 │ Service Binding                   │ Service Binding  │
+│                 └───────────────────┬───────────────┘                  │
+│                                     ▼                                  │
+│                     ┌───────────────────────────────┐                  │
+│                     │      MCP Backend Worker       │                  │
+│                     │   - SiyuanMCP Durable Object  │                  │
+│                     │   - Tool execution            │                  │
+│                     │   - SiYuan Kernel API calls   │                  │
+│                     └───────────────────────────────┘                  │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -32,16 +49,17 @@ A Model Context Protocol (MCP) server for [SiYuan Note](https://b3log.org/siyuan
 
 | Tool Category | Tools |
 |---------------|-------|
-| **Document Read** | List notebooks, get document tree, read document content |
+| **Document Read** | List notebooks, get document tree, read document content, outline |
 | **Document Write** | Create, rename, move, delete documents |
-| **Block Operations** | Insert, update, delete blocks |
-| **Search** | Full-text search, SQL queries |
+| **Block Operations** | Insert, update, delete, move blocks (with batch support) |
+| **Search** | Full-text search (`siyuan_find_block`), SQL queries |
 | **Vector Search** | RAG-based semantic search (requires RAG backend) |
 | **Daily Notes** | Create and manage daily notes |
 | **Flashcards** | Create and review flashcards |
 | **Attributes** | Manage custom attributes on documents/blocks |
-| **Relations** | Document linking and backreferences |
-| **Time Queries** | Query documents by creation/modification time |
+| **Assets** | Upload assets (batch, URL fetch, JSON auto-serialize) |
+| **File System** | Read/write files, create archives |
+| **Utilities** | Get time, push notifications, reindex, flush transactions |
 
 ## Quick Start
 
@@ -77,65 +95,84 @@ Add to Claude Desktop (`claude_desktop_config.json`):
 
 ### Option 2: Cloudflare Workers (Production)
 
-Deploy OAuth-protected MCP server to Cloudflare Workers:
+Deploy multi-worker MCP server to Cloudflare Workers.
 
-#### Prerequisites
+#### Project Structure
 
-1. Cloudflare account with Zero Trust enabled
-2. Cloudflare Access application configured with your IdP
-3. SiYuan kernel accessible from Cloudflare (or use Cloudflare Tunnel)
-4. Node.js 18+ and Wrangler CLI
+```
+workers/
+├── mcp-backend/           # MCP Backend (internal, no public routes)
+│   ├── index.ts          # Entry point
+│   ├── agent.ts          # SiyuanMCP Durable Object
+│   └── wrangler.jsonc    # DO bindings
+│
+├── auth-cfaccess/         # CF Access OAuth (sy.wenri.org)
+│   ├── index.ts          # OAuthProvider
+│   └── wrangler.jsonc    # KV + service binding
+│
+└── auth-apikey/           # API Key Auth (api-sy.wenri.org)
+    ├── index.ts          # X-SiYuan-Key validation
+    └── wrangler.jsonc    # Service binding
+```
 
-#### Setup
+#### Deploy MCP Backend (First)
 
-1. **Create KV namespace**:
-   ```bash
-   npx wrangler kv namespace create "OAUTH_KV"
-   ```
-   Update the namespace ID in `wrangler.jsonc`.
+```bash
+cd workers/mcp-backend
+wrangler secret put SIYUAN_KERNEL_TOKEN
+# If SiYuan kernel is behind CF Access:
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_ID
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_SECRET
+npx wrangler deploy
+```
 
-2. **Create Cloudflare Access SaaS Application**:
-   - Go to [Cloudflare One Dashboard](https://one.dash.cloudflare.com) → Access → Applications
-   - Create SaaS application with OIDC
-   - Set redirect URL: `https://your-worker.workers.dev/callback`
-   - Copy Client ID and Client Secret
+#### Deploy CF Access Auth Worker
 
-3. **Set secrets**:
-   ```bash
-   wrangler secret put CF_ACCESS_CLIENT_ID
-   wrangler secret put CF_ACCESS_CLIENT_SECRET
-   wrangler secret put COOKIE_ENCRYPTION_KEY  # openssl rand -hex 32
-   wrangler secret put SIYUAN_KERNEL_TOKEN    # if SiYuan auth is enabled
-   ```
+```bash
+cd workers/auth-cfaccess
 
-4. **Configure environment** in `wrangler.jsonc`:
-   ```jsonc
-   {
-     "vars": {
-       "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
-       "SIYUAN_KERNEL_URL": "https://siyuan.example.com"
-     }
-   }
-   ```
+# Create KV namespace (one-time)
+npx wrangler kv namespace create "OAUTH_KV"
+# Update KV ID in wrangler.jsonc
 
-5. **Deploy**:
-   ```bash
-   npm run deploy
-   ```
+# Set secrets from CF Access SaaS app dashboard
+wrangler secret put ACCESS_CLIENT_ID
+wrangler secret put ACCESS_CLIENT_SECRET
+wrangler secret put ACCESS_TOKEN_URL
+wrangler secret put ACCESS_AUTHORIZATION_URL
+wrangler secret put ACCESS_JWKS_URL
+wrangler secret put COOKIE_ENCRYPTION_KEY  # openssl rand -hex 32
+
+npx wrangler deploy
+```
+
+#### Deploy API Key Auth Worker
+
+```bash
+cd workers/auth-apikey
+wrangler secret put SIYUAN_KERNEL_TOKEN
+wrangler secret put COOKIE_ENCRYPTION_KEY
+npx wrangler deploy
+```
 
 #### Connect with Claude Desktop
 
-Use `mcp-remote` for OAuth-authenticated connections:
-
+**Via OAuth (CF Access):**
 ```json
 {
   "mcpServers": {
-    "siyuan-cloud": {
+    "siyuan-oauth": {
       "command": "npx",
-      "args": ["mcp-remote", "https://your-worker.workers.dev/sse"]
+      "args": ["mcp-remote", "https://sy.wenri.org/sse"]
     }
   }
 }
+```
+
+**Via API Key:**
+```bash
+claude mcp add siyuan https://api-sy.wenri.org/sse \
+  -t sse -H "X-SiYuan-Key: YOUR_TOKEN"
 ```
 
 ## Configuration Reference
@@ -146,15 +183,22 @@ Use `mcp-remote` for OAuth-authenticated connections:
 |----------|----------|-------------|
 | `SIYUAN_KERNEL_URL` | Yes | SiYuan kernel URL |
 | `SIYUAN_KERNEL_TOKEN` | If auth enabled | SiYuan API token |
-| `CF_ACCESS_TEAM_DOMAIN` | Workers mode | Cloudflare Access team domain |
-| `CF_ACCESS_CLIENT_ID` | Workers mode | Cloudflare Access client ID |
-| `CF_ACCESS_CLIENT_SECRET` | Workers mode | Cloudflare Access client secret |
-| `COOKIE_ENCRYPTION_KEY` | Workers mode | Cookie encryption key |
+| `COOKIE_ENCRYPTION_KEY` | Workers mode | For download URL encryption |
 | `RAG_BASE_URL` | Optional | RAG backend URL for vector search |
 | `RAG_API_KEY` | Optional | RAG backend API key |
 | `FILTER_NOTEBOOKS` | Optional | Newline-separated notebook IDs to include |
 | `FILTER_DOCUMENTS` | Optional | Newline-separated document IDs to include |
 | `READ_ONLY_MODE` | Optional | `allow_all`, `allow_non_destructive`, or `deny_all` |
+
+### CF Access Auth Worker Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `ACCESS_CLIENT_ID` | From CF Access SaaS app dashboard |
+| `ACCESS_CLIENT_SECRET` | From CF Access SaaS app dashboard |
+| `ACCESS_TOKEN_URL` | Token endpoint URL |
+| `ACCESS_AUTHORIZATION_URL` | Authorization endpoint URL |
+| `ACCESS_JWKS_URL` | JWKS endpoint URL |
 
 ### CLI Options
 
@@ -170,19 +214,20 @@ Options:
   -h, --help                 Show help message
 ```
 
-## API Endpoints (Workers Mode)
+## API Endpoints
 
-### OAuth Endpoints
+### OAuth Auth Worker (sy.wenri.org)
 - `GET /authorize` - Initiate OAuth flow
 - `GET /callback` - OAuth callback handler
 - `POST /token` - Token endpoint
 - `POST /register` - Dynamic client registration
-- `POST /revoke` - Token revocation
 - `GET /.well-known/oauth-authorization-server` - OAuth metadata
+- `POST /mcp`, `GET /sse` - MCP endpoints (forwarded to backend)
+- `GET /download/*` - File downloads (grant-based validation)
 
-### MCP Endpoints
-- `POST /mcp` - JSON-RPC over HTTP transport
-- `GET /sse` - Server-Sent Events transport
+### API Key Auth Worker (api-sy.wenri.org)
+- `POST /mcp`, `GET /sse` - MCP endpoints (X-SiYuan-Key required)
+- `GET /download/*` - File downloads (stateless validation)
 
 ## Development
 
@@ -190,20 +235,18 @@ Options:
 # Install dependencies
 npm install
 
-# Local development (Workers mode)
-npm run dev
+# Local development - start each worker separately
+cd workers/mcp-backend && npx wrangler dev    # http://localhost:8787
+cd workers/auth-cfaccess && npx wrangler dev  # http://localhost:8788
+cd workers/auth-apikey && npx wrangler dev    # http://localhost:8789
 
 # Run tests
 npm test
 
-# Type check
-npm run types
-
-# Deploy
-npm run deploy
-
-# View logs
-npm run tail
+# Deploy (order matters: backend first)
+cd workers/mcp-backend && npx wrangler deploy
+cd workers/auth-cfaccess && npx wrangler deploy
+cd workers/auth-apikey && npx wrangler deploy
 ```
 
 ## Testing
@@ -212,45 +255,49 @@ npm run tail
 
 ```bash
 npx @modelcontextprotocol/inspector@latest
-# Connect to http://localhost:8788 (local) or deployed URL
+# Connect to deployed URL or localhost
 ```
 
 ### Manual Testing
 
 ```bash
 # Test OAuth discovery
-curl https://your-worker.workers.dev/.well-known/oauth-authorization-server
+curl https://sy.wenri.org/.well-known/oauth-authorization-server
 
-# Test server info
-curl https://your-worker.workers.dev/
+# Test API key auth
+curl -X POST https://api-sy.wenri.org/mcp \
+  -H "X-SiYuan-Key: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
 
 ## Security
 
 - **OAuth 2.1 + PKCE**: Prevents authorization code interception
 - **Cloudflare Access**: Enterprise identity provider support
-- **Token Binding**: MCP tokens bound to Cloudflare Access tokens
+- **Service Bindings**: Internal worker communication (no public routes for backend)
+- **Durable Objects**: Session state with SQLite storage
+- **Download URL Encryption**: Time-bound, path-bound download tokens
 - **Read-Only Mode**: Optional restriction of write operations
-- **KV Storage**: Secure, edge-distributed token storage
 
 ## Troubleshooting
 
 ### Common Issues
 
 **"SIYUAN_KERNEL_URL not configured"**
-- Set `SIYUAN_KERNEL_URL` in wrangler.jsonc or pass via CLI
+- Set `SIYUAN_KERNEL_URL` in wrangler.jsonc vars
 
 **"Failed to get SiYuan config"**
 - Verify SiYuan kernel is running and accessible
 - Check `SIYUAN_KERNEL_TOKEN` if authentication is enabled
 
+**"Unauthorized: Missing auth context"**
+- MCP backend requires auth headers from auth workers
+- Cannot be accessed directly; use auth worker endpoints
+
 **"Invalid or expired state"**
 - OAuth state expired (10 min timeout)
 - Verify KV namespace is configured correctly
-
-**"Token exchange failed"**
-- Verify Cloudflare Access credentials
-- Check callback URL matches Access application config
 
 **Tool not appearing**
 - Check `READ_ONLY_MODE` setting
