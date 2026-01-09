@@ -106,12 +106,12 @@ export default new OAuthProvider({
   // Default handler for OAuth flow (redirects to CF Access)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultHandler: accessApp as any,
-  // X-SiYuan-Key header authentication (bypasses OAuth)
-  resolveExternalToken: async ({ request, env }: { request: Request; env: unknown }) => {
-    const siyuanKey = request.headers.get('X-SiYuan-Key');
-    if (!siyuanKey) return null;
+  // External token authentication via Bearer token
+  // Called when Bearer token not found in internal KV
+  resolveExternalToken: async ({ token, request, env }: { token: string; request: Request; env: unknown }) => {
+    if (!token) return null;
 
-    const props = validateSiyuanKey(siyuanKey, env as Env);
+    const props = validateSiyuanKey(token, env as Env);
     if (!props) return null;
 
     props.workerBaseUrl = new URL(request.url).origin;
