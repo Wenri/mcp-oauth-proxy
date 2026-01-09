@@ -23,7 +23,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { SiyuanMCPConfig } from '..';
-import { initializeSiyuanMCPServer } from '../siyuan-mcp';
+import { initializeSiyuanMCPServer } from '../workers/mcp-backend/server';
 import pkg from '../package.json' with { type: 'json' };
 
 // Parse command line arguments

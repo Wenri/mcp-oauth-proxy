@@ -17,6 +17,6 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["./*.ts", "./*.d.ts", "./handlers/**/*.ts", "./siyuan-mcp/**/*.ts", "./siyuan-mcp/**/*.d.ts"],
+  "include": ["./*.ts", "./*.d.ts", "./handlers/**/*.ts", "./workers/**/*.ts", "./workers/**/*.d.ts", "./scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -3,7 +3,7 @@
  */
 
 import { isEmpty } from 'lodash-es';
-import { getConfig } from '..';
+import { getConfig } from '../server';
 import { getNotebookInfo } from '../syapi';
 import { isValidIdFormat } from '../syapi/custom';
 

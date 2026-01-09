@@ -7,7 +7,7 @@ import { createJsonResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
-import { getConfig } from '..';
+import { getConfig } from '../server';
 
 // RAG query result type
 interface RAGQueryResult {

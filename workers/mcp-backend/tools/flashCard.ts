@@ -11,7 +11,7 @@ import { z } from 'zod';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterBlock } from '../utils/resultFilter';
-import { getConfig } from '..';
+import { getConfig } from '../server';
 
 const TYPE_VALID_LIST = ['h1', 'h2', 'h3', 'h4', 'h5', 'highlight', 'superBlock'] as const;
 

@@ -4,7 +4,7 @@
 
 import { isValidStr } from './commonCheck';
 import { getBlockDBItem, getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
-import { getConfig } from '..';
+import { getConfig } from '../server';
 import { logPush } from '../logger';
 
 // ============================================================================

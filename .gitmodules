@@ -1,3 +1,5 @@
 [submodule ".claude"]
 	path = .claude
 	url = git@gitlab.com:gt404/claude-code-settings.git
+	branch = main
+	update = rebase

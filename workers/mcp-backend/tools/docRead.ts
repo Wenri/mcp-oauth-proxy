@@ -9,7 +9,7 @@ import { exportMdContent, getKramdown, getFileAPIv2, getHPathByIDAPI, getDocOutl
 import { createJsonResponse, createResourceLink, blobToContentBlockWithLimit, MAX_INLINE_ASSET_SIZE } from '../utils/mcpResponse';
 import { isValidStr, extractDocumentId, assertApiResult } from '../utils/commonCheck';
 import { getEffectiveMimeType } from '../utils/contentType';
-import { getConfig } from '..';
+import { getConfig } from '../server';
 import { getBlockAssets } from '../syapi/custom';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { debugPush, errorPush, logPush } from '../logger';

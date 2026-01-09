@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **SiYuan Note MCP Server** with OAuth authentication via Cloudflare Access. It provides Model Context Protocol (MCP) tools for interacting with SiYuan Note, a privacy-first personal knowledge management system.
 
 **Two deployment modes:**
-1. **Cloudflare Workers** - OAuth-protected MCP server accessible via HTTP/SSE
+1. **Cloudflare Workers** - Multi-worker architecture with pluggable auth
 2. **CLI (stdio)** - Standalone MCP server for local use with Claude Desktop
 
 ```
@@ -19,14 +19,20 @@ This is a **SiYuan Note MCP Server** with OAuth authentication via Cloudflare Ac
 │                        Cloudflare Workers Mode                          │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  MCP Client → OAuth Flow → Cloudflare Access → SiYuan MCP Server       │
-│     │              │                                  │                 │
-│     │         /authorize                              │                 │
-│     │         /callback                        ┌──────┴──────┐         │
-│     │         /token                           │  SiYuan API  │         │
-│     │                                          └──────────────┘         │
-│     └─────────────────────────────────────────────────────────────────→ │
-│              /sse or /mcp (authenticated MCP requests)                  │
+│  ┌─────────────────────────────┐     ┌─────────────────────────────┐   │
+│  │ CF Access Auth (sy.wenri.org)│     │ API Key Auth (api-sy.wenri.org)│
+│  │ - OAuth flow (/authorize)   │     │ - X-SiYuan-Key validation   │   │
+│  │ - /download (grant-based)   │     │ - /download (stateless)     │   │
+│  └──────────────┬──────────────┘     └──────────────┬──────────────┘   │
+│                 │ Service Binding                   │ Service Binding  │
+│                 └───────────────────┬───────────────┘                  │
+│                                     ▼                                  │
+│                     ┌───────────────────────────────┐                  │
+│                     │      MCP Backend Worker       │                  │
+│                     │   - SiyuanMCP Durable Object  │                  │
+│                     │   - Tool execution            │                  │
+│                     │   - SiYuan Kernel API calls   │                  │
+│                     └───────────────────────────────┘                  │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -41,23 +47,21 @@ This is a **SiYuan Note MCP Server** with OAuth authentication via Cloudflare Ac
 ## Development Commands
 
 ```bash
-# Local development (Cloudflare Workers mode, http://localhost:8788)
-npm run dev
+# Local development - start each worker separately
+cd workers/mcp-backend && npx wrangler dev    # http://localhost:8787
+cd workers/auth-cfaccess && npx wrangler dev  # http://localhost:8788
+cd workers/auth-apikey && npx wrangler dev    # http://localhost:8789
 
-# Deploy to Cloudflare Workers
-npm run deploy
+# Deploy workers (order matters: backend first)
+cd workers/mcp-backend && npx wrangler deploy
+cd workers/auth-cfaccess && npx wrangler deploy
+cd workers/auth-apikey && npx wrangler deploy
 
-# Stream live logs from deployed worker
-npm run tail
-
-# Generate TypeScript types for Worker bindings
-npm run types
+# Stream live logs
+cd workers/mcp-backend && npx wrangler tail
 
 # Run tests
 npm test
-
-# Watch mode for tests
-npm test:watch
 
 # Run CLI mode for testing
 npx tsx handlers/cli.ts --kernel-url http://localhost:6806
@@ -66,93 +70,88 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 ## Project Structure
 
 ```
-├── index.ts                    # Entry point - re-exports from handlers
+├── index.ts                    # Shared types (Props, AuthContext, Env types)
 ├── handlers/
-│   ├── index.ts               # OAuthProvider setup with SiyuanMCP agent
-│   ├── access-handler.ts      # CF Access OAuth flow (authorize, callback)
-│   ├── workers-oauth-utils.ts # OAuth utilities (PKCE, state, cookies)
 │   └── cli.ts                 # CLI entry point for stdio transport
-├── siyuan-mcp/
-│   ├── index.ts               # Server initialization, context management
-│   ├── tools/                 # MCP tool implementations
-│   │   ├── index.ts           # Tool provider registry
-│   │   ├── baseToolProvider.ts
-│   │   ├── docRead.ts         # Document reading, outline, HTML export
-│   │   ├── docWrite.ts        # Document writing, rename, move, delete
-│   │   ├── blockWrite.ts      # Block insert, update, delete, move, fold
-│   │   ├── sql.ts             # SQL queries, FTS5 full-text search
-│   │   ├── search.ts          # Full-text search
-│   │   ├── attributes.ts      # Block attributes (single & batch)
-│   │   ├── dailynote.ts       # Daily note creation
-│   │   ├── flashCard.ts       # Flashcard management
-│   │   ├── vectorSearch.ts    # RAG vector search
-│   │   ├── relation.ts        # Document relations
-│   │   ├── assets.ts          # Asset upload (with batch & auto-insert support)
-│   │   ├── filesystem.ts      # File system operations
-│   │   └── utility.ts         # Time, notifications, reindex, flush
-│   ├── syapi/                 # SiYuan kernel API wrappers
-│   ├── utils/                 # Utility functions
-│   ├── logger/                # Logging utilities
-│   ├── types/                 # SiYuan-specific types
-│   └── static/                # Schema docs and SQL cheatsheet
-├── types/
-│   └── index.ts               # Shared types (Env, SiyuanMCPConfig)
-├── wrangler.jsonc             # Cloudflare Workers configuration
+├── workers/
+│   ├── mcp-backend/           # MCP Backend Worker (internal only)
+│   │   ├── index.ts           # Entry point, auth context extraction
+│   │   ├── agent.ts           # SiyuanMCP Durable Object class
+│   │   ├── server.ts          # MCP server initialization
+│   │   ├── wrangler.jsonc     # DO bindings, no public routes
+│   │   ├── tools/             # MCP tool implementations
+│   │   ├── syapi/             # SiYuan kernel API wrappers
+│   │   ├── utils/             # Utility functions
+│   │   ├── resources/         # MCP resources
+│   │   ├── static/            # Schema docs and SQL cheatsheet
+│   │   └── types/             # SiYuan-specific types
+│   │
+│   ├── auth-cfaccess/         # CF Access OAuth Worker (sy.wenri.org)
+│   │   ├── index.ts           # OAuthProvider + MCP forwarding
+│   │   ├── access-handler.ts  # OAuth flow + /download (grant-based)
+│   │   ├── workers-oauth-utils.ts
+│   │   └── wrangler.jsonc     # KV + service binding
+│   │
+│   └── auth-apikey/           # API Key Auth Worker (api-sy.wenri.org)
+│       ├── index.ts           # X-SiYuan-Key + /download (stateless)
+│       └── wrangler.jsonc     # Service binding
+│
 └── package.json
 ```
 
 ## Key Architecture
 
-### handlers/index.ts - OAuthProvider Setup
+### Multi-Worker Design
 
-Configures `@cloudflare/workers-oauth-provider` with the `SiyuanMCP` agent:
+The system uses three workers connected via Cloudflare service bindings:
+
+1. **mcp-backend** - Internal MCP server with Durable Object for session state
+2. **auth-cfaccess** - OAuth authentication via Cloudflare Access
+3. **auth-apikey** - Simple API key authentication via X-SiYuan-Key header
+
+Auth workers forward requests to the backend with auth context headers:
+- `X-Auth-Props` - Base64 encoded user identity
+- `X-Auth-Secret` - Secret for download URL encryption
+- `X-Auth-Worker-Base-Url` - Domain for download URLs
+- `X-Auth-Encryption-Key` - Shared encryption key
+
+### workers/mcp-backend/agent.ts - SiyuanMCP Durable Object
 
 ```typescript
-export class SiyuanMCP extends McpAgent<Env, Record<string, never>, Props> {
+export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MCPProps> {
   server = new McpServer({ name: 'siyuan-mcp', version: '1.0.0' });
 
   async init() {
-    await initializeSiyuanMCPServer(this.server, this.env);
-    if (this.props?.email) {
-      logPush(`Authenticated user: ${this.props.email}`);
+    // Restore props from DO storage if not provided
+    if (!this.props) {
+      this.props = await this.ctx.storage.get('props');
     }
+    // Initialize MCP server with SiYuan tools
+    await initializeSiyuanMCPServer(this.server, this.env, ...);
   }
 }
-
-export default new OAuthProvider({
-  apiHandler: { fetch: handleMcpRequest },
-  apiRoute: ['/sse', '/mcp'],
-  authorizeEndpoint: '/authorize',
-  tokenEndpoint: '/token',
-  clientRegistrationEndpoint: '/register',
-  defaultHandler: { fetch: handleAccessRequest },
-});
 ```
 
-### handlers/access-handler.ts - CF Access OAuth Flow
+### workers/auth-cfaccess - CF Access OAuth Worker
 
 Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Based on [Cloudflare's official MCP demo](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access).
 
 **Flow:**
 1. `/authorize` - Shows approval dialog, then redirects to CF Access with PKCE challenge
-2. `/callback` - Validates state, exchanges code for tokens, verifies JWT, completes authorization
+2. `/callback` - Validates state, exchanges code for tokens, verifies JWT
+3. `/sse`, `/mcp` - Forward to mcp-backend via service binding with auth headers
+4. `/download` - Grant-based validation (KV lookup for expiry/revocation)
 
-**Security features:**
-- PKCE (S256) for authorization code protection
-- Client approval cookies (remember approved clients for 30 days)
-- CSRF protection for approval form
-- JWT verification using CF Access JWKS endpoint
+### workers/auth-apikey - API Key Auth Worker
 
-### handlers/workers-oauth-utils.ts - OAuth Utilities
+Lightweight worker for X-SiYuan-Key header authentication:
 
-Provides OAuth helper functions:
-- `generateCodeVerifier()` / `generateCodeChallenge()` - PKCE support
-- `createOAuthState()` / `validateOAuthState()` - State management with KV
-- `isClientApproved()` / `addApprovedClient()` - Client approval cookies
-- `renderApprovalDialog()` - OAuth approval UI
-- `fetchUpstreamAuthToken()` - Token exchange with CF Access
+**Flow:**
+1. Validate `X-SiYuan-Key` header against `SIYUAN_KERNEL_TOKEN`
+2. Forward `/sse`, `/mcp` to mcp-backend via service binding
+3. `/download` - Stateless validation (API key verification)
 
-### siyuan-mcp/index.ts - MCP Server Core
+### workers/mcp-backend/server.ts - MCP Server Core
 
 - `initializeSiyuanMCPServer(server, config)` - Initializes server with tools, prompts, and resources
 
@@ -344,7 +343,7 @@ npx @modelcontextprotocol/inspector@latest
   "mcpServers": {
     "siyuan-cloud": {
       "command": "npx",
-      "args": ["mcp-remote", "https://sy.wenri.me/sse"]
+      "args": ["mcp-remote", "https://sy.wenri.org/sse"]
     }
   }
 }
@@ -403,13 +402,13 @@ As an alternative to the full OAuth flow, MCP clients can authenticate using the
 
 ```bash
 # With curl
-curl -X POST https://sy.wenri.me/mcp \
+curl -X POST https://sy.wenri.org/mcp \
   -H "X-SiYuan-Key: YOUR_SIYUAN_KERNEL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 
 # Add to Claude Code
-claude mcp add siyuan https://sy.wenri.me/sse \
+claude mcp add siyuan https://sy.wenri.org/sse \
   -t sse -H "X-SiYuan-Key: YOUR_TOKEN"
 ```
 
@@ -436,23 +435,50 @@ claude mcp add siyuan https://sy.wenri.me/sse \
 
 ## Deployment Checklist
 
-1. Create KV namespace: `npx wrangler kv namespace create "OAUTH_KV"`
-2. Update KV namespace ID in wrangler.jsonc
-3. Create Cloudflare Access SaaS OIDC application:
-   - Set redirect URL to `https://your-domain/callback`
-   - Enable PKCE
-   - Note all OIDC endpoints from dashboard
-4. Set secrets from CF Access dashboard:
-   - `ACCESS_CLIENT_ID`, `ACCESS_CLIENT_SECRET`
-   - `ACCESS_TOKEN_URL`, `ACCESS_AUTHORIZATION_URL`, `ACCESS_JWKS_URL`
-   - `COOKIE_ENCRYPTION_KEY` (generate with `openssl rand -hex 32`)
-5. Set `SIYUAN_KERNEL_URL` and optionally `SIYUAN_KERNEL_TOKEN`
-6. If SiYuan kernel is behind CF Access:
-   - Create a Service Token in CF Zero Trust dashboard
-   - Set `CF_ACCESS_SERVICE_CLIENT_ID` and `CF_ACCESS_SERVICE_CLIENT_SECRET`
-   - Add Service Auth policy to your SiYuan Access application
-7. Deploy: `npm run deploy`
-8. Test OAuth flow with MCP Inspector
+### 1. Deploy MCP Backend (first)
+```bash
+cd workers/mcp-backend
+wrangler secret put SIYUAN_KERNEL_TOKEN
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_ID      # if kernel behind CF Access
+wrangler secret put CF_ACCESS_SERVICE_CLIENT_SECRET
+npx wrangler deploy
+```
+
+### 2. Deploy CF Access Auth Worker
+```bash
+cd workers/auth-cfaccess
+# Create KV namespace (one-time)
+npx wrangler kv namespace create "OAUTH_KV"
+# Update KV ID in wrangler.jsonc
+
+# Set secrets from CF Access SaaS app dashboard
+wrangler secret put ACCESS_CLIENT_ID
+wrangler secret put ACCESS_CLIENT_SECRET
+wrangler secret put ACCESS_TOKEN_URL
+wrangler secret put ACCESS_AUTHORIZATION_URL
+wrangler secret put ACCESS_JWKS_URL
+wrangler secret put COOKIE_ENCRYPTION_KEY  # openssl rand -hex 32
+
+npx wrangler deploy
+```
+
+### 3. Deploy API Key Auth Worker
+```bash
+cd workers/auth-apikey
+wrangler secret put SIYUAN_KERNEL_TOKEN
+wrangler secret put COOKIE_ENCRYPTION_KEY
+npx wrangler deploy
+```
+
+### 4. Configure CF Access (for OAuth worker)
+1. Create Cloudflare Access SaaS OIDC application
+2. Set redirect URL to `https://sy.wenri.org/callback`
+3. Enable PKCE
+4. Copy all OIDC endpoints to secrets
+
+### 5. Test
+- OAuth flow: `https://sy.wenri.org/sse` via MCP Inspector
+- API key: `curl -H "X-SiYuan-Key: TOKEN" https://api-sy.wenri.org/mcp`
 
 ## MCP Resources
 
@@ -480,7 +506,7 @@ Static content (documentation, prompts) uses `.txt` extension due to Wrangler's 
 
 **Pattern**: Getter functions to avoid module initialization order issues:
 ```typescript
-// siyuan-mcp/static/index.ts
+// workers/mcp-backend/static/index.ts
 import content from './file.txt';
 export const getContent = () => content;  // Getter defers access to runtime
 
@@ -491,14 +517,14 @@ const text = getContent();  // Called at runtime, not module load
 
 ## Adding New Tools
 
-1. Create new file in `siyuan-mcp/tools/` extending `McpToolsProvider`
+1. Create new file in `workers/mcp-backend/tools/` extending `McpToolsProvider`
 2. Implement `getTools()` returning tool definitions
-3. Add provider to `getAllToolProviders()` in `siyuan-mcp/tools/index.ts`
+3. Add provider to `getAllToolProviders()` in `workers/mcp-backend/tools/index.ts`
 4. Tools are automatically registered on server initialization
 
 ### MCP Response Helpers
 
-Use these helpers from `siyuan-mcp/utils/mcpResponse.ts` for consistent responses:
+Use these helpers from `workers/mcp-backend/utils/mcpResponse.ts` for consistent responses:
 
 ```typescript
 // Simple text/ID responses (no structuredContent)
@@ -566,7 +592,7 @@ const outlineItemSchema: z.ZodType<OutlineItem> = z.lazy(() =>
 
 ### Unified Content Schema for Uploads
 
-Both `siyuan_upload_assets` and `siyuan_write_file` use a unified content schema with a shared resolver (`siyuan-mcp/utils/contentResolver.ts`):
+Both `siyuan_upload_assets` and `siyuan_write_file` use a unified content schema with a shared resolver (`workers/mcp-backend/utils/contentResolver.ts`):
 
 ```typescript
 // Content: string | object | array

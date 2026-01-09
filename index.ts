@@ -1,7 +1,8 @@
 /**
- * MCP OAuth Proxy for Cloudflare Workers
+ * MCP SaaS - Shared Types
  *
- * Entry point - exports OAuthProvider and shared types.
+ * This file exports shared types used across workers.
+ * The actual worker implementations are in workers/ directory.
  */
 
 // ============================================================================
@@ -29,9 +30,9 @@ export type SiyuanMCPConfig = {
 
 /**
  * Cloudflare Access OAuth configuration
- * Based on: https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access
+ * Used by auth-cfaccess worker
  */
-type AccessOAuthConfig = {
+export type AccessOAuthConfig = {
   ACCESS_CLIENT_ID: string;
   ACCESS_CLIENT_SECRET: string;
   ACCESS_TOKEN_URL: string;
@@ -41,13 +42,60 @@ type AccessOAuthConfig = {
 };
 
 /**
- * Cloudflare Workers environment bindings
- * Combines Cloudflare.Env (KV, vars), SiyuanMCPConfig, and Access OAuth config
+ * Props passed from auth workers to MCP backend
+ * Stored in DO storage for session persistence
+ */
+export interface Props {
+  accessToken: string;
+  email: string;
+  login: string;
+  name: string;
+  workerBaseUrl: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Auth context passed via HTTP headers from auth workers to MCP backend
+ */
+export interface AuthContext {
+  props: Props;
+  secret: string;           // For download URL encryption
+  workerBaseUrl: string;    // Download URL domain
+  encryptionKey: string;    // For encryption
+}
+
+/**
+ * MCP Backend Worker environment
+ */
+export type MCPBackendEnv = Cloudflare.Env & SiyuanMCPConfig & {
+  MCP_OBJECT: DurableObjectNamespace;
+};
+
+/**
+ * Auth Worker environment (CF Access)
+ */
+export type AuthCfAccessEnv = Cloudflare.Env & AccessOAuthConfig & {
+  OAUTH_KV: KVNamespace;
+  MCP_BACKEND: Fetcher;
+  SIYUAN_KERNEL_TOKEN?: string;
+  SIYUAN_KERNEL_URL?: string;
+  CF_ACCESS_SERVICE_CLIENT_ID?: string;
+  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
+};
+
+/**
+ * Auth Worker environment (API Key)
+ */
+export type AuthApiKeyEnv = Cloudflare.Env & {
+  MCP_BACKEND: Fetcher;
+  SIYUAN_KERNEL_TOKEN: string;
+  SIYUAN_KERNEL_URL?: string;
+  COOKIE_ENCRYPTION_KEY: string;
+  CF_ACCESS_SERVICE_CLIENT_ID?: string;
+  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
+};
+
+/**
+ * Legacy Env type for CLI compatibility
  */
 export type Env = Cloudflare.Env & SiyuanMCPConfig & AccessOAuthConfig;
-
-// ============================================================================
-// Exports
-// ============================================================================
-
-export { default, SiyuanMCP } from './handlers';

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "siyuan-mcp-backend",
+  "main": "index.ts",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "ed9d68e85d02fec28ab56703b7734d66",
+
+  // No routes - internal only, accessed via service binding from auth workers
+
+  // Durable Objects for MCP agent state
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "SiyuanMCP"
+      }
+    ]
+  },
+
+  // Migrations for Durable Objects (SQLite-backed for free plan)
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SiyuanMCP"]
+    }
+  ],
+
+  // Environment variables
+  // Required secrets:
+  // - SIYUAN_KERNEL_TOKEN: SiYuan API token for authentication
+  // - CF_ACCESS_SERVICE_CLIENT_ID: Service token for kernel behind CF Access
+  // - CF_ACCESS_SERVICE_CLIENT_SECRET: Service token secret
+  //
+  // Optional secrets:
+  // - RAG_API_KEY: RAG backend API key
+
+  "vars": {
+    // SiYuan kernel URL
+    // "SIYUAN_KERNEL_URL": "https://siyuan.example.com"
+
+    // RAG backend configuration (optional)
+    // "RAG_BASE_URL": "http://127.0.0.1:26808",
+
+    // Filter settings (newline-separated IDs)
+    // "FILTER_NOTEBOOKS": "",
+    // "FILTER_DOCUMENTS": ""
+  },
+
+  // Development settings
+  "dev": {
+    "port": 8787,
+    "local_protocol": "http"
+  }
+}

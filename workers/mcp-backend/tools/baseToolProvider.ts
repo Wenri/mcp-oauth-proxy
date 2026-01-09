@@ -3,7 +3,7 @@
  */
 
 import type { z } from 'zod';
-import { generateNodeID } from '..';
+import { generateNodeID } from '../server';
 import { createDocWithMdAPI, createDocWithPath } from '../syapi';
 import { getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
 import { isValidNotebookId, isValidStr } from '../utils/commonCheck';

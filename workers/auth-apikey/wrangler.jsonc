@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "siyuan-mcp-apikey",
+  "main": "index.ts",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "ed9d68e85d02fec28ab56703b7734d66",
+
+  // Routes for API key auth MCP endpoints
+  "routes": [
+    // MCP endpoints (authenticated via X-SiYuan-Key header)
+    { "pattern": "api-sy.wenri.org/mcp*", "zone_name": "wenri.org" },
+    { "pattern": "api-sy.wenri.org/sse*", "zone_name": "wenri.org" },
+    // Download proxy (stateless key validation)
+    { "pattern": "api-sy.wenri.org/download/*", "zone_name": "wenri.org" }
+  ],
+
+  // Service binding to MCP backend worker
+  "services": [
+    {
+      "binding": "MCP_BACKEND",
+      "service": "siyuan-mcp-backend"
+    }
+  ],
+
+  // Environment variables
+  // Required secrets:
+  // - SIYUAN_KERNEL_TOKEN: API key for authentication
+  // - COOKIE_ENCRYPTION_KEY: For download URL encryption
+  //
+  // Optional:
+  // - SIYUAN_KERNEL_URL: SiYuan kernel URL for download proxy
+
+  "vars": {},
+
+  // Development settings
+  "dev": {
+    "port": 8789,
+    "local_protocol": "http"
+  }
+}

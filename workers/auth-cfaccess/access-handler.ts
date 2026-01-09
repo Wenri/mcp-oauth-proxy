@@ -6,7 +6,7 @@
 import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
-import type { Env } from "..";
+import type { AuthCfAccessEnv } from "../../index";
 import {
 	addApprovedClient,
 	createOAuthState,
@@ -22,11 +22,13 @@ import {
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
-import { initKernel, getFileAPIv2, normalizePath } from "../siyuan-mcp/syapi";
-import { decryptGrant } from "../siyuan-mcp/utils/crypto";
+import { initKernel, getFileAPIv2, normalizePath } from "../mcp-backend/syapi";
+import { decryptGrant } from "../mcp-backend/utils/crypto";
 
 // Import static files accessor
-import { getFileContent } from "../siyuan-mcp/static";
+import { getFileContent } from "../mcp-backend/static";
+
+type Env = AuthCfAccessEnv;
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
 type HonoEnv = { Bindings: EnvWithOAuth };

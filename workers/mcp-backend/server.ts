@@ -1,12 +1,12 @@
 /**
- * SiYuan MCP - Main entry point
+ * SiYuan MCP - Server initialization
  *
  * This module provides a Model Context Protocol (MCP) server for SiYuan Note
  * running on Cloudflare Workers.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { SiyuanMCPConfig } from '..';
+import type { SiyuanMCPConfig } from '../../index';
 import type { SiyuanConfig } from './types';
 import { getAllToolProviders } from './tools';
 import { getAllResourceProviders, type ResourceContext } from './resources';
@@ -19,7 +19,7 @@ import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 import { promptCreateCardsCN, promptQueryCN } from './static';
 
 // Re-export types for convenience
-export type { Env, SiyuanMCPConfig } from '..';
+export type { SiyuanMCPConfig } from '../../index';
 export type { SiyuanConfig } from './types';
 
 // Re-export for external use (handlers)
@@ -27,7 +27,7 @@ export { logPush } from './logger';
 export { buildKernelHeaders } from './syapi';
 
 // ============================================================================
-// Context - Module-level state
+// Context - Module-level state (will be refactored to props in future)
 // ============================================================================
 
 let config: SiyuanConfig | null = null;
@@ -35,6 +35,17 @@ let workerBaseUrl: string | undefined;
 let oauthTokenExpiresAt: number | undefined;
 let grantKey: string | undefined;
 let encryptionKey: string | undefined;
+
+/** Set download context from auth worker */
+export function setDownloadContext(ctx: {
+  secret: string;
+  encryptionKey: string;
+  workerBaseUrl: string;
+}): void {
+  grantKey = ctx.secret;
+  encryptionKey = ctx.encryptionKey;
+  workerBaseUrl = ctx.workerBaseUrl;
+}
 
 /** Set the OAuth token expiry (captured from Authorization header) */
 export function setOAuthTokenExpiry(expiresAt?: number): void {

@@ -10,7 +10,7 @@ import { ResolvedContent, inferContentType, type ContentType } from '../utils/co
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { buildDownloadUrl, getTokenTtl } from '..';
+import { buildDownloadUrl, getTokenTtl } from '../server';
 import { jsonValueSchema, type JsonValue } from '../types';
 import { getContentCategory } from '../utils/contentType';
 import { assertNonEmptyArray, assertApiResult } from '../utils/commonCheck';

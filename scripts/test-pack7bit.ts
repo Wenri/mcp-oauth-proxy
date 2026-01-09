@@ -4,7 +4,7 @@
  */
 
 import { utils } from 'node-pdu';
-import { pack7bit, unpack7bit } from '../siyuan-mcp/utils/crypto';
+import { pack7bit, unpack7bit } from '../workers/mcp-backend/utils/crypto';
 
 // Test encode7Bit with various string lengths
 function testEncode7Bit() {

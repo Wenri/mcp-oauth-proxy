@@ -20,7 +20,7 @@ import { debugPush, warnPush } from '../logger';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
 import { filterNotebook } from '../utils/resultFilter';
-import { getAppId } from '..';
+import { getAppId } from '../server';
 
 /** SiYuan sort mode values (from kernel/util/sort.go) */
 const SORT_MODES = [
