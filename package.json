@@ -18,7 +18,7 @@
     "@cloudflare/workers-oauth-provider": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "agents": "^0.3.3",
-    "hono": "^4.11.3",
+    "hono": "^4.11.4",
     "lodash-es": "^4.17.22",
     "mime-types": "^3.0.2",
     "node-pdu": "^2.1.1",
