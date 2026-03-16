@@ -9,7 +9,6 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  discoverOAuthProtectedResourceMetadata,
   discoverAuthorizationServerMetadata,
   extractWWWAuthenticateParams,
 } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -41,62 +40,49 @@ describe.skipIf(!serverReachable)('OAuth Discovery', { timeout: 15000 }, () => {
     expect(params).toBeDefined();
   });
 
-  it('discovers OAuth Protected Resource Metadata', async () => {
-    const metadata = await discoverOAuthProtectedResourceMetadata(serverUrl, {});
-    expect(metadata).toBeDefined();
-    expect(metadata.resource).toBeDefined();
-  });
-
-  it('serves path-aware protected resource metadata', async () => {
-    const pathAwareUrl = `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
-    const response = await fetch(pathAwareUrl, {
-      headers: { 'MCP-Protocol-Version': '2025-03-26' },
-    });
-
-    expect(response.ok).toBe(true);
-    const data = await response.json() as { resource?: string };
-    expect(data.resource).toBeDefined();
-  });
-
-  it('serves root protected resource metadata', async () => {
-    const rootUrl = `${url.origin}/.well-known/oauth-protected-resource`;
-    const response = await fetch(rootUrl, {
-      headers: { 'MCP-Protocol-Version': '2025-03-26' },
-    });
-
-    expect(response.ok).toBe(true);
-    const data = await response.json() as { resource?: string };
-    expect(data.resource).toBeDefined();
-  });
-
   it('discovers Authorization Server Metadata', async () => {
     const authServerUrl = new URL('/', serverUrl);
     const metadata = await discoverAuthorizationServerMetadata(authServerUrl, {});
+
     expect(metadata).toBeDefined();
-    expect(metadata.issuer).toBeDefined();
+    expect(metadata.issuer).toBe(url.origin);
+    expect(metadata.authorization_endpoint).toBeDefined();
+    expect(metadata.token_endpoint).toBeDefined();
+    expect(metadata.registration_endpoint).toBeDefined();
+    expect(metadata.code_challenge_methods_supported).toContain('S256');
   });
 
-  it('handles CORS preflight for well-known endpoints', async () => {
-    const corsUrls = [
-      `${url.origin}/.well-known/oauth-protected-resource`,
-      `${url.origin}/.well-known/oauth-authorization-server`,
-    ];
+  it('serves Authorization Server Metadata as JSON', async () => {
+    const metadataUrl = `${url.origin}/.well-known/oauth-authorization-server`;
+    const response = await fetch(metadataUrl);
 
-    for (const corsUrl of corsUrls) {
-      const response = await fetch(corsUrl, {
-        method: 'OPTIONS',
-        headers: {
-          Origin: 'http://localhost:5173',
-          'Access-Control-Request-Method': 'GET',
-          'Access-Control-Request-Headers': 'MCP-Protocol-Version',
-        },
-      });
+    expect(response.ok).toBe(true);
+    const data = await response.json() as { issuer?: string; authorization_endpoint?: string };
+    expect(data.issuer).toBe(url.origin);
+    expect(data.authorization_endpoint).toContain('/authorize');
+  });
 
-      // Should return 200 or 204 for preflight
-      expect(response.status).toBeLessThan(400);
-      const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
-      expect(allowOrigin).toBeTruthy();
-    }
+  it('handles CORS preflight for Authorization Server Metadata', async () => {
+    const metadataUrl = `${url.origin}/.well-known/oauth-authorization-server`;
+    const response = await fetch(metadataUrl, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'GET',
+        'Access-Control-Request-Headers': 'MCP-Protocol-Version',
+      },
+    });
+
+    // Should return 200 or 204 for preflight
+    expect(response.status).toBeLessThan(400);
+    const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+    expect(allowOrigin).toBeTruthy();
+  });
+
+  it('returns 404 for unimplemented Protected Resource Metadata', async () => {
+    // RFC 9728 (oauth-protected-resource) not yet implemented
+    const response = await fetch(`${url.origin}/.well-known/oauth-protected-resource`);
+    expect(response.status).toBe(404);
   });
 });
 
