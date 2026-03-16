@@ -17,6 +17,6 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["./*.ts", "./*.d.ts", "./handlers/**/*.ts", "./workers/**/*.ts", "./workers/**/*.d.ts", "./scripts/**/*.ts", "./tests/**/*.ts"],
+  "include": ["./*.ts", "./*.d.ts", "./handlers/**/*.ts", "./workers/**/*.ts", "./workers/**/*.d.ts", "./tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
