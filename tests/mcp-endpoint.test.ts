@@ -4,21 +4,27 @@
  *
  * Requires:
  * - MCP_TEST_API_KEY: SiYuan API key for authentication
- * - MCP_TEST_API_URL: API endpoint (default: https://api-sy.wenri.org/sse)
+ * - MCP_TEST_API_URL: API endpoint (default: https://sy.wenri.org/mcp)
+ *
+ * Auth header is determined by the endpoint:
+ * - api-sy.* uses X-SiYuan-Key header
+ * - sy.* uses Authorization: Bearer (resolveExternalToken)
  *
  * Skipped automatically if MCP_TEST_API_KEY is not set.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 const apiKey = process.env.MCP_TEST_API_KEY;
-const serverUrl = process.env.MCP_TEST_API_URL || 'https://api-sy.wenri.org/sse';
+const serverUrl = process.env.MCP_TEST_API_URL || 'https://sy.wenri.org/mcp';
 
-interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  id?: number;
-  method: string;
-  params?: Record<string, unknown>;
+/** Build auth headers based on the endpoint */
+function authHeaders(): Record<string, string> {
+  const url = new URL(serverUrl);
+  if (url.hostname.startsWith('api-')) {
+    return { 'X-SiYuan-Key': apiKey! };
+  }
+  return { Authorization: `Bearer ${apiKey}` };
 }
 
 interface JsonRpcResponse {
@@ -28,170 +34,99 @@ interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown };
 }
 
-/** Parse SSE stream into events */
-async function* parseSSE(
-  reader: ReadableStreamDefaultReader<Uint8Array>
-): AsyncGenerator<{ event?: string; data: string }> {
-  const decoder = new TextDecoder();
-  let buffer = '';
+let sessionId: string | undefined;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    let event: string | undefined;
-    let data = '';
-
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        event = line.slice(6).trim();
-      } else if (line.startsWith('data:')) {
-        data = line.slice(5).trim();
-      } else if (line === '' && data) {
-        yield { event, data };
-        event = undefined;
-        data = '';
-      }
-    }
+/**
+ * Send a JSON-RPC request via Streamable HTTP transport.
+ * The server returns SSE events; we parse to extract the JSON-RPC response.
+ */
+async function sendRequest(
+  method: string,
+  id: number,
+  params?: Record<string, unknown>,
+): Promise<JsonRpcResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    ...authHeaders(),
+  };
+  if (sessionId) {
+    headers['mcp-session-id'] = sessionId;
   }
-}
 
-describe.skipIf(!apiKey)('MCP Endpoint (API key)', { timeout: 30000 }, () => {
-  let messageEndpoint: string | null = null;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-  let requestId = 0;
-  const pendingRequests = new Map<
-    number,
-    { resolve: (value: JsonRpcResponse) => void; reject: (error: Error) => void }
-  >();
-
-  async function sendRequest(
-    method: string,
-    params?: Record<string, unknown>,
-    timeoutMs = 15000
-  ): Promise<JsonRpcResponse> {
-    if (!messageEndpoint) {
-      throw new Error('SSE connection not established');
-    }
-
-    const id = ++requestId;
-    const request: JsonRpcRequest = {
+  const response = await fetch(serverUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
       jsonrpc: '2.0',
       id,
       method,
       params,
-    };
+    }),
+  });
 
-    const url = new URL(messageEndpoint, serverUrl);
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-SiYuan-Key': apiKey!,
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-
-    return new Promise((resolve, reject) => {
-      pendingRequests.set(id, { resolve, reject });
-      setTimeout(() => {
-        if (pendingRequests.has(id)) {
-          pendingRequests.delete(id);
-          reject(new Error(`Request ${id} (${method}) timed out after ${timeoutMs}ms`));
-        }
-      }, timeoutMs);
-    });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text}`);
   }
 
-  async function sendNotification(
-    method: string,
-    params?: Record<string, unknown>
-  ): Promise<void> {
-    if (!messageEndpoint) {
-      throw new Error('SSE connection not established');
-    }
-
-    const request: JsonRpcRequest = { jsonrpc: '2.0', method, params };
-    const url = new URL(messageEndpoint, serverUrl);
-    await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-SiYuan-Key': apiKey!,
-      },
-      body: JSON.stringify(request),
-    });
+  // Capture session ID from response
+  const newSessionId = response.headers.get('mcp-session-id');
+  if (newSessionId) {
+    sessionId = newSessionId;
   }
 
-  beforeAll(async () => {
-    // Establish SSE connection
-    const sseResponse = await fetch(serverUrl, {
-      headers: {
-        Accept: 'text/event-stream',
-        'X-SiYuan-Key': apiKey!,
-      },
-    });
+  const contentType = response.headers.get('Content-Type') || '';
 
-    if (!sseResponse.ok) {
-      throw new Error(`SSE connection failed: ${sseResponse.status}`);
-    }
+  // If JSON response, parse directly
+  if (contentType.includes('application/json')) {
+    return response.json() as Promise<JsonRpcResponse>;
+  }
 
-    reader = sseResponse.body!.getReader();
-
-    // Start reading SSE in background
-    (async () => {
-      try {
-        for await (const { event, data } of parseSSE(reader!)) {
-          if (event === 'endpoint') {
-            messageEndpoint = data;
-          } else if (event === 'message' || !event) {
-            try {
-              const json = JSON.parse(data) as JsonRpcResponse;
-              if (json.id && pendingRequests.has(json.id)) {
-                const { resolve } = pendingRequests.get(json.id)!;
-                pendingRequests.delete(json.id);
-                resolve(json);
-              }
-            } catch {
-              // Not JSON, ignore
-            }
-          }
+  // If SSE response, parse events to find the JSON-RPC response
+  if (contentType.includes('text/event-stream')) {
+    const text = await response.text();
+    for (const line of text.split('\n')) {
+      if (line.startsWith('data:')) {
+        const data = line.slice(5).trim();
+        try {
+          const json = JSON.parse(data) as JsonRpcResponse;
+          if (json.id === id) return json;
+        } catch {
+          // Not JSON, continue
         }
-      } catch {
-        // Stream ended
       }
-    })();
+    }
+    throw new Error(`No response found for request ${id} in SSE stream`);
+  }
 
-    // Wait for endpoint event
-    await new Promise<void>((resolve, reject) => {
-      const check = setInterval(() => {
-        if (messageEndpoint) {
-          clearInterval(check);
-          resolve();
-        }
-      }, 100);
-      setTimeout(() => {
-        clearInterval(check);
-        reject(new Error('Timeout waiting for SSE endpoint'));
-      }, 10000);
-    });
+  throw new Error(`Unexpected content type: ${contentType}`);
+}
+
+/** Send a JSON-RPC notification (no id, no response expected) */
+async function sendNotification(
+  method: string,
+  params?: Record<string, unknown>,
+): Promise<void> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    ...authHeaders(),
+  };
+  if (sessionId) {
+    headers['mcp-session-id'] = sessionId;
+  }
+
+  await fetch(serverUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ jsonrpc: '2.0', method, params }),
   });
+}
 
-  afterAll(() => {
-    reader?.cancel();
-  });
-
+describe.skipIf(!apiKey)('MCP Endpoint (API key)', { timeout: 30000 }, () => {
   it('initializes MCP session', async () => {
-    const response = await sendRequest('initialize', {
+    const response = await sendRequest('initialize', 1, {
       protocolVersion: '2024-11-05',
       capabilities: {},
       clientInfo: { name: 'vitest-mcp-endpoint', version: '1.0.0' },
@@ -202,26 +137,25 @@ describe.skipIf(!apiKey)('MCP Endpoint (API key)', { timeout: 30000 }, () => {
 
     const result = response.result as { serverInfo: { name: string } };
     expect(result.serverInfo.name).toBe('siyuan-mcp');
+    expect(sessionId).toBeTruthy();
 
-    // Send initialized notification
     await sendNotification('notifications/initialized');
   });
 
   it('lists available tools', async () => {
-    const response = await sendRequest('tools/list');
+    const response = await sendRequest('tools/list', 2);
 
     expect(response.error).toBeUndefined();
     const result = response.result as { tools: Array<{ name: string; description: string }> };
     expect(result.tools.length).toBeGreaterThan(0);
 
-    // Verify some expected tools exist
     const toolNames = result.tools.map((t) => t.name);
     expect(toolNames).toContain('get_current_time');
     expect(toolNames).toContain('siyuan_list_notebook');
   });
 
   it('calls get_current_time tool', async () => {
-    const response = await sendRequest('tools/call', {
+    const response = await sendRequest('tools/call', 3, {
       name: 'get_current_time',
       arguments: {},
     });
@@ -234,7 +168,7 @@ describe.skipIf(!apiKey)('MCP Endpoint (API key)', { timeout: 30000 }, () => {
   });
 
   it('calls siyuan_list_notebook tool', async () => {
-    const response = await sendRequest('tools/call', {
+    const response = await sendRequest('tools/call', 4, {
       name: 'siyuan_list_notebook',
       arguments: {},
     });
