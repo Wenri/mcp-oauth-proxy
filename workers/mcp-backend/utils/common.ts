@@ -98,17 +98,3 @@ export async function blobToBase64Object(blob: Blob): Promise<{
     mimeType: mimeType,
   };
 }
-
-/**
- * Extract paragraph node IDs from HTML string
- * Note: Uses regex instead of DOMParser for CF Worker compatibility
- */
-export function extractNodeParagraphIds(htmlString: string): string[] {
-  const regex = /data-type="NodeParagraph"[^>]*data-node-id="([^"]+)"/g;
-  const ids: string[] = [];
-  let match;
-  while ((match = regex.exec(htmlString)) !== null) {
-    ids.push(match[1]);
-  }
-  return ids;
-}

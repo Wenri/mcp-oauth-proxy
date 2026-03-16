@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { createSuccessResponse } from '../utils/mcpResponse';
-import { appendBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
+import { appendBlockAPI, prependBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
 import { isADocId } from '../syapi/custom';
 import { McpToolsProvider, createNewDocWithParentId, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -18,6 +18,25 @@ import { assertApiResult, assertNonEmptyArray } from '../utils/commonCheck';
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
+      defineTool({
+        name: 'siyuan_prepend_markdown_to_doc',
+        description: 'Prepend Markdown content to the beginning of a document in SiYuan.',
+        inputSchema: z.object({
+          id: z
+            .string()
+            .describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
+          markdownContent: z
+            .string()
+            .describe('The Markdown-formatted text to prepend to the beginning of the specified document.'),
+        }),
+        handler: prependMarkdownToDocHandler,
+        title: lang('tool_title_prepend_markdown_to_doc'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      }),
       defineTool({
         name: 'siyuan_append_markdown_to_doc',
         description: 'Append Markdown content to the end of a document in SiYuan.',
@@ -108,6 +127,19 @@ export class DocWriteToolProvider extends McpToolsProvider {
       }),
     ];
   }
+}
+
+async function prependMarkdownToDocHandler(params: { id: DocumentId; markdownContent: string }) {
+  const { id, markdownContent } = params;
+  debugPush('Prepend to document API called');
+
+  if (!(await isADocId(id))) {
+    throw new Error("Failed to prepend to document: The provided ID is not a document ID.");
+  }
+  await validateBlockAccess(id, true);
+
+  const result = assertApiResult(await prependBlockAPI(markdownContent, id), 'prepend to the document');
+  return createSuccessResponse(result.id);
 }
 
 async function appendBlockHandler(params: { id: DocumentId; markdownContent: string }) {

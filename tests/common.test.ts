@@ -8,7 +8,6 @@ import {
   generateUUID,
   base64ToBlob,
   blobToBase64Object,
-  extractNodeParagraphIds,
 } from '../workers/mcp-backend/utils/common';
 
 describe('parseDateString', () => {
@@ -69,26 +68,5 @@ describe('base64ToBlob / blobToBase64Object', () => {
     expect(obj.mimeType).toBe('text/plain');
     expect(obj.type).toBe('text');
     expect(atob(obj.data)).toBe(original);
-  });
-});
-
-describe('extractNodeParagraphIds', () => {
-  it('extracts paragraph node IDs from HTML', () => {
-    const html = `
-      <div data-type="NodeParagraph" data-node-id="20241231120000-abc1234">text</div>
-      <div data-type="NodeParagraph" data-node-id="20241231120000-def5678">more</div>
-    `;
-    const ids = extractNodeParagraphIds(html);
-    expect(ids).toEqual(['20241231120000-abc1234', '20241231120000-def5678']);
-  });
-
-  it('returns empty array for non-matching HTML', () => {
-    expect(extractNodeParagraphIds('<p>no ids here</p>')).toEqual([]);
-    expect(extractNodeParagraphIds('')).toEqual([]);
-  });
-
-  it('ignores non-paragraph nodes', () => {
-    const html = '<div data-type="NodeHeading" data-node-id="20241231120000-abc1234">heading</div>';
-    expect(extractNodeParagraphIds(html)).toEqual([]);
   });
 });

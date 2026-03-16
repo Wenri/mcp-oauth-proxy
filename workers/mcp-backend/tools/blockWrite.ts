@@ -4,14 +4,13 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
-import { appendBlockAPI, insertBlockOriginAPI, prependBlockAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
+import { insertBlockOriginAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 import { isCurrentVersionLessThan, isNonContainerBlockType, isValidNotebookId, isValidStr, assertApiResult } from '../utils/commonCheck';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { extractNodeParagraphIds } from '../utils/common';
 import { validateBlockAccess } from '../utils/resultFilter';
 import { getConfig } from '../server';
 
@@ -46,55 +45,11 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         },
       }),
       defineTool({
-        name: 'siyuan_prepend_block',
-        description:
-          'Insert a new block at the beginning of a parent block\'s children. Content must be in markdown format.',
-        inputSchema: z.object({
-          data: z.string().describe('The markdown content to insert'),
-          parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
-        }),
-        outputSchema: z.object({
-          id: z.string().describe('ID of the newly inserted block'),
-          action: z.string().describe('The operation action performed'),
-          data: z.string().describe('The block data/content'),
-          parentID: z.string().optional().describe('ID of the parent block'),
-        }),
-        handler: prependBlockHandler,
-        title: lang('tool_title_prepend_block'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      }),
-      defineTool({
-        name: 'siyuan_append_block',
-        description:
-          'Insert a new block at the end of a parent block\'s children. Content must be in markdown format.',
-        inputSchema: z.object({
-          data: z.string().describe('The markdown content to insert'),
-          parentID: z.string().describe('Block ID or hpath of the parent block (must be a container block)'),
-        }),
-        outputSchema: z.object({
-          id: z.string().describe('ID of the newly inserted block'),
-          action: z.string().describe('The operation action performed'),
-          data: z.string().describe('The block data/content'),
-          parentID: z.string().optional().describe('ID of the parent block'),
-        }),
-        handler: appendBlockHandler,
-        title: lang('tool_title_append_block'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      }),
-      defineTool({
         name: 'siyuan_update_block',
         description:
-          'Update an existing block\'s content by ID. Content should be in Kramdown format. Using markdown format will lose block attributes.',
+          'Update an existing block\'s content by ID. Content must be in markdown format. Note: for container blocks (list, blockquote, super block), child block IDs will be regenerated. To preserve custom block attributes, append an IAL line at the end (e.g. `{: custom-foo="bar"}`); use `siyuan_get_block_kramdown` to read current content with attributes.',
         inputSchema: z.object({
-          data: z.string().describe('The new content in Kramdown format'),
+          data: z.string().describe('The new content in markdown format. Optionally append a trailing IAL line (e.g. `{: custom-foo="bar"}`) to preserve custom attributes.'),
           id: z.string().describe('Block ID of the block to update'),
         }),
         handler: updateBlockHandler,
@@ -242,75 +197,6 @@ async function insertBlockHandler(params: {
   // taskManager.insert(op.id, data, 'insertBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
 
   // Return only the fields defined in outputSchema (data may be object in API response)
-  return createJsonResponse({
-    id: op.id,
-    action: op.action,
-    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
-    parentID: op.parentID || undefined,
-  });
-}
-
-async function prependBlockHandler(params: { data: string; parentID: BlockId }) {
-  const { data, parentID } = params;
-  debugPush('Prepend block API called');
-
-  if (await isValidNotebookId(parentID)) {
-    throw new Error('parentID must be a block ID, not a notebook ID.');
-  }
-
-  const dbItem = await validateBlockAccess(parentID);
-  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
-
-  if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
-    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
-  }
-
-  const op = assertApiResult(await prependBlockAPI(data, resolvedId), 'prepend the block');
-  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
-  // taskManager.insert(op.id, data, 'prependBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
-
-  // Return only the fields defined in outputSchema
-  return createJsonResponse({
-    id: op.id,
-    action: op.action,
-    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
-    parentID: op.parentID || undefined,
-  });
-}
-
-async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
-  const { data, parentID } = params;
-  debugPush('Append block API called');
-
-  if (await isValidNotebookId(parentID)) {
-    throw new Error('parentID must be a block ID, not a notebook ID.');
-  }
-
-  const dbItem = await validateBlockAccess(parentID);
-  const resolvedId = dbItem.id; // Use resolved ID (handles hpath)
-
-  if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
-    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
-  }
-
-  const op = assertApiResult(await appendBlockAPI(data, resolvedId), 'append to the block');
-
-  const paragraphIds: BlockId[] = [];
-  if (dbItem.type === 'l') {
-    const listItems = extractNodeParagraphIds(op.data);
-    if (listItems.length > 0) {
-      paragraphIds.push(...listItems);
-    } else {
-      paragraphIds.push(op.id);
-    }
-  } else {
-    paragraphIds.push(op.id);
-  }
-
-  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
-  // taskManager.insert(paragraphIds, data, 'appendBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
-
-  // Return only the fields defined in outputSchema
   return createJsonResponse({
     id: op.id,
     action: op.action,
