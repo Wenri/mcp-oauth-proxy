@@ -43,6 +43,22 @@ export class DocWriteToolProvider extends McpToolsProvider<any> {
                 idempotentHint: false,
             }
         }, {
+            // Backward-compatible alias for existing MCP clients using the old tool name.
+            name: "siyuan_create_new_note_with_markdown_content",
+            description: "Create a new note under a parent document in SiYuan with a specified title and Markdown content.",
+            schema: {
+                parentId: z.string().describe("The unique identifier (ID) of the parent document or notebook where the new note will be created."),
+                title: z.string().describe("The title of the new note to be created."),
+                markdownContent: z.string().describe("The Markdown content of the new note."),
+            },
+            handler: createNewNoteUnder,
+            // title: lang("tool_title_create_new_note_with_markdown_content"),
+            annotations: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                idempotentHint: false,
+            }
+        }, {
             name: "siyuan_rename_doc",
             description: "Rename an existing document in SiYuan by its ID and a new title.",
             schema: {
@@ -124,7 +140,10 @@ async function renameDocTool(params, extra) {
 
 async function renameNotebookTool(params, extra) {
     const { notebookId, newTitle } = params;
-    isValidNotebookId(notebookId);
+    const isValid = isValidNotebookId(notebookId);
+    if (!isValid) {
+        return createErrorResponse("Failed to rename notebook: The provided ID is not a notebook ID.");
+    }
     if (filterNotebook(notebookId)) {
         return createErrorResponse("The specified notebook is excluded by the user settings, so cannot rename it.");
     }

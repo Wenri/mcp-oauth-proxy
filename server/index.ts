@@ -1,7 +1,7 @@
 import { debugPush, errorPush, logPush } from '../logger';
 import { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import * as express from "express";
 import { DailyNoteToolProvider} from '@/tools/dailynote';
 import { getPluginInstance } from '@/utils/pluginHelper';
@@ -239,6 +239,8 @@ export default class MyMCPServer {
                         if (authHeader) {
                             res.status(403).send("Invalid Token. Authentication is required. 鉴权失败");
                         } else {
+                            const baseUrl = `${req.protocol}://${req.get('host')}`;
+                            res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-authorization-server"`);
                             res.status(401).send("Authentication is required. 鉴权失败");
                         }
                         return;
@@ -526,7 +528,18 @@ export default class MyMCPServer {
             return;
         }
         try {
-            Object.values(this.transports).forEach(ts => this.cleanTransport(ts));
+            Object.values(this.transports).forEach(ts => {
+                // Ensure underlying StreamableHTTPServerTransport instances are closed
+                try {
+                    // If the transport is stored directly
+                    (ts as any)?.close?.();
+                    // If the transport is stored under a "transport" property
+                    (ts as any)?.transport?.close?.();
+                } catch (closeErr) {
+                    errorPush("Error closing transport during server stop", closeErr);
+                }
+                this.cleanTransport(ts);
+            });
             if (this.httpServer) {
                 this.httpServer.close();
             }
