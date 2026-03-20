@@ -5,15 +5,15 @@
 
 import { z } from 'zod';
 import { createSuccessResponse } from '../utils/mcpResponse';
-import { appendBlockAPI, prependBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI } from '../syapi';
+import { appendBlockAPI, prependBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI, renameNotebookAPI } from '../syapi';
 import { isADocId } from '../syapi/custom';
 import { McpToolsProvider, createNewDocWithParentId, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
-import { assertApiResult, assertNonEmptyArray } from '../utils/commonCheck';
+import { validateBlockAccess, filterBlock, filterNotebook } from '../utils/resultFilter';
+import { assertApiResult, assertNonEmptyArray, isValidNotebookId } from '../utils/commonCheck';
 
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -125,6 +125,21 @@ export class DocWriteToolProvider extends McpToolsProvider {
           idempotentHint: true,
         },
       }),
+      defineTool({
+        name: 'siyuan_rename_notebook',
+        description: 'Rename an existing notebook in SiYuan.',
+        inputSchema: z.object({
+          notebookId: z.string().describe('The notebook ID to rename'),
+          title: z.string().describe('The new title for the notebook'),
+        }),
+        handler: renameNotebookHandler,
+        title: lang('tool_title_rename_notebook'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      }),
     ];
   }
 }
@@ -220,4 +235,19 @@ async function moveDocsHandler(params: { fromDocs: (DocumentId | string)[]; toNo
 
   assertApiResult(await moveDocsAPI(fromPaths, toNotebook, toPath), 'move the documents');
   return createSuccessResponse(`Moved ${fromDocs.length} documents`);
+}
+
+async function renameNotebookHandler(params: { notebookId: NotebookId; title: string }) {
+  const { notebookId, title } = params;
+  debugPush('Rename notebook API called');
+
+  if (!(await isValidNotebookId(notebookId))) {
+    throw new Error('The provided ID is not a valid notebook ID.');
+  }
+  if (filterNotebook(notebookId)) {
+    throw new Error('The specified notebook is excluded by user settings.');
+  }
+
+  await renameNotebookAPI(notebookId, title);
+  return createSuccessResponse(title);
 }
