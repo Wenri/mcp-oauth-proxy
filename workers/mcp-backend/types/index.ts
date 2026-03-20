@@ -18,6 +18,7 @@ export type SiyuanConfig = {
     id: string;
     os: string;
     kernelVersion: string;
+    workspaceDir?: string;
   };
   editor: {
     markdown: {

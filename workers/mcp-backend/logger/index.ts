@@ -9,6 +9,10 @@ export function logPush(...args: any[]): void {
   console.log('[SiYuan MCP]', ...args);
 }
 
+export function infoPush(...args: any[]): void {
+  console.info('[SiYuan MCP]', ...args);
+}
+
 export function debugPush(...args: any[]): void {
   if (DEBUG) {
     console.debug('[SiYuan MCP Debug]', ...args);

@@ -7,13 +7,13 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
-import type { MCPBackendEnv, Props, AuthContext } from '../../index';
+import type { MCPBackendEnv, Props, AuthContext } from '../../../index';
 import {
   initializeSiyuanMCPServer,
   setDownloadContext,
   logPush,
-} from './server';
-import pkg from '../../package.json' with { type: 'json' };
+} from '.';
+import pkg from '../../../package.json' with { type: 'json' };
 
 /**
  * Extended Props with auth context from auth workers

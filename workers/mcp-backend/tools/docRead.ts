@@ -88,7 +88,7 @@ export class DocReadToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
       defineTool({
-        name: 'siyuan_read_doc_content_markdown',
+        name: 'siyuan_read_doc_content',
         description: 'Retrieve the content of a document or block by its ID or path',
         inputSchema: z.object({
           id: z.string().describe('Block ID (e.g., "20241231120000-abc1234") or hpath (e.g., "/NotebookName/Doc")'),

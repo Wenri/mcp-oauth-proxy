@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { createErrorResponse, createJsonResponse, createSuccessResponse } from '../utils/mcpResponse';
-import { insertBlockOriginAPI, updateBlockAPI, removeBlockAPI, moveBlockAPI, foldBlockAPI, unfoldBlockAPI } from '../syapi';
+import { insertBlockOriginAPI, updateBlockAPI, removeBlockAPI, foldBlockAPI, unfoldBlockAPI, prependBlockAPI, appendBlockAPI } from '../syapi';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
@@ -38,6 +38,54 @@ export class BlockWriteToolProvider extends McpToolsProvider {
         }),
         handler: insertBlockHandler,
         title: lang('tool_title_insert_block'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      }),
+      defineTool({
+        name: 'siyuan_prepend_block',
+        description:
+          'Insert a new block as the first child of a parent container block. Content must be in markdown format.',
+        inputSchema: z.object({
+          data: z.string().describe('The markdown content to insert'),
+          parentID: z
+            .string()
+            .describe('Block ID or document hpath of the parent container (must be a container like document or quote)'),
+        }),
+        outputSchema: z.object({
+          id: z.string().describe('ID of the newly inserted block'),
+          action: z.string().describe('The operation action performed'),
+          data: z.string().describe('The block data/content'),
+          parentID: z.string().optional().describe('ID of the parent block'),
+        }),
+        handler: prependBlockHandler,
+        title: lang('tool_title_prepend_block'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      }),
+      defineTool({
+        name: 'siyuan_append_block',
+        description:
+          'Insert a new block as the last child of a parent container block. Content must be in markdown format.',
+        inputSchema: z.object({
+          data: z.string().describe('The markdown content to insert'),
+          parentID: z
+            .string()
+            .describe('Block ID or document hpath of the parent container (must be a container like document or quote)'),
+        }),
+        outputSchema: z.object({
+          id: z.string().describe('ID of the newly inserted block'),
+          action: z.string().describe('The operation action performed'),
+          data: z.string().describe('The block data/content'),
+          parentID: z.string().optional().describe('ID of the parent block'),
+        }),
+        handler: appendBlockHandler,
+        title: lang('tool_title_append_block'),
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -109,31 +157,6 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           idempotentHint: true,
         },
       }),
-      defineTool({
-        name: 'siyuan_move_block',
-        description:
-          'Move one or more blocks to a new position. Blocks are moved in order, maintaining their relative sequence. Specify either parentID (to move as children) or previousID (to move after a specific block).',
-        inputSchema: z.object({
-          ids: z.array(z.string()).describe('Block ID(s) to move (in desired order)'),
-          parentID: z.string().optional().describe('Block ID or hpath of the new parent container'),
-          previousID: z.string().optional().describe('Block ID after which to place the first moved block'),
-          moveWithSubBlocks: z.boolean().optional().default(false).describe('For heading blocks: fold before moving and unfold after, so sub-blocks move as a unit. Note: existing fold state will be lost.'),
-        }),
-        outputSchema: z.object({
-          moved: z.array(z.string()).describe('Block IDs successfully moved'),
-          failed: z.array(z.object({
-            id: z.string().describe('Block ID that failed'),
-            error: z.string().describe('Error reason'),
-          })).optional().describe('Blocks that failed to move with error details'),
-        }),
-        handler: moveBlocksHandler,
-        title: lang('tool_title_move_block'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      }),
     ];
   }
 }
@@ -198,6 +221,66 @@ async function insertBlockHandler(params: {
   // taskManager.insert(op.id, data, 'insertBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
 
   // Return only the fields defined in outputSchema (data may be object in API response)
+  return createJsonResponse({
+    id: op.id,
+    action: op.action,
+    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
+    parentID: op.parentID || undefined,
+  });
+}
+
+async function prependBlockHandler(params: { data: string; parentID: BlockId }) {
+  const { data, parentID } = params;
+  debugPush('Prepend block API called');
+
+  if (await isValidNotebookId(parentID)) {
+    throw new Error('parentID must be a block ID, not a notebook ID.');
+  }
+
+  const dbItem = await validateBlockAccess(parentID);
+  const resolvedId = dbItem.id;
+
+  if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
+    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
+  }
+
+  const op = assertApiResult(
+    await prependBlockAPI(data, resolvedId),
+    'prepend the block'
+  );
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(op.id, data, 'prependBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
+
+  return createJsonResponse({
+    id: op.id,
+    action: op.action,
+    data: typeof op.data === 'string' ? op.data : JSON.stringify(op.data),
+    parentID: op.parentID || undefined,
+  });
+}
+
+async function appendBlockHandler(params: { data: string; parentID: BlockId }) {
+  const { data, parentID } = params;
+  debugPush('Append block API called');
+
+  if (await isValidNotebookId(parentID)) {
+    throw new Error('parentID must be a block ID, not a notebook ID.');
+  }
+
+  const dbItem = await validateBlockAccess(parentID);
+  const resolvedId = dbItem.id;
+
+  if (isNonContainerBlockType(dbItem.type) && isCurrentVersionLessThan('3.3.3')) {
+    throw new Error('Invalid parentID: Cannot insert a block under a non-container block.');
+  }
+
+  const op = assertApiResult(
+    await appendBlockAPI(data, resolvedId),
+    'append the block'
+  );
+  // Note: taskManager disabled for debugging intermittent "[object Object]" issue
+  // taskManager.insert(op.id, data, 'appendBlock', { parentID: resolvedId }, TASK_STATUS.APPROVED);
+
   return createJsonResponse({
     id: op.id,
     action: op.action,
@@ -289,74 +372,3 @@ async function deleteBlocksHandler(params: { ids: BlockId[] }) {
   return createJsonResponse(result);
 }
 
-async function moveBlocksHandler(params: { ids: BlockId[]; parentID?: BlockId; previousID?: BlockId; moveWithSubBlocks?: boolean }) {
-  const { ids, parentID, previousID, moveWithSubBlocks } = params;
-  debugPush('Move blocks API called', ids.length);
-
-  if (ids.length === 0) {
-    return createJsonResponse({ moved: [] });
-  }
-
-  if (!parentID && !previousID) {
-    throw new Error('Please provide either parentID or previousID to specify the target position.');
-  }
-
-  // Resolve target IDs once
-  let resolvedParentID: BlockId | undefined;
-  let currentPreviousID: BlockId | undefined;
-
-  if (previousID) {
-    const prevDbItem = await validateBlockAccess(previousID);
-    currentPreviousID = prevDbItem.id;
-  }
-  if (parentID && !previousID) {
-    const parentDbItem = await validateBlockAccess(parentID);
-    resolvedParentID = parentDbItem.id;
-  }
-
-  const moved: BlockId[] = [];
-  const failed: { id: BlockId; error: string }[] = [];
-
-  for (const id of ids) {
-    try {
-      const blockDbItem = await validateBlockAccess(id);
-      const resolvedId = blockDbItem.id;
-      const needFold = moveWithSubBlocks && blockDbItem.type === 'h';
-
-      if (needFold) {
-        await foldBlockAPI(resolvedId);
-      }
-      try {
-        assertApiResult(
-          await moveBlockAPI(resolvedId, resolvedParentID, currentPreviousID),
-          'move the block'
-        );
-      } finally {
-        if (needFold) {
-          await unfoldBlockAPI(resolvedId);
-        }
-      }
-
-      // Update previousID to the just-moved block for next iteration
-      // This maintains the order of blocks in the array
-      currentPreviousID = resolvedId;
-      resolvedParentID = undefined; // Only use parentID for first block
-
-      moved.push(id);
-    } catch (e) {
-      failed.push({ id, error: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  const result = {
-    moved,
-    ...(failed.length > 0 && { failed }),
-  };
-
-  if (failed.length > 0) {
-    const errorMsg = `Failed to move ${failed.length} of ${ids.length} blocks`;
-    return createErrorResponse(errorMsg, result);
-  }
-
-  return createJsonResponse(result);
-}

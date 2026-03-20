@@ -29,6 +29,13 @@ export async function isValidNotebookId(id: string): Promise<boolean> {
   return notebook !== null;
 }
 
+/**
+ * Check if a string is a valid auth code (alphanumeric + allowed special chars, min 6 chars).
+ */
+export function isValidAuthCode(str: string): boolean {
+  return /^[A-Za-z0-9+\-\/._~]{6,}$/.test(str);
+}
+
 export function isMobile(): boolean {
   // CF Worker is never mobile
   return false;

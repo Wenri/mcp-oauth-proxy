@@ -6,25 +6,25 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { SiyuanMCPConfig } from '../../index';
-import type { SiyuanConfig } from './types';
-import { getAllToolProviders } from './tools';
-import { getAllResourceProviders, type ResourceContext } from './resources';
-import { logPush, debugPush, errorPush } from './logger';
-import { encryptGrant } from './utils/crypto';
-import { createErrorResponse } from './utils/mcpResponse';
-import { initKernel, cachedPostRequest, normalizePath } from './syapi';
+import type { SiyuanMCPConfig } from '../../../index';
+import type { SiyuanConfig } from '../types';
+import { getAllToolProviders } from '../tools';
+import { getAllResourceProviders, type ResourceContext } from '../resources';
+import { logPush, debugPush, errorPush } from '../logger';
+import { encryptGrant } from '../utils/crypto';
+import { createErrorResponse } from '../utils/mcpResponse';
+import { initKernel, cachedPostRequest, normalizePath } from '../syapi';
 
 // Import prompts from static index
-import { promptCreateCardsCN, promptQueryCN, getPromptTemplateCN } from './static';
+import { promptCreateCardsCN, promptQueryCN, getPromptTemplateCN } from '../static';
 
 // Re-export types for convenience
-export type { SiyuanMCPConfig } from '../../index';
-export type { SiyuanConfig } from './types';
+export type { SiyuanMCPConfig } from '../../../index';
+export type { SiyuanConfig } from '../types';
 
 // Re-export for external use (handlers)
-export { logPush } from './logger';
-export { buildKernelHeaders } from './syapi';
+export { logPush } from '../logger';
+export { buildKernelHeaders } from '../syapi';
 
 // ============================================================================
 // Context - Module-level state (will be refactored to props in future)
@@ -74,7 +74,7 @@ export function getConfig(): SiyuanConfig {
 
 
 // Re-export generateBlockId as generateNodeID for backward compatibility
-export { generateBlockId as generateNodeID } from './syapi/custom';
+export { generateBlockId as generateNodeID } from '../syapi/custom';
 
 /** Get the app ID for dailynote creation */
 export function getAppId(): string {

@@ -45,6 +45,7 @@ describe.skipIf(!serverReachable)('OAuth Discovery', { timeout: 15000 }, () => {
     const metadata = await discoverAuthorizationServerMetadata(authServerUrl, {});
 
     expect(metadata).toBeDefined();
+    if (!metadata) return;
     expect(metadata.issuer).toBe(url.origin);
     expect(metadata.authorization_endpoint).toBeDefined();
     expect(metadata.token_endpoint).toBeDefined();

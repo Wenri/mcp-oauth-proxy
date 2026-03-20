@@ -84,6 +84,24 @@ export class SearchToolProvider extends McpToolsProvider {
           readOnlyHint: true,
         },
       }),
+      // Legacy alias for upstream compatibility: siyuan_search -> siyuan_find_block
+      defineTool({
+        name: 'siyuan_search',
+        description:
+          'Deprecated alias for siyuan_find_block. Perform a keyword-based full-text search across blocks in SiYuan. Use `siyuan_find_block` for the full feature set including scope filtering and hpath support.',
+        inputSchema: z.object({
+          query: z.string().describe('The keyword or phrase to search for across content blocks.'),
+          page: z.number().default(1).describe('The page number of the search results to return (starting from 1).'),
+          method: z.number().default(0).describe('Search method: 0 for keyword search, 1 for query syntax (see `siyuan_query_syntax`), 2 for regular expression matching.'),
+          orderBy: z.number().default(7).describe('Sorting method: 0 block type, 1-2 creation time, 3-4 update time, 5 content order, 6-7 relevance (7=descending).'),
+          groupBy: z.number().default(1).describe('Grouping: 0 no grouping (individual blocks), 1 group by document (default).'),
+        }),
+        handler: searchLegacyHandler,
+        title: lang('tool_title_search'),
+        annotations: {
+          readOnlyHint: true,
+        },
+      }),
       defineTool({
         name: 'siyuan_query_syntax',
         description:
@@ -190,6 +208,32 @@ async function findBlockHandler(params: {
     matchedBlockCount: response?.matchedBlockCount ?? 0,
     matchedRootCount: response?.matchedRootCount ?? 0,
     results,
+  });
+}
+
+/**
+ * Legacy handler for siyuan_search (upstream compatibility alias).
+ * Maps upstream numeric params to findBlockHandler's typed params.
+ */
+async function searchLegacyHandler(params: {
+  query: string;
+  page: number;
+  method: number;
+  orderBy: number;
+  groupBy: number;
+}) {
+  const { query, page, method, orderBy, groupBy } = params;
+  // Map numeric orderBy to our enum: prefer relevance (6/7), else created (1/2) or updated (3/4)
+  let orderByEnum: 'relevance' | 'created' | 'updated' = 'relevance';
+  if (orderBy === 1 || orderBy === 2) orderByEnum = 'created';
+  else if (orderBy === 3 || orderBy === 4) orderByEnum = 'updated';
+
+  return findBlockHandler({
+    query,
+    page,
+    fuzzy: method === 0, // 0 = keyword (fuzzy), 1 = query syntax, 2 = regex (fallback to keyword)
+    grouped: groupBy !== 0,
+    orderBy: orderByEnum,
   });
 }
 

@@ -5,38 +5,21 @@
 
 import { z } from 'zod';
 import { createSuccessResponse } from '../utils/mcpResponse';
-import { appendBlockAPI, prependBlockAPI, renameDocAPI, removeDocAPI, moveDocsAPI, renameNotebookAPI } from '../syapi';
+import { appendBlockAPI, renameDocAPI, removeDocAPI, renameNotebookAPI } from '../syapi';
 import { isADocId } from '../syapi/custom';
-import { McpToolsProvider, createNewDocWithParentId, defineTool } from './baseToolProvider';
+import { McpToolsProvider, defineTool } from './baseToolProvider';
+import { createNewDocWithParentId } from './sharedFunction';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
 // DISABLED: taskManager causes race conditions in CF Workers
 // import { TASK_STATUS, taskManager } from '../utils/historyTaskHelper';
-import { validateBlockAccess, filterBlock, filterNotebook } from '../utils/resultFilter';
-import { assertApiResult, assertNonEmptyArray, isValidNotebookId } from '../utils/commonCheck';
+import { validateBlockAccess } from '../utils/resultFilter';
+import { filterBlock, filterNotebook } from '../utils/filterCheck';
+import { assertApiResult, isValidNotebookId } from '../utils/commonCheck';
 
 export class DocWriteToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
     return [
-      defineTool({
-        name: 'siyuan_prepend_markdown_to_doc',
-        description: 'Prepend Markdown content to the beginning of a document in SiYuan.',
-        inputSchema: z.object({
-          id: z
-            .string()
-            .describe('Document ID or hpath (e.g., "/NotebookName/Doc")'),
-          markdownContent: z
-            .string()
-            .describe('The Markdown-formatted text to prepend to the beginning of the specified document.'),
-        }),
-        handler: prependMarkdownToDocHandler,
-        title: lang('tool_title_prepend_markdown_to_doc'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      }),
       defineTool({
         name: 'siyuan_append_markdown_to_doc',
         description: 'Append Markdown content to the end of a document in SiYuan.',
@@ -57,6 +40,28 @@ export class DocWriteToolProvider extends McpToolsProvider {
         },
       }),
       defineTool({
+        name: 'siyuan_create_note_with_md',
+        description:
+          'Create a new note under a parent document in SiYuan with a specified title and Markdown content.',
+        inputSchema: z.object({
+          parentId: z
+            .string()
+            .describe(
+              'Parent document/notebook ID or hpath (e.g., "/NotebookName" or "/NotebookName/ParentDoc")'
+            ),
+          title: z.string().describe('The title of the new note to be created.'),
+          markdownContent: z.string().describe('The Markdown content of the new note.'),
+        }),
+        handler: createNewNoteUnder,
+        title: lang('tool_title_create_new_note_with_markdown_content'),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      }),
+      defineTool({
+        // Backward-compatible alias for existing MCP clients using the old tool name.
         name: 'siyuan_create_new_note_with_markdown_content',
         description:
           'Create a new note under a parent document in SiYuan with a specified title and Markdown content.',
@@ -107,25 +112,6 @@ export class DocWriteToolProvider extends McpToolsProvider {
         },
       }),
       defineTool({
-        name: 'siyuan_move_docs',
-        description:
-          'Move one or more documents to a new location. Accepts either document IDs or full paths (notebook/path format).',
-        inputSchema: z.object({
-          fromDocs: z
-            .array(z.string())
-            .describe('Array of document IDs or full paths (e.g., "20210808180117-abc" or "notebook123/path/to/doc.sy")'),
-          toNotebook: z.string().describe('Target notebook ID'),
-          toPath: z.string().describe('Target path within the notebook (e.g., "/" for root, or "/Parent Doc" for subdoc)'),
-        }),
-        handler: moveDocsHandler,
-        title: lang('tool_title_move_docs'),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: true,
-        },
-      }),
-      defineTool({
         name: 'siyuan_rename_notebook',
         description: 'Rename an existing notebook in SiYuan.',
         inputSchema: z.object({
@@ -142,19 +128,6 @@ export class DocWriteToolProvider extends McpToolsProvider {
       }),
     ];
   }
-}
-
-async function prependMarkdownToDocHandler(params: { id: DocumentId; markdownContent: string }) {
-  const { id, markdownContent } = params;
-  debugPush('Prepend to document API called');
-
-  if (!(await isADocId(id))) {
-    throw new Error("Failed to prepend to document: The provided ID is not a document ID.");
-  }
-  await validateBlockAccess(id, true);
-
-  const result = assertApiResult(await prependBlockAPI(markdownContent, id), 'prepend to the document');
-  return createSuccessResponse(result.id);
 }
 
 async function appendBlockHandler(params: { id: DocumentId; markdownContent: string }) {
@@ -216,26 +189,6 @@ async function removeDocHandler(params: { id: DocumentId }) {
   return createSuccessResponse('Document removed');
 }
 
-async function moveDocsHandler(params: { fromDocs: (DocumentId | string)[]; toNotebook: NotebookId; toPath: string }) {
-  const { fromDocs, toNotebook, toPath } = params;
-  debugPush('Move documents API called');
-
-  assertNonEmptyArray(fromDocs, 'document ID or path to move');
-
-  // Process each entry - could be an ID or a full path
-  const fromPaths: string[] = [];
-  for (const doc of fromDocs) {
-    if (doc.includes('/')) {
-      fromPaths.push(doc);
-    } else {
-      const docInfo = await validateBlockAccess(doc, true);
-      fromPaths.push(`${docInfo.box}${docInfo.path}`);
-    }
-  }
-
-  assertApiResult(await moveDocsAPI(fromPaths, toNotebook, toPath), 'move the documents');
-  return createSuccessResponse(`Moved ${fromDocs.length} documents`);
-}
 
 async function renameNotebookHandler(params: { notebookId: NotebookId; title: string }) {
   const { notebookId, title } = params;

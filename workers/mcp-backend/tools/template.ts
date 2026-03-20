@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createArrayResponse, createJsonResponse } from '../utils/mcpResponse';
 import { searchTemplateAPI, renderTemplateAPI, renderSprigAPI, insertBlockOriginAPI, getFileAPIv2, putFileAPI, removeFileAPI } from '../syapi';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
@@ -83,6 +83,21 @@ export class TemplateToolProvider extends McpToolsProvider {
         annotations: {
           readOnlyHint: false,
           destructiveHint: true,
+        },
+      }),
+      defineTool({
+        name: 'siyuan_preview_rendered_template',
+        description: 'Generate the rendered DOM of a template without modifying the document. Use this to check the output or get the content for further processing before any insertion.',
+        inputSchema: z.object({
+          id: z.string().describe('Document ID or hpath (e.g., "/NotebookName/Doc") to provide data context for rendering.'),
+          name: z.string().describe('The name of the template file to preview.'),
+        }),
+        handler: previewRenderedTemplateHandler,
+        title: lang('tool_title_preview_rendered_template'),
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: false,
         },
       }),
       defineTool({
@@ -250,4 +265,24 @@ async function renderSprigHandler(params: { sprigTemplate: string }) {
 
   const result = await renderSprigAPI(sprigTemplate);
   return createSuccessResponse(result);
+}
+
+async function previewRenderedTemplateHandler(params: { id: DocumentId; name: string }) {
+  const { id, name } = params;
+  debugPush('Preview rendered template called:', id, name);
+
+  const docInfo = await validateBlockAccess(id, true);
+
+  const validationResult = validateTemplateName(name);
+  if (!validationResult.isValid) {
+    throw new Error(`Invalid template name: ${validationResult.reason}`);
+  }
+
+  const templateItem = await getTemplateItemByName(name);
+  if (!templateItem) {
+    throw new Error(`Template not found: ${name}`);
+  }
+
+  const renderedDom = await renderTemplateAPI(docInfo.id, templateItem.path);
+  return createJsonResponse({ renderedDom });
 }

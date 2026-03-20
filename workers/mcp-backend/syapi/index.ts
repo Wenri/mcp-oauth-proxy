@@ -54,7 +54,7 @@ export async function listDocsByPathT({
   if (maxListCount !== undefined && maxListCount >= 0) {
     body.maxListCount = maxListCount;
   }
-  if (sort !== undefined && sort !== DOC_SORT_TYPES.FOLLOW_DOC_TREE) {
+  if (sort !== undefined && sort !== DOC_SORT_TYPES.FOLLOW_DOC_TREE && sort !== DOC_SORT_TYPES.UNASSIGNED) {
     body.sort = sort;
   }
   if (ignore !== undefined) {
@@ -443,6 +443,11 @@ export async function fullTextSearchBlock({
   types?: BlockTypeFilter;
 }): Promise<FullTextSearchResult> {
   const url = '/api/search/fullTextSearchBlock';
+  // orderBy=5 (by relevance) is only valid when groupBy != 0 (not flat)
+  if (groupBy === 0 && orderBy === 5) {
+    orderBy = 0;
+    warnPush('orderBy value invalid for flat groupBy, reset to 0');
+  }
   // Cache key excludes reqId (timestamp) since it changes every request
   // Expand types into cache params (no key conflicts - verified by _AssertNoOverlap)
   const cacheParams = { query, method, page, paths, groupBy, orderBy, ...types };
@@ -1019,3 +1024,81 @@ export const DEFAULT_FILTER = {
   videoBlock: false,
   widgetBlock: false,
 };
+
+// ===== Utility helpers =====
+
+/** Check API response code. Returns 0 on success, -1 on failure. */
+export async function checkResponse(response: { code: number }): Promise<0 | -1> {
+  return response.code === 0 ? 0 : -1;
+}
+
+// ===== Additional File APIs =====
+
+/** Create a directory in the workspace */
+export async function createFolder(path: string): Promise<{ code: number; msg?: string }> {
+  const url = '/api/file/putFile';
+  const formData = new FormData();
+  formData.append('path', path);
+  formData.append('isDir', 'true');
+  const response = await kernelFetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  });
+  return response.json();
+}
+
+/** Get raw file content from workspace. Returns text string, or null if 404. */
+export async function getFileAPI(path: string): Promise<string | null> {
+  const url = '/api/file/getFile';
+  const response = await kernelFetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+  const text = await response.text();
+  try {
+    const json = JSON.parse(text) as { code?: number };
+    if (json.code === 404) {
+      return null;
+    }
+  } catch {
+    // Not JSON - return raw text
+  }
+  return text;
+}
+
+// ===== Block breadcrumb =====
+
+/** Get block breadcrumb path (non-standard API) */
+export async function getBlockBreadcrumb(
+  blockId: BlockId,
+  excludeTypes: string[] = []
+): Promise<unknown> {
+  const url = '/api/block/getBlockBreadcrumb';
+  return getResponseData(postRequest({ id: blockId, excludeTypes }, url));
+}
+
+// ===== HPath alias =====
+
+/** Get human-readable path by document ID (alias for getHPathByIDAPI) */
+export async function getHPathById(docId: DocumentId): Promise<string | undefined> {
+  const url = '/api/filetree/getHPathByID';
+  return getResponseData(cachedPostRequest({ id: docId }, url)) as Promise<string | undefined>;
+}
+
+// ===== Alternative move docs interface =====
+
+/** Move documents to a new location (alternative interface: toPath before toNotebook) */
+export async function moveDocs(
+  fromPaths: string[],
+  toPath: string,
+  toNotebook: NotebookId
+): Promise<boolean> {
+  const url = '/api/filetree/moveDocs';
+  const response = await writePostRequest({ fromPaths, toNotebook, toPath }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  warnPush('Move docs failed:', response);
+  return false;
+}

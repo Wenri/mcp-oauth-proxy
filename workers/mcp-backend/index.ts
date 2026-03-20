@@ -9,7 +9,7 @@
  */
 
 import type { MCPBackendEnv } from '../../index';
-import { SiyuanMCP, extractAuthContext, buildMCPProps } from './agent';
+import { SiyuanMCP, extractAuthContext, buildMCPProps } from './server/agent';
 
 // Re-export for wrangler DO binding
 export { SiyuanMCP };

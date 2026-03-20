@@ -2,6 +2,48 @@ import type { z } from "zod";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 declare global {
+    type McpTextContent = {
+        [x: string]: unknown;
+        type: "text";
+        text: string;
+    };
+
+    type McpImageContent = {
+        [x: string]: unknown;
+        type: "image";
+        data: string;
+        mimeType: string;
+    };
+
+    type McpResourceContent = {
+        [x: string]: unknown;
+        type: "resource";
+        resource: {
+            [x: string]: unknown;
+            text: string;
+            uri: string;
+            mimeType?: string;
+        } | {
+            [x: string]: unknown;
+            uri: string;
+            blob: string;
+            mimeType?: string;
+        };
+    };
+
+    type McpContent = McpTextContent | McpImageContent | McpResourceContent;
+
+    /**
+     * Standard MCP response format
+     * Must match the MCP SDK expected format
+     */
+    interface McpResponse {
+        [x: string]: unknown;
+        content: McpContent[];
+        isError?: boolean;
+        _meta?: Record<string, unknown>;
+    }
+
     /**
      * Tool definition for SiYuan MCP tools
      * Matches the SDK's registerTool API structure
@@ -59,4 +101,3 @@ declare global {
         TOutput extends z.ZodType = z.ZodType
     >(tool: McpTool<TInput, TOutput>): McpTool<TInput, TOutput>;
 }
-

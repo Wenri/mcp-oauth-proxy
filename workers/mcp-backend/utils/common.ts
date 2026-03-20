@@ -39,9 +39,16 @@ export function parseDateString(dateString: string): Date | null {
 }
 
 /**
- * Generate a UUID
+ * Generate a UUID, preferring the native crypto.randomUUID() when available
  */
 export function generateUUID(): string {
+  return crypto?.randomUUID?.() ?? generateUUIDFallback();
+}
+
+/**
+ * Pure-JS UUID v4 fallback (used when crypto.randomUUID is unavailable)
+ */
+export function generateUUIDFallback(): string {
   let uuid = '';
   let random = 0;
 
@@ -105,4 +112,16 @@ export async function blobToBase64Object(blob: Blob): Promise<{
     data: base64Data,
     mimeType: mimeType,
   };
+}
+
+/**
+ * Return a formatted time string as 'HH-MM-SS' for the current local time
+ */
+export function getFormattedTimestr(): string {
+  const now = new Date();
+  const pad = (num: number) => String(num).padStart(2, '0');
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  return `${hh}-${mm}-${ss}`;
 }

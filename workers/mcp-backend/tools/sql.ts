@@ -4,13 +4,14 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createArrayResponse, createErrorResponse } from '../utils/mcpResponse';
 import { queryAPI } from '../syapi';
 import { debugPush } from '../logger';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { lang } from '../utils/lang';
 import { cachedQuery, escapeSqlString } from '../syapi/custom';
 import { getDatabaseSchema, getSqlCheatsheet } from '../static';
+import { isSelectQuery } from '../utils/commonCheck';
 
 export class SqlToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -39,7 +40,7 @@ export class SqlToolProvider extends McpToolsProvider {
       }),
       defineTool({
         name: 'siyuan_query_sql',
-        description: `Execute SQL queries on SiYuan's SQLite database (read-only). Supports advanced features:
+        description: `Execute SQL queries on SiYuan's SQLite database (read-only). This tool is also used when you need to search notes content. Always use the 'siyuan_database_schema' tool to understand the database schema, including table names, field names, and relationships, before writing your query. Supports advanced features:
 
 **Full-Text Search (FTS5)**: Use \`blocks_fts_case_insensitive\` for fast text search with BM25 ranking.
 **REGEXP**: Pattern matching with \`WHERE content REGEXP 'pattern'\`.
@@ -110,7 +111,16 @@ async function sqlHandler(params: { stmt: string }) {
   const { stmt } = params;
   debugPush('SQL API called', stmt);
 
-  const sqlResult = await queryAPI(stmt);
+  if (!isSelectQuery(stmt)) {
+    return createErrorResponse('Only SELECT statements are allowed');
+  }
+
+  let sqlResult;
+  try {
+    sqlResult = await queryAPI(stmt);
+  } catch (error) {
+    return createErrorResponse(error instanceof Error ? error.message : String(error));
+  }
   debugPush('SQL result', sqlResult);
 
   // Return raw SQL results without per-row filtering

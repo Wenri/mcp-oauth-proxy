@@ -2,7 +2,8 @@
  * Tools index - exports all tool providers
  */
 
-export { McpToolsProvider, createNewDoc, createNewDocWithParentId, defineTool } from './baseToolProvider';
+export { McpToolsProvider, createNewDoc, defineTool } from './baseToolProvider';
+export { createNewDocWithParentId } from './sharedFunction';
 export { DocReadToolProvider } from './docRead';
 export { DocWriteToolProvider } from './docWrite';
 export { BlockWriteToolProvider } from './blockWrite';
@@ -16,8 +17,10 @@ export { RelationToolProvider } from './relation';
 export { AssetToolProvider } from './assets';
 export { FileSystemToolProvider } from './filesystem';
 export { UtilityToolProvider } from './utility';
+export { TimeToolProvider } from './time';
 export { TemplateToolProvider } from './template';
 export { HelpDocToolProvider } from './helpDoc';
+export { MoveBlockToolProvider } from './move';
 
 import { McpToolsProvider } from './baseToolProvider';
 import { DocReadToolProvider } from './docRead';
@@ -33,8 +36,10 @@ import { RelationToolProvider } from './relation';
 import { AssetToolProvider } from './assets';
 import { FileSystemToolProvider } from './filesystem';
 import { UtilityToolProvider } from './utility';
+import { TimeToolProvider } from './time';
 import { TemplateToolProvider } from './template';
 import { HelpDocToolProvider } from './helpDoc';
+import { MoveBlockToolProvider } from './move';
 
 /** Tool category with name and provider */
 interface ToolCategory {
@@ -58,6 +63,8 @@ export function getAllToolCategories(): ToolCategory[] {
     { name: 'Assets', provider: new AssetToolProvider() },
     { name: 'File System', provider: new FileSystemToolProvider() },
     { name: 'Utilities', provider: new UtilityToolProvider() },
+    { name: 'Time', provider: new TimeToolProvider() },
+    { name: 'Move', provider: new MoveBlockToolProvider() },
     { name: 'Templates', provider: new TemplateToolProvider() },
     { name: 'Help Documentation', provider: new HelpDocToolProvider() },
   ];

@@ -3,9 +3,9 @@
  */
 
 import { z } from 'zod';
-import { createJsonResponse } from '../utils/mcpResponse';
+import { createErrorResponse, createJsonResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
-import { debugPush, logPush } from '../logger';
+import { debugPush, errorPush, logPush } from '../logger';
 import { lang } from '../utils/lang';
 import { getConfig } from '../server';
 
@@ -126,14 +126,24 @@ async function answerWithRAG(
 
   const maxDuration = 120 * 1000; // 120 seconds
 
-  const resultPromise = provider.query(question);
-  const result = await Promise.race([
-    resultPromise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('RAG query timeout (120s)')), maxDuration)
-    ),
-  ]);
+  try {
+    const resultPromise = provider.query(question);
+    const result = await Promise.race([
+      resultPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('RAG query timeout (120s)')), maxDuration)
+      ),
+    ]);
 
-  logPush('RAG result', result);
-  return createJsonResponse({ answer: result });
+    logPush('RAG result', result);
+    return createJsonResponse({ answer: result });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    errorPush('RAG API error', error);
+    return createErrorResponse(
+      'The tool call failed. ' +
+        (error.message ||
+          'There was a problem with the connection to the RAG service. Please remind the user to troubleshoot the problem.')
+    );
+  }
 }

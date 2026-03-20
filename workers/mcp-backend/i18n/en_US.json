@@ -9,6 +9,8 @@
   "code_warning": "Invalid access authorization code. Please set it according to the format requirements.",
   "code_encrypted": "Auth code has been set.",
 
+  "setting_address": "Address",
+  "setting_address_desp": "The address to which the MCP service binds, default is 127.0.0.1",
   "setting_port": "Port",
   "setting_port_desp": "The port used by the MCP service. After modification, you need to save the settings before starting the service. Fill in the application with: http://127.0.0.1:[port_number]/mcp",
   "setting_autoStart": "Auto Start",
@@ -41,6 +43,8 @@
   "setting_status_close": "❌ Stopped",
   "setting_status_refresh": "Refresh Status",
   "setting_status_desp": "Displays the current status of the MCP server, including connection count and running state.",
+  "setting_allowedHosts": "Allowed Hosts",
+  "setting_allowedHosts_desp": "For security reasons, the plugin will validate the 'Host' of incoming requests. If you allow access from non-local devices (listening on 0.0.0.0), please list the allowed IPs or domains here (one per line). If not set, you may encounter an \"Invalid Host\" error when accessing via a local network IP. ",
   "setting_copyright": "About",
   "setting_copyright_desp": "Translator: GPT 4o-mini & OpaqueGlass;<br>Developer: <a target='_blank' href='https://github.com/OpaqueGlass'>OpaqueGlass</a>；<br/>Feedback & sponsor: <a target='_blank' href='https://github.com/OpaqueGlass/syplugin-anMCPServer'>github</a>;<br/>Released under <a target='_blank' href='https://www.gnu.org/licenses/agpl-3.0.html'>AGPLv3</a> license;<br/>Read 'README' file before using it.",
   "setting_readOnly_allow_all": "Allow all modifications",
@@ -69,8 +73,11 @@
   "tool_title_generate_answer_with_doc": "Generate Answer with Document (RAG)",
   "prompt_sql": "System prompt for sql query (zh-CN)",
   "prompt_flashcards": "System prompt for creating flashcards (zh-CN)",
+  "prompt_template": "System prompt for template creation (zh-CN)",
   "tool_title_get_block_kramdown": "Get Block Kramdown",
   "tool_title_insert_block": "Insert Block",
+  "tool_title_prepend_block": "Prepend Block",
+  "tool_title_append_block": "Append Block",
   "tool_title_prepend_markdown_to_doc": "Prepend Markdown to Doc",
   "tool_title_update_block": "Update Block",
   "tool_title_delete_block": "Delete Block",
@@ -102,11 +109,11 @@
   "tool_title_render_template": "Apply Template to Document",
   "tool_title_get_raw_template": "Get Template Source",
   "tool_title_remove_template": "Remove Template",
+  "tool_title_preview_rendered_template": "Preview Template Result",
   "tool_title_render_sprig_template": "Render Sprig Template",
   "tool_title_rename_notebook": "Rename Notebook",
   "tool_title_markdown_syntax_help": "SiYuan Markdown Syntax Help",
   "tool_title_template_function_help": "Template Function Reference",
-  "prompt_template": "System prompt for template creation (zh-CN)",
   "shortcut_history": "history",
   "message_id_not_exist": "The corresponding block does not exist and may have been deleted.",
 
@@ -156,6 +163,8 @@
 
   "tab_title_history": "MCP Update Operation History",
   "dialog_panel_plugin_name": "plugin: anMCPServer",
+  "msg_auth_code_please": "Please set an authentication code (authCode/token) for security reasons",
+  "msg_save_and_restarting": "Settings saved, MCP service is restarting...",
 
   "lang": "EN"
 }

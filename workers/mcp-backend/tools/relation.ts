@@ -1,6 +1,5 @@
 /**
  * Relation tools for document/block relationships
- * Unchanged from upstream - no browser dependencies
  */
 
 import { z } from 'zod';
@@ -9,7 +8,8 @@ import { getBackLink2T, getChildBlocks, getNodebookList, listDocsByPathT } from 
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
 import { getDocDBitem, resolveIdOrHPath } from '../syapi/custom';
-import { validateBlockAccess, filterBlock } from '../utils/resultFilter';
+import { validateBlockAccess } from '../utils/resultFilter';
+import { filterBlock } from '../utils/filterCheck';
 
 export class RelationToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {

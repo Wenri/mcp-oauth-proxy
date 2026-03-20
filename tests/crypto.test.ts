@@ -16,15 +16,6 @@ import {
   deriveMask,
 } from '../workers/mcp-backend/utils/crypto';
 
-// Extended chars in GSM take 2 septets
-const GSM_EXTENDED = new Set(['[', ']', '{', '}', '~', '\\', '^', '€', '|']);
-function countSeptets(str: string): number {
-  let count = 0;
-  for (const char of str) {
-    count += GSM_EXTENDED.has(char) ? 2 : 1;
-  }
-  return count;
-}
 
 describe('pack7bit / unpack7bit', () => {
   const testStrings = [
@@ -40,7 +31,6 @@ describe('pack7bit / unpack7bit', () => {
 
   it.each(testStrings)('roundtrips "%s"', (str) => {
     const packed = pack7bit(str);
-    const septets = countSeptets(str);
     const maxSeptets = Math.floor((packed.length * 8) / 7);
     const unpacked = unpack7bit(packed, maxSeptets);
     expect(unpacked).toBe(str);

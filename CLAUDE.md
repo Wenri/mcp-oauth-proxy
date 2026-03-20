@@ -188,7 +188,7 @@ Document tools accept both block IDs and human-readable paths (hpath):
 ```
 
 **Document tools (support hpath):**
-- `siyuan_read_doc_content_markdown`, `siyuan_get_block_kramdown`
+- `siyuan_read_doc_content`, `siyuan_get_block_kramdown`
 - `siyuan_get_hpath`, `siyuan_get_doc_outline`, `siyuan_export_html`
 - `siyuan_append_markdown_to_doc`, `siyuan_create_new_note_with_markdown_content`
 - `siyuan_rename_doc`, `siyuan_remove_doc`
@@ -207,7 +207,7 @@ Document tools accept both block IDs and human-readable paths (hpath):
 When using hpath, the response includes the resolved block ID for subsequent operations:
 ```typescript
 // Request with hpath
-siyuan_read_doc_content_markdown({ id: "/MyNotes/Projects/Todo" })
+siyuan_read_doc_content({ id: "/MyNotes/Projects/Todo" })
 
 // Response includes resolved ID
 { id: "20241231120000-abc1234", content: "...", offset: 0, hasMore: false, totalLength: 500 }

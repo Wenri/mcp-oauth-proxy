@@ -4,28 +4,13 @@
 
 import { isValidStr } from './commonCheck';
 import { getBlockDBItem, getDocDBitem, resolveIdOrHPath, isValidIdFormat } from '../syapi/custom';
-import { getConfig } from '../server';
 import { logPush } from '../logger';
+import { filterBlock } from './filterCheck';
+
 
 // ============================================================================
-// Block/Document Filter Utilities
+// Block/Document Access Validation
 // ============================================================================
-
-/** Parse newline-separated filter IDs */
-function parseFilterIds(filterString: string): string[] {
-  return filterString
-    .split('\n')
-    .map((id: string) => id.trim())
-    .filter((id: string) => id);
-}
-
-function getFilterSettings() {
-  const config = getConfig();
-  return {
-    filterNotebooks: config.filterNotebooks || '',
-    filterDocuments: config.filterDocuments || '',
-  };
-}
 
 /**
  * Validate block/doc access: checks ID format, existence, and filter settings.
@@ -65,46 +50,8 @@ export async function validateBlockAccess(
     throw new Error('The specified block is excluded by user settings.');
   }
 
+  logPush('Block access validated for', id);
   return dbItem;
-}
-
-export async function filterBlock(blockId: BlockId, dbItem: Block | null): Promise<boolean> {
-  const settings = getFilterSettings();
-  const filterNotebooks = parseFilterIds(settings.filterNotebooks);
-  const filterDocuments = parseFilterIds(settings.filterDocuments);
-
-  if (!dbItem) {
-    dbItem = await getBlockDBItem(blockId);
-  }
-  logPush('Checking filter for', dbItem?.id);
-
-  if (dbItem) {
-    const notebookId = dbItem.box;
-    const path = dbItem.path;
-
-    if (filterNotebooks.length && filterNotebooks.includes(notebookId)) {
-      return true;
-    }
-    if (filterDocuments.length) {
-      for (const docId of filterDocuments) {
-        if (notebookId === docId || path.includes(docId) || dbItem.id === docId) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-export function filterNotebook(notebookId: NotebookId): boolean {
-  const settings = getFilterSettings();
-  const filterNotebooks = parseFilterIds(settings.filterNotebooks);
-
-  logPush('Checking notebook filter', filterNotebooks);
-  if (filterNotebooks.length && filterNotebooks.includes(notebookId)) {
-    return true;
-  }
-  return false;
 }
 
 // ============================================================================
@@ -163,4 +110,19 @@ export function filterSearchBlocksResult(inputDataList: any[]) {
             alias: item['alias'],
         };
     });
+}
+
+export function formatSearchResult(responseObj: any, requestObj: FullTextSearchQuery): string {
+    const pageDesp = `This is page ${requestObj['page'] ?? '1'} of a paginated API response.
+${responseObj['matchedRootCount']} documents and ${responseObj['matchedBlockCount']} content blocks matched the search, across ${responseObj['pageCount']} total pages.`;
+    let data = null;
+    const anyResult = responseObj['blocks'] == null || responseObj['blocks'].length == 0 ? null : responseObj['blocks'][0];
+    if (requestObj.groupBy == 1 || anyResult?.children) {
+        data = filterGroupSearchBlocksResult(responseObj['blocks']);
+    } else {
+        data = filterSearchBlocksResult(responseObj['blocks']);
+    }
+    return `${pageDesp}
+Search Result:
+${JSON.stringify(data)}`;
 }
