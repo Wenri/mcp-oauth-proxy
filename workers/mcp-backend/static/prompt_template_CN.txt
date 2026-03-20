@@ -59,7 +59,7 @@ Go 的格式化使用固定时间点：`2006-01-02 15:04:05`。
 1.  **需求分析**：判断哪些内容需要固定（用 `.action`），哪些需要实时更新（用 `{{ }}`）。
 2.  **生成模板**：按照语法规范生成代码。
 3.  **保存模板**：使用 `siyuan_create_template` 工具。
-4.  **预览验证**：选择笔记，使用 `siyuan_preview_rendered_template` 检查渲染后的 SQL 语句和文本是否正确。
+4.  **预览验证**：选择测试笔记，使用 `siyuan_render_template` 应用模板后，检查渲染后的 SQL 语句和文本是否正确。
 5.  **更新优化**：如有错误，使用 `siyuan_create_template` 覆盖更新。
 6.  **应用模板**：获得许可后，使用 `siyuan_render_template` 应用到指定文档。
 
