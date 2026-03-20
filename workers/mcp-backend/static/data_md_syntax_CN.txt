@@ -2,7 +2,7 @@
 
 SQL 嵌入块是思源笔记的一项进阶自动化功能。它允许你在文档中直接嵌入 SQL 查询语句，系统会在打开或刷新笔记时实时执行并展示最新的搜索结果。
 
-在 Markdown 中使用双大括号`{{ }}`包裹**一行SQL语句**，SQl语句应当返回`blocks`表的全部字段，即，以`SELECT * FROM blocks`开头的SQL语句。
+在 Markdown 中使用双大括号`{{ }}`包裹**一行SQL语句**，SQL语句应当返回`blocks`表的全部字段，即，以`SELECT * FROM blocks`开头的SQL语句。
 
 ### 示例
 
