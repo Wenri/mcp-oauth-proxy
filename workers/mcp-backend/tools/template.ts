@@ -183,13 +183,18 @@ async function renderTemplateHandler(params: { id: DocumentId; name: string }) {
   }
 
   const renderedDom = await renderTemplateAPI(docInfo.id, templateItem.path);
-  const insertResult = await insertBlockOriginAPI({
+  const transactions = await insertBlockOriginAPI({
     data: renderedDom,
     dataType: 'dom',
     parentID: docInfo.id,
   });
 
-  return createSuccessResponse(insertResult.id);
+  const insertedId = transactions?.[0]?.doOperations?.[0]?.id;
+  if (!insertedId) {
+    throw new Error('Failed to determine inserted block ID from insertBlockOriginAPI result');
+  }
+
+  return createSuccessResponse(insertedId);
 }
 
 async function getRawTemplateHandler(params: { name: string }) {
