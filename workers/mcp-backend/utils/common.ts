@@ -79,7 +79,8 @@ export function base64ToBlob(base64: string, mimeType: string = 'application/oct
  * Build the workspace path for a template file
  */
 export function wrapTemplateFilePath(templateName: string): string {
-  return '/data/templates/' + templateName + '.md';
+  const normalizedName = templateName.replace(/\.md$/i, '');
+  return '/data/templates/' + normalizedName + '.md';
 }
 
 /**
