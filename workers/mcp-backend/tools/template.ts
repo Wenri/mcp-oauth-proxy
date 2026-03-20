@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponse, createArrayResponse, createErrorResponse } from '../utils/mcpResponse';
+import { createSuccessResponse, createArrayResponse } from '../utils/mcpResponse';
 import { searchTemplateAPI, renderTemplateAPI, renderSprigAPI, insertBlockOriginAPI, getFileAPIv2, putFileAPI, removeFileAPI } from '../syapi';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { debugPush } from '../logger';
