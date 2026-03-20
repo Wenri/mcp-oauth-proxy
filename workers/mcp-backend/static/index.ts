@@ -10,6 +10,10 @@ import sqlCheatsheetContent from './siyuan-sql-cheatsheet.txt';
 import querySyntaxContent from './query_syntax.txt';
 import promptCreateCardsCNContent from './prompt_create_cards_system_CN.txt';
 import promptQueryCNContent from './prompt_dynamic_query_system_CN.txt';
+import mdSyntaxCNContent from './data_md_syntax_CN.txt';
+import superblockCNContent from './data_superblock_CN.txt';
+import templateActionCNContent from './data_template_action_CN.txt';
+import promptTemplateCNContent from './prompt_template_CN.txt';
 import { generateAllToolSignatures, generateAllToolTypes } from '../tools';
 
 // Getter functions for static content (defers access to runtime)
@@ -18,6 +22,10 @@ export const getSqlCheatsheet = () => sqlCheatsheetContent;
 export const getQuerySyntax = () => querySyntaxContent;
 export const getPromptCreateCardsCN = () => promptCreateCardsCNContent;
 export const getPromptQueryCN = () => promptQueryCNContent;
+export const getMdSyntaxCN = () => mdSyntaxCNContent;
+export const getSuperblockCN = () => superblockCNContent;
+export const getTemplateActionCN = () => templateActionCNContent;
+export const getPromptTemplateCN = () => promptTemplateCNContent;
 
 // Legacy named exports for prompts (used by siyuan-mcp/index.ts)
 export const promptCreateCardsCN = promptCreateCardsCNContent;
@@ -34,6 +42,9 @@ const staticFiles: Record<string, () => string> = {
   'query-syntax': getQuerySyntax,
   'prompt-create-cards-cn': getPromptCreateCardsCN,
   'prompt-query-cn': getPromptQueryCN,
+  'md-syntax-cn': getMdSyntaxCN,
+  'superblock-cn': getSuperblockCN,
+  'template-actions-cn': getTemplateActionCN,
 };
 
 /** Dynamic content registry */

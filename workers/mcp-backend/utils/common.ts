@@ -76,6 +76,14 @@ export function base64ToBlob(base64: string, mimeType: string = 'application/oct
 }
 
 /**
+ * Build the workspace path for a template file
+ */
+export function wrapTemplateFilePath(templateName: string): string {
+  const normalizedName = templateName.replace(/\.md$/i, '');
+  return '/data/templates/' + normalizedName + '.md';
+}
+
+/**
  * Convert blob to base64 object (works in both browser and CF Worker)
  */
 export async function blobToBase64Object(blob: Blob): Promise<{

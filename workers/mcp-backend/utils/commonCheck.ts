@@ -120,6 +120,55 @@ export function isCurrentVersionLessThan(version: string): boolean {
 }
 
 // ============================================================================
+// Block Type Utilities
+// ============================================================================
+
+/** Container block types that can hold children */
+const CONTAINER_BLOCK_TYPES = ['d', 'l', 'i', 'callout', 'b', 's'] as const;
+
+/** Check if block type is a container (can hold children) */
+export function isContainerBlockType(type: string): boolean {
+  return (CONTAINER_BLOCK_TYPES as readonly string[]).includes(type);
+}
+
+// ============================================================================
+// Path Validation
+// ============================================================================
+
+/** Validate file path for traversal/injection attacks */
+export function validatePath(path: string): { isValid: boolean; reason?: string } {
+  if (!path || typeof path !== 'string' || path.trim() === '') {
+    return { isValid: false, reason: 'Path cannot be empty' };
+  }
+
+  // Reject directory traversal (..)
+  const traversalPattern = /(^|[\\\/])\.\.([\\\/]|$)/;
+  if (traversalPattern.test(path)) {
+    return { isValid: false, reason: 'Path traversal detected: ".." not allowed' };
+  }
+
+  // Reject control characters and reserved characters
+  const invalidCharsPattern = /[\x00-\x1F\x7F<>:"|?*]/;
+  if (invalidCharsPattern.test(path)) {
+    return { isValid: false, reason: 'Path contains invalid characters (e.g., < > : " | ? *)' };
+  }
+
+  // Reject Windows reserved names
+  const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
+  const pathSegments = path.split(/[\\\/]/);
+  for (const segment of pathSegments) {
+    if (reservedNames.test(segment.trim())) {
+      return { isValid: false, reason: `Reserved system name: ${segment}` };
+    }
+    if (segment.endsWith(' ') || (segment.endsWith('.') && segment !== '.')) {
+      return { isValid: false, reason: 'File name cannot end with space or period' };
+    }
+  }
+
+  return { isValid: true };
+}
+
+// ============================================================================
 // Assertion & Validation Utilities
 // ============================================================================
 

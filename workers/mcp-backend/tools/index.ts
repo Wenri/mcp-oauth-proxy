@@ -16,6 +16,8 @@ export { RelationToolProvider } from './relation';
 export { AssetToolProvider } from './assets';
 export { FileSystemToolProvider } from './filesystem';
 export { UtilityToolProvider } from './utility';
+export { TemplateToolProvider } from './template';
+export { HelpDocToolProvider } from './helpDoc';
 
 import { McpToolsProvider } from './baseToolProvider';
 import { DocReadToolProvider } from './docRead';
@@ -31,6 +33,8 @@ import { RelationToolProvider } from './relation';
 import { AssetToolProvider } from './assets';
 import { FileSystemToolProvider } from './filesystem';
 import { UtilityToolProvider } from './utility';
+import { TemplateToolProvider } from './template';
+import { HelpDocToolProvider } from './helpDoc';
 
 /** Tool category with name and provider */
 interface ToolCategory {
@@ -54,6 +58,8 @@ export function getAllToolCategories(): ToolCategory[] {
     { name: 'Assets', provider: new AssetToolProvider() },
     { name: 'File System', provider: new FileSystemToolProvider() },
     { name: 'Utilities', provider: new UtilityToolProvider() },
+    { name: 'Templates', provider: new TemplateToolProvider() },
+    { name: 'Help Documentation', provider: new HelpDocToolProvider() },
   ];
 }
 

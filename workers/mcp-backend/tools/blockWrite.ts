@@ -117,6 +117,7 @@ export class BlockWriteToolProvider extends McpToolsProvider {
           ids: z.array(z.string()).describe('Block ID(s) to move (in desired order)'),
           parentID: z.string().optional().describe('Block ID or hpath of the new parent container'),
           previousID: z.string().optional().describe('Block ID after which to place the first moved block'),
+          moveWithSubBlocks: z.boolean().optional().default(false).describe('For heading blocks: fold before moving and unfold after, so sub-blocks move as a unit. Note: existing fold state will be lost.'),
         }),
         outputSchema: z.object({
           moved: z.array(z.string()).describe('Block IDs successfully moved'),
@@ -288,8 +289,8 @@ async function deleteBlocksHandler(params: { ids: BlockId[] }) {
   return createJsonResponse(result);
 }
 
-async function moveBlocksHandler(params: { ids: BlockId[]; parentID?: BlockId; previousID?: BlockId }) {
-  const { ids, parentID, previousID } = params;
+async function moveBlocksHandler(params: { ids: BlockId[]; parentID?: BlockId; previousID?: BlockId; moveWithSubBlocks?: boolean }) {
+  const { ids, parentID, previousID, moveWithSubBlocks } = params;
   debugPush('Move blocks API called', ids.length);
 
   if (ids.length === 0) {
@@ -320,11 +321,21 @@ async function moveBlocksHandler(params: { ids: BlockId[]; parentID?: BlockId; p
     try {
       const blockDbItem = await validateBlockAccess(id);
       const resolvedId = blockDbItem.id;
+      const needFold = moveWithSubBlocks && blockDbItem.type === 'h';
 
-      assertApiResult(
-        await moveBlockAPI(resolvedId, resolvedParentID, currentPreviousID),
-        'move the block'
-      );
+      if (needFold) {
+        await foldBlockAPI(resolvedId);
+      }
+      try {
+        assertApiResult(
+          await moveBlockAPI(resolvedId, resolvedParentID, currentPreviousID),
+          'move the block'
+        );
+      } finally {
+        if (needFold) {
+          await unfoldBlockAPI(resolvedId);
+        }
+      }
 
       // Update previousID to the just-moved block for next iteration
       // This maintains the order of blocks in the array

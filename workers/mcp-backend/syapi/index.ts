@@ -916,6 +916,67 @@ export async function exportResourcesAPI(paths: string[], name?: string): Promis
   return null;
 }
 
+// ===== Template APIs =====
+
+interface SearchTemplateResult {
+  content: string;
+  path: string;
+}
+
+/** Search templates by keyword */
+export async function searchTemplateAPI(k: string): Promise<SearchTemplateResult[]> {
+  const url = '/api/search/searchTemplate';
+  const response = await postRequest({ k }, url);
+  if (response.code === 0) {
+    return (response.data?.blocks ?? []) as SearchTemplateResult[];
+  }
+  throw new Error(`searchTemplate failed: ${response.msg}`);
+}
+
+/** Render template into DOM and return the rendered HTML string */
+export async function renderTemplateAPI(id: DocumentId, path: string): Promise<string> {
+  const url = '/api/template/render';
+  const response = await writePostRequest({ id, path }, url);
+  if (response.code === 0) {
+    return response.data.content as string;
+  }
+  throw new Error(`renderTemplate failed: ${response.msg}`);
+}
+
+/** Render a Sprig template string */
+export async function renderSprigAPI(template: string): Promise<string> {
+  const url = '/api/template/renderSprig';
+  const response = await postRequest({ template }, url);
+  if (response.code === 0) {
+    return response.data as string;
+  }
+  throw new Error(`renderSprig failed: ${response.msg}`);
+}
+
+// ===== Notebook APIs =====
+
+/** Rename a notebook */
+export async function renameNotebookAPI(notebookId: NotebookId, name: string): Promise<true> {
+  const url = '/api/notebook/renameNotebook';
+  const response = await writePostRequest({ notebook: notebookId, name }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  throw new Error(`renameNotebook failed: ${response.msg}`);
+}
+
+// ===== Document APIs (additional) =====
+
+/** Move documents by IDs (simpler interface than moveDocsAPI) */
+export async function moveDocsByIDAPI(fromIDs: DocumentId[], toID: string): Promise<true> {
+  const url = '/api/filetree/moveDocsByID';
+  const response = await writePostRequest({ fromIDs, toID }, url);
+  if (response.code === 0) {
+    return true;
+  }
+  throw new Error(`moveDocsByID failed: ${response.msg}`);
+}
+
 // Document sort types
 export const DOC_SORT_TYPES = {
   FILE_NAME_ASC: 0,

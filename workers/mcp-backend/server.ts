@@ -16,7 +16,7 @@ import { createErrorResponse } from './utils/mcpResponse';
 import { initKernel, cachedPostRequest, normalizePath } from './syapi';
 
 // Import prompts from static index
-import { promptCreateCardsCN, promptQueryCN } from './static';
+import { promptCreateCardsCN, promptQueryCN, getPromptTemplateCN } from './static';
 
 // Re-export types for convenience
 export type { SiyuanMCPConfig } from '../../index';
@@ -210,6 +210,19 @@ async function loadPrompts(server: McpServer): Promise<void> {
     () => ({
       messages: [
         { role: 'assistant', content: { type: 'text', text: promptQueryCN } },
+      ],
+    })
+  );
+
+  server.registerPrompt(
+    'template_creator_system_cn',
+    {
+      title: 'Template Creator (zh-Hans)',
+      description: 'System prompt for creating SiYuan templates',
+    },
+    () => ({
+      messages: [
+        { role: 'user', content: { type: 'text', text: getPromptTemplateCN() } },
       ],
     })
   );
