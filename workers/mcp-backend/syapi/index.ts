@@ -732,7 +732,7 @@ export async function getFileAPIv2(path: string, cacheTtl = DEFAULT_FILE_CACHE_T
   const url = '/api/file/getFile';
   const response = await kernelFetch(url, {
     method: 'POST',
-    body: JSON.stringify({ path }),
+    body: JSON.stringify({ path: normalizedPath }),
   });
 
   if (!response.ok) {
