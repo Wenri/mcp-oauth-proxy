@@ -3,7 +3,6 @@
  * Based on: https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-cf-access/src/access-handler.ts
  */
 
-import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv } from "../../index";
@@ -27,6 +26,7 @@ import { decryptGrant } from "../mcp-backend/utils/crypto";
 
 // Import static files accessor
 import { getFileContent } from "./static";
+import { verifyToken } from "./jwt";
 
 type Env = AuthCfAccessEnv;
 
@@ -296,71 +296,3 @@ function redirectToAccess(
 	});
 }
 
-async function fetchAccessPublicKey(env: Env, kid: string): Promise<CryptoKey> {
-	if (!env.ACCESS_JWKS_URL) {
-		throw new Error("ACCESS_JWKS_URL not provided");
-	}
-	// TODO: cache this
-	const resp = await fetch(env.ACCESS_JWKS_URL);
-	if (!resp.ok) {
-		throw new Error(`Failed to fetch JWKS from ${env.ACCESS_JWKS_URL}: ${resp.status}`);
-	}
-	const keys = (await resp.json()) as {
-		keys: (JsonWebKey & { kid: string })[];
-	};
-	const availableKids = keys.keys?.map((k) => k.kid) || [];
-	console.log(`JWKS: Looking for kid ${kid}, available: ${availableKids.join(", ")}`);
-	const jwk = keys.keys.find((key) => key.kid === kid);
-	if (!jwk) {
-		throw new Error(`Key with kid ${kid} not found. Available keys: ${availableKids.join(", ")}`);
-	}
-	return crypto.subtle.importKey(
-		"jwk",
-		jwk,
-		{ hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
-		false,
-		["verify"],
-	);
-}
-
-function parseJWT(token: string): {
-	data: string;
-	header: { kid: string; alg: string };
-	payload: Record<string, unknown>;
-	signature: string;
-} {
-	const tokenParts = token.split(".");
-	if (tokenParts.length !== 3) {
-		throw new Error("token must have 3 parts");
-	}
-	return {
-		data: `${tokenParts[0]}.${tokenParts[1]}`,
-		header: JSON.parse(Buffer.from(tokenParts[0], "base64url").toString()),
-		payload: JSON.parse(Buffer.from(tokenParts[1], "base64url").toString()),
-		signature: tokenParts[2],
-	};
-}
-
-async function verifyToken(env: Env, token: string): Promise<Record<string, unknown>> {
-	const jwt = parseJWT(token);
-	const key = await fetchAccessPublicKey(env, jwt.header.kid);
-
-	const verified = await crypto.subtle.verify(
-		"RSASSA-PKCS1-v1_5",
-		key,
-		Buffer.from(jwt.signature, "base64url"),
-		Buffer.from(jwt.data),
-	);
-
-	if (!verified) {
-		throw new Error("failed to verify token");
-	}
-
-	const claims = jwt.payload;
-	const now = Math.floor(Date.now() / 1000);
-	if (typeof claims.exp === "number" && claims.exp < now) {
-		throw new Error("expired token");
-	}
-
-	return claims;
-}
