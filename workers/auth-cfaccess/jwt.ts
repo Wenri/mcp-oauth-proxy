@@ -9,24 +9,6 @@ export interface JwtEnv {
 	ACCESS_JWKS_URL: string;
 }
 
-export interface ParsedJWT {
-	data: string;
-	header: { kid: string; alg: string };
-	payload: Record<string, unknown>;
-	signature: string;
-}
-
-export function parseJWT(token: string): ParsedJWT {
-	const { header, payload } = decode(token);
-	const tokenParts = token.split(".");
-	return {
-		data: `${tokenParts[0]}.${tokenParts[1]}`,
-		header: header as { kid: string; alg: string },
-		payload: payload as Record<string, unknown>,
-		signature: tokenParts[2],
-	};
-}
-
 export async function fetchAccessPublicKey(env: JwtEnv, kid: string): Promise<CryptoKey> {
 	if (!env.ACCESS_JWKS_URL) {
 		throw new Error("ACCESS_JWKS_URL not provided");
@@ -55,8 +37,7 @@ export async function fetchAccessPublicKey(env: JwtEnv, kid: string): Promise<Cr
 }
 
 export async function verifyToken(env: JwtEnv, token: string): Promise<Record<string, unknown>> {
-	const jwt = parseJWT(token);
-	const key = await fetchAccessPublicKey(env, jwt.header.kid);
-
+	const { header } = decode(token) as { header: { kid: string; alg: string } };
+	const key = await fetchAccessPublicKey(env, header.kid);
 	return (await honoVerify(token, key, "RS256")) as Record<string, unknown>;
 }

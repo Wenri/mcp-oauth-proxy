@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
-import { parseJWT, fetchAccessPublicKey, verifyToken } from '../workers/auth-cfaccess/jwt';
+import { fetchAccessPublicKey, verifyToken } from '../workers/auth-cfaccess/jwt';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,37 +86,15 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// parseJWT
+// decode (via verifyToken behavior)
 // ---------------------------------------------------------------------------
 
-describe('parseJWT', () => {
-  it('splits a valid token into header, payload, data, and signature', async () => {
-    const token = await signToken({ sub: 'u1' }, keyPair.privateKey);
-    const parsed = parseJWT(token);
-
-    expect(parsed.header.alg).toBe('RS256');
-    expect(parsed.header.kid).toBe(TEST_KID);
-    expect(parsed.payload.sub).toBe('u1');
-    expect(parsed.signature).toBeTruthy();
-    // data is the signable portion (header.payload)
-    const [h, p] = token.split('.');
-    expect(parsed.data).toBe(`${h}.${p}`);
-  });
-
-  it('throws when token does not have 3 parts', () => {
-    expect(() => parseJWT('only.two')).toThrow('invalid JWT token');
-    expect(() => parseJWT('one')).toThrow('invalid JWT token');
-    expect(() => parseJWT('a.b.c.d')).toThrow('invalid JWT token');
-  });
-
-  it('correctly base64url-decodes header and payload', async () => {
-    const payload = { iss: 'test', sub: 'abc', custom: 123 };
-    const token = await signToken(payload, keyPair.privateKey, 'my-kid');
-    const parsed = parseJWT(token);
-    expect(parsed.header.kid).toBe('my-kid');
-    expect(parsed.payload.iss).toBe('test');
-    expect(parsed.payload.sub).toBe('abc');
-    expect(parsed.payload.custom).toBe(123);
+describe('decode behavior', () => {
+  it('throws for malformed tokens (not 3 parts)', async () => {
+    mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
+    await expect(verifyToken(env, 'only.two')).rejects.toThrow('invalid JWT token');
+    await expect(verifyToken(env, 'one')).rejects.toThrow('invalid JWT token');
+    await expect(verifyToken(env, 'a.b.c.d')).rejects.toThrow('invalid JWT token');
   });
 });
 
