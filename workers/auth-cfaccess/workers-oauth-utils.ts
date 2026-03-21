@@ -6,7 +6,7 @@ import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
 import { getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
-import { pack7bit, unpack7bit } from "../mcp-backend/utils/fakeEncrypt";
+import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-backend/utils/fakeEncrypt";
 
 /**
  * OAuth 2.1 compliant error class.
@@ -203,14 +203,12 @@ export async function fetchUpstreamAuthToken(params: {
 export async function deflateToBase64url(data: Uint8Array): Promise<string> {
 	const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate-raw"));
 	const buf = await new Response(stream).arrayBuffer();
-	return btoa(String.fromCharCode(...new Uint8Array(buf)))
-		.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	return base64urlEncode(new Uint8Array(buf));
 }
 
 /** Base64url decode + inflate-decompress */
 export async function inflateFromBase64url(encoded: string): Promise<Uint8Array> {
-	const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
-	const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+	const bytes = base64urlDecode(encoded);
 	const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
 	return new Uint8Array(await new Response(stream).arrayBuffer());
 }
