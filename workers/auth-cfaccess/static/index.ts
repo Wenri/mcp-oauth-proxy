@@ -1,21 +1,23 @@
 import approvalCssContent from "./approval.css";
-import { getFileContent as getMcpFileContent } from "../../mcp-backend/static";
+import { staticFiles as mcpStaticFiles, dynamicFiles as mcpDynamicFiles } from "../../mcp-backend/static";
 
-export const getApprovalCss = () => approvalCssContent;
-
-const staticFiles: Record<string, { content: () => string; mimeType: string }> = {
-	"approval.css": { content: getApprovalCss, mimeType: "text/css; charset=utf-8" },
+const localFiles: Record<string, { content: string; mimeType: string }> = {
+	"approval.css": { content: approvalCssContent, mimeType: "text/css; charset=utf-8" },
 };
 
 export async function getFileContent(name: string): Promise<{ content: string; mimeType: string } | null> {
-	const entry = staticFiles[name];
-	if (entry) {
-		return { content: entry.content(), mimeType: entry.mimeType };
+	const local = localFiles[name];
+	if (local) return local;
+
+	const staticContent = mcpStaticFiles[name];
+	if (staticContent !== undefined) {
+		return { content: staticContent, mimeType: "text/markdown; charset=utf-8" };
 	}
-	// Fall back to mcp-backend static files (docs served as markdown)
-	const mcpContent = await getMcpFileContent(name);
-	if (mcpContent !== null) {
-		return { content: mcpContent, mimeType: "text/markdown; charset=utf-8" };
+
+	const dynamicFn = mcpDynamicFiles[name];
+	if (dynamicFn) {
+		return { content: await dynamicFn(), mimeType: "text/plain; charset=utf-8" };
 	}
+
 	return null;
 }

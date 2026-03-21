@@ -24,12 +24,8 @@ export {
 export const promptCreateCardsCN = promptCreateCardsCNContent;
 export const promptQueryCN = promptQueryCNContent;
 
-// Dynamic exports (generated from Zod schemas)
-export const getToolTypes = generateAllToolTypes;
-export const getToolSignatures = generateAllToolSignatures;
-
 /** Static content registry */
-const staticFiles: Record<string, string> = {
+export const staticFiles: Record<string, string> = {
   'database-schema': databaseSchemaContent,
   'sql-cheatsheet': sqlCheatsheetContent,
   'query-syntax': querySyntaxContent,
@@ -41,23 +37,8 @@ const staticFiles: Record<string, string> = {
 };
 
 /** Dynamic content registry */
-const dynamicFiles: Record<string, () => Promise<string>> = {
-  'tool-types': getToolTypes,
-  'tool-signatures': getToolSignatures,
+export const dynamicFiles: Record<string, () => Promise<string>> = {
+  'tool-types': generateAllToolTypes,
+  'tool-signatures': generateAllToolSignatures,
 };
 
-/** Get content by path (supports both static and dynamic) */
-export async function getFileContent(path: string): Promise<string | null> {
-  if (path in staticFiles) {
-    return staticFiles[path];
-  }
-  if (path in dynamicFiles) {
-    return dynamicFiles[path]();
-  }
-  return null;
-}
-
-/** Get all available static file paths */
-export function getStaticFilePaths(): string[] {
-  return Object.keys(staticFiles);
-}
