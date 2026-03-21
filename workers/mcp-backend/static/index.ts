@@ -36,15 +36,15 @@ export const getToolTypes = generateAllToolTypes;
 export const getToolSignatures = generateAllToolSignatures;
 
 /** Static content registry */
-const staticFiles: Record<string, () => string> = {
-  'database-schema': getDatabaseSchema,
-  'sql-cheatsheet': getSqlCheatsheet,
-  'query-syntax': getQuerySyntax,
-  'prompt-create-cards-cn': getPromptCreateCardsCN,
-  'prompt-query-cn': getPromptQueryCN,
-  'md-syntax-cn': getMdSyntaxCN,
-  'superblock-cn': getSuperblockCN,
-  'template-actions-cn': getTemplateActionCN,
+const staticFiles: Record<string, string> = {
+  'database-schema': databaseSchemaContent,
+  'sql-cheatsheet': sqlCheatsheetContent,
+  'query-syntax': querySyntaxContent,
+  'prompt-create-cards-cn': promptCreateCardsCNContent,
+  'prompt-query-cn': promptQueryCNContent,
+  'md-syntax-cn': mdSyntaxCNContent,
+  'superblock-cn': superblockCNContent,
+  'template-actions-cn': templateActionCNContent,
 };
 
 /** Dynamic content registry */
@@ -56,7 +56,7 @@ const dynamicFiles: Record<string, () => Promise<string>> = {
 /** Get content by path (supports both static and dynamic) */
 export async function getFileContent(path: string): Promise<string | null> {
   if (path in staticFiles) {
-    return staticFiles[path]();
+    return staticFiles[path];
   }
   if (path in dynamicFiles) {
     return dynamicFiles[path]();
