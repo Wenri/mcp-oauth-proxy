@@ -23,7 +23,7 @@
   "exclude": [
     "node_modules",
     "dist",
-"workers/mcp-backend/audit",
+    "workers/mcp-backend/audit",
     "workers/mcp-backend/components",
     "workers/mcp-backend/indexer/indexConsumer.ts",
     "workers/mcp-backend/indexer/myProvider.ts",
