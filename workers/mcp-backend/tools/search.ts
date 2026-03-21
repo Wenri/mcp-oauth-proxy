@@ -10,7 +10,7 @@ import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { filterGroupSearchBlocksResult, filterSearchBlocksResult, validateBlockAccess } from '../utils/resultFilter';
 import { debugPush } from '../logger';
 import { lang } from '../utils/lang';
-import { getQuerySyntax } from '../static';
+import { querySyntaxContent } from '../static';
 import { isValidIdFormat } from '../syapi/custom';
 
 // Schema for grouped search results (when grouped=true)
@@ -238,5 +238,5 @@ async function searchLegacyHandler(params: {
 }
 
 async function querySyntaxHandler() {
-  return createSuccessResponse(getQuerySyntax());
+  return createSuccessResponse(querySyntaxContent);
 }

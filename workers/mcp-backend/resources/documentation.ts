@@ -5,29 +5,28 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpResourceProvider, ResourceContext } from './baseResourceProvider';
-import { getDatabaseSchema, getSqlCheatsheet, getQuerySyntax } from '../static';
+import { databaseSchemaContent, sqlCheatsheetContent, querySyntaxContent } from '../static';
 
 export class DocumentationResourceProvider extends McpResourceProvider {
   async registerResources(server: McpServer, ctx: ResourceContext): Promise<void> {
-    // Define docs inside method to ensure getters are resolved at runtime
     const docs = [
       {
         name: 'database-schema',
         title: 'SiYuan Database Schema',
         description: 'Database schema documentation including table names, field names, and relationships',
-        getContent: getDatabaseSchema,
+        content: databaseSchemaContent,
       },
       {
         name: 'sql-cheatsheet',
         title: 'SiYuan SQL Cheatsheet',
         description: 'SQL query examples for SiYuan database including FTS5 full-text search, window functions, and common patterns',
-        getContent: getSqlCheatsheet,
+        content: sqlCheatsheetContent,
       },
       {
         name: 'query-syntax',
         title: 'SiYuan Query Syntax',
         description: 'Full-text search query syntax reference for SiYuan',
-        getContent: getQuerySyntax,
+        content: querySyntaxContent,
       },
     ];
 
@@ -43,9 +42,8 @@ export class DocumentationResourceProvider extends McpResourceProvider {
           mimeType: 'text/markdown',
         },
         async (resourceUri) => {
-          const content = doc.getContent();
           return {
-            contents: [{ uri: resourceUri.href, text: content, mimeType: 'text/markdown' }],
+            contents: [{ uri: resourceUri.href, text: doc.content, mimeType: 'text/markdown' }],
           };
         }
       );

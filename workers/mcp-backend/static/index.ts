@@ -1,10 +1,3 @@
-/**
- * Static file exports
- *
- * Uses getter functions to avoid module initialization order issues
- * with text imports in Wrangler's bundler.
- */
-
 import databaseSchemaContent from './siyuan-database-schema.txt';
 import sqlCheatsheetContent from './siyuan-sql-cheatsheet.txt';
 import querySyntaxContent from './query_syntax.txt';
@@ -16,18 +9,18 @@ import templateActionCNContent from './data_template_action_CN.txt';
 import promptTemplateCNContent from './prompt_template_CN.txt';
 import { generateAllToolSignatures, generateAllToolTypes } from '../tools';
 
-// Getter functions for static content (defers access to runtime)
-export const getDatabaseSchema = () => databaseSchemaContent;
-export const getSqlCheatsheet = () => sqlCheatsheetContent;
-export const getQuerySyntax = () => querySyntaxContent;
-export const getPromptCreateCardsCN = () => promptCreateCardsCNContent;
-export const getPromptQueryCN = () => promptQueryCNContent;
-export const getMdSyntaxCN = () => mdSyntaxCNContent;
-export const getSuperblockCN = () => superblockCNContent;
-export const getTemplateActionCN = () => templateActionCNContent;
-export const getPromptTemplateCN = () => promptTemplateCNContent;
+// Named content exports
+export {
+  databaseSchemaContent,
+  sqlCheatsheetContent,
+  querySyntaxContent,
+  mdSyntaxCNContent,
+  superblockCNContent,
+  templateActionCNContent,
+  promptTemplateCNContent,
+};
 
-// Legacy named exports for prompts (used by siyuan-mcp/index.ts)
+// Legacy prompt exports (used by server/index.ts)
 export const promptCreateCardsCN = promptCreateCardsCNContent;
 export const promptQueryCN = promptQueryCNContent;
 

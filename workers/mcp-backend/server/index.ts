@@ -16,7 +16,7 @@ import { createErrorResponse } from '../utils/mcpResponse';
 import { initKernel, cachedPostRequest, normalizePath } from '../syapi';
 
 // Import prompts from static index
-import { promptCreateCardsCN, promptQueryCN, getPromptTemplateCN } from '../static';
+import { promptCreateCardsCN, promptQueryCN, promptTemplateCNContent } from '../static';
 
 // Re-export types for convenience
 export type { SiyuanMCPConfig } from '../../../index';
@@ -222,7 +222,7 @@ async function loadPrompts(server: McpServer): Promise<void> {
     },
     () => ({
       messages: [
-        { role: 'user', content: { type: 'text', text: getPromptTemplateCN() } },
+        { role: 'user', content: { type: 'text', text: promptTemplateCNContent } },
       ],
     })
   );

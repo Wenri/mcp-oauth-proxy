@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createSuccessResponse } from '../utils/mcpResponse';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { lang } from '../utils/lang';
-import { getMdSyntaxCN, getSuperblockCN, getTemplateActionCN } from '../static';
+import { mdSyntaxCNContent, superblockCNContent, templateActionCNContent } from '../static';
 
 export class HelpDocToolProvider extends McpToolsProvider {
   async getTools(): Promise<McpTool[]> {
@@ -37,9 +37,9 @@ export class HelpDocToolProvider extends McpToolsProvider {
 }
 
 async function markdownHelpHandler() {
-  return createSuccessResponse(getMdSyntaxCN() + '\n\n' + getSuperblockCN());
+  return createSuccessResponse(mdSyntaxCNContent + '\n\n' + superblockCNContent);
 }
 
 async function templateFunctionHelpHandler() {
-  return createSuccessResponse(getTemplateActionCN());
+  return createSuccessResponse(templateActionCNContent);
 }

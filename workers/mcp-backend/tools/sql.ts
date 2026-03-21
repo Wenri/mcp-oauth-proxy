@@ -10,7 +10,7 @@ import { debugPush } from '../logger';
 import { McpToolsProvider, defineTool } from './baseToolProvider';
 import { lang } from '../utils/lang';
 import { cachedQuery, escapeSqlString } from '../syapi/custom';
-import { getDatabaseSchema, getSqlCheatsheet } from '../static';
+import { databaseSchemaContent, sqlCheatsheetContent } from '../static';
 import { isSelectQuery } from '../utils/commonCheck';
 
 export class SqlToolProvider extends McpToolsProvider {
@@ -131,12 +131,12 @@ async function sqlHandler(params: { stmt: string }) {
 
 async function schemaHandler() {
   debugPush('Schema API called');
-  return createSuccessResponse(getDatabaseSchema());
+  return createSuccessResponse(databaseSchemaContent);
 }
 
 async function cheatsheetHandler() {
   debugPush('SQL cheatsheet API called');
-  return createSuccessResponse(getSqlCheatsheet());
+  return createSuccessResponse(sqlCheatsheetContent);
 }
 
 async function fulltextSearchHandler(params: {
