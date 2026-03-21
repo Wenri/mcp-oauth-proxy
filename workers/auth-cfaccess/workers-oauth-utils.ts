@@ -34,34 +34,14 @@ export class OAuthError extends Error {
 	}
 }
 
-export interface OAuthStateResult {
-	stateToken: string;
-}
-
-export interface ValidateStateResult {
-	oauthReqInfo: AuthRequest;
-	codeVerifier?: string;
-	clearCookie: string;
-}
-
-export interface CSRFProtectionResult {
-	token: string;
-	setCookie: string;
-}
-
-export interface ValidateCSRFResult {
-	clearCookie: string;
-}
-
-
-export function generateCSRFProtection(): CSRFProtectionResult {
+export function generateCSRFProtection(): { token: string; setCookie: string } {
 	const csrfCookieName = "__Host-CSRF_TOKEN";
 	const token = crypto.randomUUID();
 	const setCookie = `${csrfCookieName}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`;
 	return { token, setCookie };
 }
 
-export function validateCSRFToken(formData: FormData, request: Request): ValidateCSRFResult {
+export function validateCSRFToken(formData: FormData, request: Request): void {
 	const csrfCookieName = "__Host-CSRF_TOKEN";
 
 	const tokenFromForm = formData.get("csrf_token");
@@ -81,9 +61,6 @@ export function validateCSRFToken(formData: FormData, request: Request): Validat
 	if (tokenFromForm !== tokenFromCookie) {
 		throw new OAuthError("invalid_request", "CSRF token mismatch", 400);
 	}
-
-	const clearCookie = `${csrfCookieName}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
-	return { clearCookie };
 }
 
 export async function createOAuthState(
@@ -91,7 +68,7 @@ export async function createOAuthState(
 	kv: KVNamespace,
 	codeVerifier?: string,
 	stateTTL = 600,
-): Promise<OAuthStateResult> {
+): Promise<{ stateToken: string }> {
 	const stateToken = crypto.randomUUID();
 	const stateData = { oauthReqInfo, codeVerifier };
 	await kv.put(`oauth:state:${stateToken}`, JSON.stringify(stateData), {
@@ -103,7 +80,7 @@ export async function createOAuthState(
 export async function validateOAuthState(
 	request: Request,
 	kv: KVNamespace,
-): Promise<ValidateStateResult> {
+): Promise<{ oauthReqInfo: AuthRequest; codeVerifier?: string }> {
 	const url = new URL(request.url);
 	const stateFromQuery = url.searchParams.get("state");
 
@@ -124,9 +101,8 @@ export async function validateOAuthState(
 	}
 
 	await kv.delete(`oauth:state:${stateFromQuery}`);
-	const clearCookie = "";
 
-	return { oauthReqInfo: stateData.oauthReqInfo, codeVerifier: stateData.codeVerifier, clearCookie };
+	return { oauthReqInfo: stateData.oauthReqInfo, codeVerifier: stateData.codeVerifier };
 }
 
 const APPROVED_CLIENTS_COOKIE = "__Host-APPROVED_CLIENTS";

@@ -42,8 +42,8 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       this.props = await this.ctx.storage.get('props');
     }
 
-    if (!this.env.SIYUAN_KERNEL_URL && !this.props?.kernelUrl && !this.props?.workerBaseUrl) {
-      logPush('Warning: Neither SIYUAN_KERNEL_URL, kernelUrl, nor workerBaseUrl available');
+    if (!this.props?.kernelUrl && !this.env.SIYUAN_KERNEL_URL) {
+      logPush('Warning: No kernel URL available');
       return;
     }
 
@@ -56,7 +56,7 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       });
     }
 
-    // Build config with per-user kernel overrides from Props
+    // props.kernelUrl is always resolved by auth workers; env is fallback for legacy sessions
     const mcpConfig = {
       ...this.env,
       SIYUAN_KERNEL_URL: this.props?.kernelUrl || this.env.SIYUAN_KERNEL_URL,

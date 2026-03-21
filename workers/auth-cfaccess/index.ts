@@ -24,6 +24,7 @@ function validateSiyuanKey(key: string, env: Env): Props | null {
     login: 'siyuan-key-user',
     name: 'SiYuan Key Auth',
     workerBaseUrl: '',
+    kernelUrl: '',
   };
 }
 
@@ -108,7 +109,9 @@ export default new OAuthProvider({
     const props = validateSiyuanKey(token, env as Env);
     if (!props) return null;
 
-    props.workerBaseUrl = new URL(request.url).origin;
+    const origin = new URL(request.url).origin;
+    props.workerBaseUrl = origin;
+    props.kernelUrl = (env as Env).SIYUAN_KERNEL_URL || origin;
     return { props };
   },
 });

@@ -309,13 +309,13 @@ app.post("/callback", async (c) => {
 
 	// Read user-provided values
 	const label = (formData.get("label") as string)?.trim() || state.user.name;
-	const kernelUrl = (formData.get("kernel_url") as string)?.trim() || undefined;
+	const userKernelUrl = (formData.get("kernel_url") as string)?.trim() || undefined;
 	const kernelToken = (formData.get("kernel_token") as string) || undefined;
 
 	// Validate kernel URL if provided
-	if (kernelUrl) {
+	if (userKernelUrl) {
 		try {
-			const parsed = new URL(kernelUrl);
+			const parsed = new URL(userKernelUrl);
 			if (!["http:", "https:"].includes(parsed.protocol)) {
 				return c.text("Invalid kernel URL: must be HTTP or HTTPS", 400);
 			}
@@ -324,14 +324,18 @@ app.post("/callback", async (c) => {
 		}
 	}
 
+	// Resolve kernel URL: user input > env default > same origin fallback
+	const workerBaseUrl = new URL(request.url).origin;
+	const kernelUrl = userKernelUrl || env.SIYUAN_KERNEL_URL || workerBaseUrl;
+
 	const props: Props = {
 		accessToken: state.accessToken,
 		email: state.user.email,
 		login: state.user.sub,
 		name: state.user.name,
-		workerBaseUrl: new URL(request.url).origin,
+		workerBaseUrl,
 		kernelUrl,
-		kernelToken,
+		kernelToken: kernelToken || env.SIYUAN_KERNEL_TOKEN || undefined,
 	};
 
 	const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
@@ -347,6 +351,3 @@ app.post("/callback", async (c) => {
 
 // Export the Hono app directly (has .fetch method compatible with OAuthProvider)
 export const accessApp = app;
-
-
-

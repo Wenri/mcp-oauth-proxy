@@ -19,12 +19,14 @@ function validateApiKey(request: Request, env: Env): Props | null {
   if (!apiKey || apiKey !== env.SIYUAN_KERNEL_TOKEN) {
     return null;
   }
+  const origin = new URL(request.url).origin;
   return {
     accessToken: '',
     email: 'api-key-auth',
     login: 'api-key-user',
     name: 'API Key Auth',
-    workerBaseUrl: new URL(request.url).origin,
+    workerBaseUrl: origin,
+    kernelUrl: env.SIYUAN_KERNEL_URL || origin,
   };
 }
 
