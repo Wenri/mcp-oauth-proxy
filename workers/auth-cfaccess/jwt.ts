@@ -61,16 +61,5 @@ export async function verifyToken(env: JwtEnv, token: string): Promise<Record<st
 	const jwt = parseJWT(token);
 	const key = await fetchAccessPublicKey(env, jwt.header.kid);
 
-	// Use Hono's verify for RS256 signature + exp check (exp <= now).
-	let claims: Record<string, unknown>;
-	try {
-		claims = (await honoVerify(token, key, "RS256")) as Record<string, unknown>;
-	} catch (err: unknown) {
-		if (err instanceof Error && err.name === "JwtTokenExpired") {
-			throw new Error("expired token");
-		}
-		throw new Error("failed to verify token");
-	}
-
-	return claims;
+	return (await honoVerify(token, key, "RS256")) as Record<string, unknown>;
 }

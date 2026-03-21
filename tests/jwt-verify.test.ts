@@ -172,26 +172,26 @@ describe('verifyToken', () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
     const [h, p] = validToken.split('.');
     const tampered = `${h}.${p}.AAAAAAAAAAAAAAAAAAAAAA`;
-    await expect(verifyToken(env, tampered)).rejects.toThrow('failed to verify token');
+    await expect(verifyToken(env, tampered)).rejects.toThrow('signature mismatched');
   });
 
   it('throws for a token with a tampered payload', async () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
     const [h, , s] = validToken.split('.');
     const newPayload = b64url(JSON.stringify({ sub: 'attacker', exp: now + 9999 }));
-    await expect(verifyToken(env, `${h}.${newPayload}.${s}`)).rejects.toThrow('failed to verify token');
+    await expect(verifyToken(env, `${h}.${newPayload}.${s}`)).rejects.toThrow('signature mismatched');
   });
 
   it('throws for an expired token (exp in the past)', async () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
     const expiredToken = await signToken({ sub: 'u', exp: now - 60 }, keyPair.privateKey);
-    await expect(verifyToken(env, expiredToken)).rejects.toThrow('expired token');
+    await expect(verifyToken(env, expiredToken)).rejects.toThrow('expired');
   });
 
   it('rejects a token that expired exactly 1 second ago', async () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
     const token = await signToken({ sub: 'u', exp: now - 1 }, keyPair.privateKey);
-    await expect(verifyToken(env, token)).rejects.toThrow('expired token');
+    await expect(verifyToken(env, token)).rejects.toThrow('expired');
   });
 
   it('accepts a token with no exp claim', async () => {
@@ -205,7 +205,7 @@ describe('verifyToken', () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
     // exp === now: expired (Hono uses exp <= now)
     const token = await signToken({ sub: 'u', exp: now }, keyPair.privateKey);
-    await expect(verifyToken(env, token)).rejects.toThrow('expired token');
+    await expect(verifyToken(env, token)).rejects.toThrow('expired');
   });
 
   it('accepts a token with a future exp', async () => {
@@ -224,6 +224,6 @@ describe('verifyToken', () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk)); // correct key in JWKS
     const otherPair = await generateRS256KeyPair();
     const foreignToken = await signToken({ sub: 'u', exp: now + 3600 }, otherPair.privateKey);
-    await expect(verifyToken(env, foreignToken)).rejects.toThrow('failed to verify token');
+    await expect(verifyToken(env, foreignToken)).rejects.toThrow('signature mismatched');
   });
 });
