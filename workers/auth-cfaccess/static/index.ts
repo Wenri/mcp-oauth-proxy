@@ -1,5 +1,7 @@
-import approvalCssContent from "./approval.css";
+import approvalCssModule from "./approval.css";
 import { staticFiles as mcpStaticFiles, dynamicFiles as mcpDynamicFiles } from "../../mcp-backend/static";
+
+const approvalCssContent = (approvalCssModule as any).default ?? approvalCssModule;
 
 const localFiles: Record<string, { content: string; mimeType: string }> = {
 	"approval.css": { content: approvalCssContent, mimeType: "text/css; charset=utf-8" },
