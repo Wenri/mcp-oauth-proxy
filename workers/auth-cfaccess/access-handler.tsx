@@ -9,7 +9,6 @@ import type { AuthCfAccessEnv } from "../../index";
 import type { Props } from "../../index";
 import {
 	addApprovedClient,
-	createOAuthState,
 	fetchUpstreamAuthToken,
 	generateCodeChallenge,
 	generateCodeVerifier,
@@ -18,7 +17,6 @@ import {
 	isClientApproved,
 	OAuthError,
 	validateCSRFToken,
-	validateOAuthState,
 } from "./workers-oauth-utils";
 import { ApprovalPage } from "./approval-page";
 import { ConsentPage } from "./consent-page";
@@ -41,6 +39,21 @@ interface GrantRecord {
 	scope: string[];
 	encryptedProps: string;
 	expiresAt?: number;
+}
+
+/** Build upstream CF Access redirect URL with base64-encoded state (no KV needed) */
+async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: EnvWithOAuth, requestUrl: string): Promise<string> {
+	const codeVerifier = generateCodeVerifier();
+	const codeChallenge = await generateCodeChallenge(codeVerifier);
+	const state = btoa(JSON.stringify({ oauthReqInfo, codeVerifier }));
+	return getUpstreamAuthorizeUrl({
+		client_id: env.ACCESS_CLIENT_ID,
+		redirect_uri: new URL("/callback", requestUrl).href,
+		scope: "openid email profile",
+		state,
+		upstream_url: env.ACCESS_AUTHORIZATION_URL,
+		code_challenge: codeChallenge,
+	});
 }
 
 const app = new Hono<HonoEnv>();
@@ -143,17 +156,7 @@ app.get("/authorize", async (c) => {
 
 	// Check if client is already approved
 	if (await isClientApproved(c, clientId, env.COOKIE_ENCRYPTION_KEY)) {
-		const codeVerifier = generateCodeVerifier();
-		const codeChallenge = await generateCodeChallenge(codeVerifier);
-		const { stateToken } = await createOAuthState(oauthReqInfo, env.OAUTH_KV, codeVerifier);
-		return c.redirect(getUpstreamAuthorizeUrl({
-			client_id: env.ACCESS_CLIENT_ID,
-			redirect_uri: new URL("/callback", request.url).href,
-			scope: "openid email profile",
-			state: stateToken,
-			upstream_url: env.ACCESS_AUTHORIZATION_URL,
-			code_challenge: codeChallenge,
-		}), 302);
+		return c.redirect(await buildUpstreamRedirect(oauthReqInfo, env, request.url));
 	}
 
 	// Generate CSRF protection for the approval form
@@ -207,18 +210,7 @@ app.post("/authorize", async (c) => {
 
 	await addApprovedClient(c, state.oauthReqInfo.clientId, env.COOKIE_ENCRYPTION_KEY);
 
-	const codeVerifier = generateCodeVerifier();
-	const codeChallenge = await generateCodeChallenge(codeVerifier);
-	const { stateToken } = await createOAuthState(state.oauthReqInfo, env.OAUTH_KV, codeVerifier);
-
-	return c.redirect(getUpstreamAuthorizeUrl({
-		client_id: env.ACCESS_CLIENT_ID,
-		redirect_uri: new URL("/callback", request.url).href,
-		scope: "openid email profile",
-		state: stateToken,
-		upstream_url: env.ACCESS_AUTHORIZATION_URL,
-		code_challenge: codeChallenge,
-	}), 302);
+	return c.redirect(await buildUpstreamRedirect(state.oauthReqInfo, env, request.url));
 });
 
 // Server info shared across pages
@@ -233,10 +225,22 @@ app.get("/callback", async (c) => {
 	const env = c.env;
 	const request = c.req.raw;
 	const code = c.req.query("code");
+	const stateParam = c.req.query("state");
 
-	const { oauthReqInfo, codeVerifier } = await validateOAuthState(request, env.OAUTH_KV);
+	if (!stateParam) {
+		return c.text("Missing state parameter", 400);
+	}
 
-	if (!oauthReqInfo.clientId) {
+	let upstreamState: { oauthReqInfo: AuthRequest; codeVerifier?: string };
+	try {
+		upstreamState = JSON.parse(atob(stateParam));
+	} catch {
+		return c.text("Invalid state data", 400);
+	}
+
+	const { oauthReqInfo, codeVerifier } = upstreamState;
+
+	if (!oauthReqInfo?.clientId) {
 		return c.text("Invalid OAuth request data", 400);
 	}
 

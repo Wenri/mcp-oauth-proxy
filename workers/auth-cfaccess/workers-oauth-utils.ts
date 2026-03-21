@@ -2,7 +2,6 @@
 // OAuth utility functions with CSRF and state validation security fixes
 // Based on: https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-cf-access/src/workers-oauth-utils.ts
 
-import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
 import { getSignedCookie, setSignedCookie } from "hono/cookie";
 
@@ -63,47 +62,6 @@ export function validateCSRFToken(formData: FormData, request: Request): void {
 	}
 }
 
-export async function createOAuthState(
-	oauthReqInfo: AuthRequest,
-	kv: KVNamespace,
-	codeVerifier?: string,
-	stateTTL = 600,
-): Promise<{ stateToken: string }> {
-	const stateToken = crypto.randomUUID();
-	const stateData = { oauthReqInfo, codeVerifier };
-	await kv.put(`oauth:state:${stateToken}`, JSON.stringify(stateData), {
-		expirationTtl: stateTTL,
-	});
-	return { stateToken };
-}
-
-export async function validateOAuthState(
-	request: Request,
-	kv: KVNamespace,
-): Promise<{ oauthReqInfo: AuthRequest; codeVerifier?: string }> {
-	const url = new URL(request.url);
-	const stateFromQuery = url.searchParams.get("state");
-
-	if (!stateFromQuery) {
-		throw new OAuthError("invalid_request", "Missing state parameter", 400);
-	}
-
-	const storedDataJson = await kv.get(`oauth:state:${stateFromQuery}`);
-	if (!storedDataJson) {
-		throw new OAuthError("invalid_request", "Invalid or expired state", 400);
-	}
-
-	let stateData: { oauthReqInfo: AuthRequest; codeVerifier?: string };
-	try {
-		stateData = JSON.parse(storedDataJson);
-	} catch {
-		throw new OAuthError("server_error", "Invalid state data", 500);
-	}
-
-	await kv.delete(`oauth:state:${stateFromQuery}`);
-
-	return { oauthReqInfo: stateData.oauthReqInfo, codeVerifier: stateData.codeVerifier };
-}
 
 const APPROVED_CLIENTS_COOKIE = "__Host-APPROVED_CLIENTS";
 const THIRTY_DAYS_IN_SECONDS = 2592000;
@@ -237,5 +195,3 @@ export async function fetchUpstreamAuthToken(params: {
 
 	return [accessToken, idToken, null];
 }
-
-export type { Props } from "../../index";
