@@ -67,7 +67,7 @@ export const ApprovalPage = (props: ApprovalPageProps) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${clientName} | Authorization Request</title>
-    <link rel="stylesheet" href="/static/approval-css">
+    <link rel="stylesheet" href="/static/approval.css">
   </head>
   <body>
     <div class="container">

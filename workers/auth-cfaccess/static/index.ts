@@ -4,7 +4,7 @@ import { getFileContent as getMcpFileContent } from "../../mcp-backend/static";
 export const getApprovalCss = () => approvalCssContent;
 
 const staticFiles: Record<string, { content: () => string; mimeType: string }> = {
-	"approval-css": { content: getApprovalCss, mimeType: "text/css; charset=utf-8" },
+	"approval.css": { content: getApprovalCss, mimeType: "text/css; charset=utf-8" },
 };
 
 export async function getFileContent(name: string): Promise<{ content: string; mimeType: string } | null> {
