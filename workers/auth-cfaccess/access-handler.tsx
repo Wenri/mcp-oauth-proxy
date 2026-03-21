@@ -141,11 +141,18 @@ app.get("/authorize", async (c) => {
 	}
 
 	// Check if client is already approved
-	if (await isClientApproved(request, clientId, env.COOKIE_ENCRYPTION_KEY)) {
+	if (await isClientApproved(c, clientId, env.COOKIE_ENCRYPTION_KEY)) {
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const { stateToken } = await createOAuthState(oauthReqInfo, env.OAUTH_KV, codeVerifier);
-		return redirectToAccess(request, env, stateToken, codeChallenge);
+		return c.redirect(getUpstreamAuthorizeUrl({
+			client_id: env.ACCESS_CLIENT_ID,
+			redirect_uri: new URL("/callback", request.url).href,
+			scope: "openid email profile",
+			state: stateToken,
+			upstream_url: env.ACCESS_AUTHORIZATION_URL,
+			code_challenge: codeChallenge,
+		}), 302);
 	}
 
 	// Generate CSRF protection for the approval form
@@ -201,19 +208,20 @@ app.post("/authorize", async (c) => {
 		return c.text("Invalid request", 400);
 	}
 
-	const approvedClientCookie = await addApprovedClient(
-		request,
-		state.oauthReqInfo.clientId,
-		env.COOKIE_ENCRYPTION_KEY,
-	);
+	await addApprovedClient(c, state.oauthReqInfo.clientId, env.COOKIE_ENCRYPTION_KEY);
 
 	const codeVerifier = generateCodeVerifier();
 	const codeChallenge = await generateCodeChallenge(codeVerifier);
 	const { stateToken } = await createOAuthState(state.oauthReqInfo, env.OAUTH_KV, codeVerifier);
 
-	return redirectToAccess(request, env, stateToken, codeChallenge, {
-		"Set-Cookie": approvedClientCookie,
-	});
+	return c.redirect(getUpstreamAuthorizeUrl({
+		client_id: env.ACCESS_CLIENT_ID,
+		redirect_uri: new URL("/callback", request.url).href,
+		scope: "openid email profile",
+		state: stateToken,
+		upstream_url: env.ACCESS_AUTHORIZATION_URL,
+		code_challenge: codeChallenge,
+	}), 302);
 });
 
 // GET /callback - Handle CF Access callback
@@ -271,28 +279,5 @@ app.get("/callback", async (c) => {
 // Export the Hono app directly (has .fetch method compatible with OAuthProvider)
 export const accessApp = app;
 
-// Helper functions
 
-function redirectToAccess(
-	request: Request,
-	env: Env,
-	stateToken: string,
-	codeChallenge: string,
-	headers: Record<string, string> = {},
-): Response {
-	return new Response(null, {
-		headers: {
-			...headers,
-			location: getUpstreamAuthorizeUrl({
-				client_id: env.ACCESS_CLIENT_ID,
-				redirect_uri: new URL("/callback", request.url).href,
-				scope: "openid email profile",
-				state: stateToken,
-				upstream_url: env.ACCESS_AUTHORIZATION_URL,
-				code_challenge: codeChallenge,
-			}),
-		},
-		status: 302,
-	});
-}
 

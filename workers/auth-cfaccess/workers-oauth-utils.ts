@@ -3,6 +3,8 @@
 // Based on: https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-cf-access/src/workers-oauth-utils.ts
 
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
+import type { Context } from "hono";
+import { getSignedCookie, setSignedCookie } from "hono/cookie";
 
 /**
  * OAuth 2.1 compliant error class.
@@ -127,102 +129,46 @@ export async function validateOAuthState(
 	return { oauthReqInfo: stateData.oauthReqInfo, codeVerifier: stateData.codeVerifier, clearCookie };
 }
 
+const APPROVED_CLIENTS_COOKIE = "__Host-APPROVED_CLIENTS";
+const THIRTY_DAYS_IN_SECONDS = 2592000;
+
 export async function isClientApproved(
-	request: Request,
+	c: Context,
 	clientId: string,
 	cookieSecret: string,
 ): Promise<boolean> {
-	const approvedClients = await getApprovedClientsFromCookie(request, cookieSecret);
-	return approvedClients?.includes(clientId) ?? false;
-}
-
-export async function addApprovedClient(
-	request: Request,
-	clientId: string,
-	cookieSecret: string,
-): Promise<string> {
-	const approvedClientsCookieName = "__Host-APPROVED_CLIENTS";
-	const THIRTY_DAYS_IN_SECONDS = 2592000;
-
-	const existingApprovedClients =
-		(await getApprovedClientsFromCookie(request, cookieSecret)) || [];
-	const updatedApprovedClients = Array.from(new Set([...existingApprovedClients, clientId]));
-
-	const payload = JSON.stringify(updatedApprovedClients);
-	const signature = await signData(payload, cookieSecret);
-	const cookieValue = `${signature}.${btoa(payload)}`;
-
-	return `${approvedClientsCookieName}=${cookieValue}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${THIRTY_DAYS_IN_SECONDS}`;
-}
-
-// --- Helper Functions ---
-
-async function getApprovedClientsFromCookie(
-	request: Request,
-	cookieSecret: string,
-): Promise<string[] | null> {
-	const approvedClientsCookieName = "__Host-APPROVED_CLIENTS";
-
-	const cookieHeader = request.headers.get("Cookie");
-	if (!cookieHeader) return null;
-
-	const cookies = cookieHeader.split(";").map((c) => c.trim());
-	const targetCookie = cookies.find((c) => c.startsWith(`${approvedClientsCookieName}=`));
-
-	if (!targetCookie) return null;
-
-	const cookieValue = targetCookie.substring(approvedClientsCookieName.length + 1);
-	const parts = cookieValue.split(".");
-
-	if (parts.length !== 2) return null;
-
-	const [signatureHex, base64Payload] = parts;
-	const payload = atob(base64Payload);
-
-	const isValid = await verifySignature(signatureHex, payload, cookieSecret);
-	if (!isValid) return null;
-
+	const value = await getSignedCookie(c, cookieSecret, APPROVED_CLIENTS_COOKIE);
+	if (!value) return false;
 	try {
-		const approvedClients = JSON.parse(payload);
-		if (!Array.isArray(approvedClients) || !approvedClients.every((item) => typeof item === "string")) {
-			return null;
-		}
-		return approvedClients as string[];
-	} catch {
-		return null;
-	}
-}
-
-async function signData(data: string, secret: string): Promise<string> {
-	const key = await importKey(secret);
-	const enc = new TextEncoder();
-	const signatureBuffer = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-	return new Uint8Array(signatureBuffer).toHex();
-}
-
-async function verifySignature(signatureHex: string, data: string, secret: string): Promise<boolean> {
-	const key = await importKey(secret);
-	const enc = new TextEncoder();
-	try {
-		const signatureBytes = Uint8Array.fromHex(signatureHex);
-		return await crypto.subtle.verify("HMAC", key, signatureBytes, enc.encode(data));
+		const clients = JSON.parse(value);
+		return Array.isArray(clients) && clients.includes(clientId);
 	} catch {
 		return false;
 	}
 }
 
-async function importKey(secret: string): Promise<CryptoKey> {
-	if (!secret) {
-		throw new Error("cookieSecret is required for signing cookies");
+export async function addApprovedClient(
+	c: Context,
+	clientId: string,
+	cookieSecret: string,
+): Promise<void> {
+	let existing: string[] = [];
+	const value = await getSignedCookie(c, cookieSecret, APPROVED_CLIENTS_COOKIE);
+	if (value) {
+		try {
+			const parsed = JSON.parse(value);
+			if (Array.isArray(parsed)) existing = parsed;
+		} catch { /* ignore malformed cookie */ }
 	}
-	const enc = new TextEncoder();
-	return crypto.subtle.importKey(
-		"raw",
-		enc.encode(secret),
-		{ hash: "SHA-256", name: "HMAC" },
-		false,
-		["sign", "verify"],
-	);
+
+	const updated = Array.from(new Set([...existing, clientId]));
+	await setSignedCookie(c, APPROVED_CLIENTS_COOKIE, JSON.stringify(updated), cookieSecret, {
+		httpOnly: true,
+		secure: true,
+		path: "/",
+		sameSite: "Lax",
+		maxAge: THIRTY_DAYS_IN_SECONDS,
+	});
 }
 
 // Generate PKCE code verifier
