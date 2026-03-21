@@ -80,10 +80,11 @@ describe.skipIf(!serverReachable)('OAuth Discovery', { timeout: 15000 }, () => {
     expect(allowOrigin).toBeTruthy();
   });
 
-  it('returns 404 for unimplemented Protected Resource Metadata', async () => {
-    // RFC 9728 (oauth-protected-resource) not yet implemented
+  it('returns Protected Resource Metadata (RFC 9728)', async () => {
     const response = await fetch(`${url.origin}/.well-known/oauth-protected-resource`);
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.resource).toBeTruthy();
   });
 });
 

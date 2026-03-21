@@ -42,8 +42,8 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       this.props = await this.ctx.storage.get('props');
     }
 
-    if (!this.env.SIYUAN_KERNEL_URL && !this.props?.workerBaseUrl) {
-      logPush('Warning: Neither SIYUAN_KERNEL_URL nor workerBaseUrl available');
+    if (!this.env.SIYUAN_KERNEL_URL && !this.props?.kernelUrl && !this.props?.workerBaseUrl) {
+      logPush('Warning: Neither SIYUAN_KERNEL_URL, kernelUrl, nor workerBaseUrl available');
       return;
     }
 
@@ -56,10 +56,17 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       });
     }
 
+    // Build config with per-user kernel overrides from Props
+    const mcpConfig = {
+      ...this.env,
+      SIYUAN_KERNEL_URL: this.props?.kernelUrl || this.env.SIYUAN_KERNEL_URL,
+      SIYUAN_KERNEL_TOKEN: this.props?.kernelToken || this.env.SIYUAN_KERNEL_TOKEN,
+    };
+
     // Initialize MCP server with SiYuan tools
     await initializeSiyuanMCPServer(
       this.server,
-      this.env,
+      mcpConfig,
       this.props?.workerBaseUrl,
       this.props?.encryptionKey
     );

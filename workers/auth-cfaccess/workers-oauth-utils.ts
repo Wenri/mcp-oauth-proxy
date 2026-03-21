@@ -262,11 +262,4 @@ export async function fetchUpstreamAuthToken(params: {
 	return [accessToken, idToken, null];
 }
 
-export interface Props {
-	accessToken: string;
-	email: string;
-	login: string;
-	name: string;
-	workerBaseUrl: string;
-	[key: string]: unknown;
-}
+export type { Props } from "../../index";

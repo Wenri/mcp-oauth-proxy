@@ -51,6 +51,8 @@ export interface Props {
   login: string;
   name: string;
   workerBaseUrl: string;
+  kernelUrl?: string;
+  kernelToken?: string;
   [key: string]: unknown;
 }
 

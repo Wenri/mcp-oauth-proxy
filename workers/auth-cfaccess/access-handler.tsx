@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv } from "../../index";
+import type { Props } from "../../index";
 import {
 	addApprovedClient,
 	createOAuthState,
@@ -16,11 +17,11 @@ import {
 	getUpstreamAuthorizeUrl,
 	isClientApproved,
 	OAuthError,
-	type Props,
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
 import { ApprovalPage } from "./approval-page";
+import { ConsentPage } from "./consent-page";
 import { initKernel, getFileAPIv2, normalizePath } from "../mcp-backend/syapi";
 import { decryptGrant } from "../mcp-backend/utils/crypto";
 
@@ -173,11 +174,7 @@ app.get("/authorize", async (c) => {
 		<ApprovalPage
 			request={request}
 			client={clientInfo}
-			server={{
-				description: "SiYuan Note MCP Server with Cloudflare Access authentication.",
-				logo: "https://b3log.org/images/brand/siyuan-128.png",
-				name: "SiYuan MCP Server",
-			}}
+			server={serverInfo}
 			state={{ oauthReqInfo }}
 			csrfToken={csrfToken}
 		/>,
@@ -224,7 +221,14 @@ app.post("/authorize", async (c) => {
 	}), 302);
 });
 
-// GET /callback - Handle CF Access callback
+// Server info shared across pages
+const serverInfo = {
+	description: "SiYuan Note MCP Server with Cloudflare Access authentication.",
+	logo: "https://b3log.org/images/brand/siyuan-128.png",
+	name: "SiYuan MCP Server",
+};
+
+// GET /callback - Exchange code, verify JWT, show consent page
 app.get("/callback", async (c) => {
 	const env = c.env;
 	const request = c.req.raw;
@@ -256,21 +260,86 @@ app.get("/callback", async (c) => {
 		sub: idTokenClaims.sub as string,
 	};
 
-	// Return back to the MCP client a new token
+	let clientInfo = null;
+	try {
+		clientInfo = await env.OAUTH_PROVIDER.lookupClient(oauthReqInfo.clientId);
+	} catch { /* client not found */ }
+
+	const { token: csrfToken, setCookie } = generateCSRFProtection();
+	const state = btoa(JSON.stringify({ oauthReqInfo, user, accessToken }));
+
+	c.header("Set-Cookie", setCookie);
+	c.header("Content-Security-Policy", "frame-ancestors 'none'");
+	c.header("X-Frame-Options", "DENY");
+	return c.html(
+		ConsentPage({
+			client: clientInfo,
+			user: { email: user.email, name: user.name },
+			server: serverInfo,
+			defaults: {
+				label: user.name,
+				hasServerKernelUrl: !!env.SIYUAN_KERNEL_URL,
+				hasServerKernelToken: !!env.SIYUAN_KERNEL_TOKEN,
+			},
+			state,
+			csrfToken,
+		}),
+	);
+});
+
+// POST /callback - Process consent form and complete authorization
+app.post("/callback", async (c) => {
+	const env = c.env;
+	const request = c.req.raw;
+
+	const formData = await request.formData();
+	validateCSRFToken(formData, request);
+
+	const encodedState = formData.get("state");
+	if (!encodedState || typeof encodedState !== "string") {
+		return c.text("Missing state", 400);
+	}
+
+	let state: { oauthReqInfo: AuthRequest; user: { email: string; name: string; sub: string }; accessToken: string };
+	try {
+		state = JSON.parse(atob(encodedState));
+	} catch {
+		return c.text("Invalid state data", 400);
+	}
+
+	// Read user-provided values
+	const label = (formData.get("label") as string)?.trim() || state.user.name;
+	const kernelUrl = (formData.get("kernel_url") as string)?.trim() || undefined;
+	const kernelToken = (formData.get("kernel_token") as string) || undefined;
+
+	// Validate kernel URL if provided
+	if (kernelUrl) {
+		try {
+			const parsed = new URL(kernelUrl);
+			if (!["http:", "https:"].includes(parsed.protocol)) {
+				return c.text("Invalid kernel URL: must be HTTP or HTTPS", 400);
+			}
+		} catch {
+			return c.text("Invalid kernel URL", 400);
+		}
+	}
+
+	const props: Props = {
+		accessToken: state.accessToken,
+		email: state.user.email,
+		login: state.user.sub,
+		name: state.user.name,
+		workerBaseUrl: new URL(request.url).origin,
+		kernelUrl,
+		kernelToken,
+	};
+
 	const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
-		metadata: {
-			label: user.name,
-		},
-		props: {
-			accessToken,
-			email: user.email,
-			login: user.sub,
-			name: user.name,
-			workerBaseUrl: new URL(request.url).origin,
-		} as Props,
-		request: oauthReqInfo,
-		scope: oauthReqInfo.scope,
-		userId: user.sub,
+		metadata: { label },
+		props,
+		request: state.oauthReqInfo,
+		scope: state.oauthReqInfo.scope,
+		userId: state.user.sub,
 	});
 
 	return c.redirect(redirectTo, 302);
