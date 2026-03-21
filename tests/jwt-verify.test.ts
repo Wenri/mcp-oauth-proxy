@@ -201,12 +201,11 @@ describe('verifyToken', () => {
     expect(claims.sub).toBe('u');
   });
 
-  it('accepts a token whose exp is exactly now', async () => {
+  it('rejects a token whose exp is exactly now', async () => {
     mockFetchWithJwks(buildJwks(TEST_KID, publicJwk));
-    // exp === now: not expired (condition is exp < now)
+    // exp === now: expired (Hono uses exp <= now)
     const token = await signToken({ sub: 'u', exp: now }, keyPair.privateKey);
-    const claims = await verifyToken(env, token);
-    expect(claims.sub).toBe('u');
+    await expect(verifyToken(env, token)).rejects.toThrow('expired token');
   });
 
   it('accepts a token with a future exp', async () => {
