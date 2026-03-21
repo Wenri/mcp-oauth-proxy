@@ -14,15 +14,13 @@ export {
   databaseSchemaContent,
   sqlCheatsheetContent,
   querySyntaxContent,
+  promptCreateCardsCNContent,
+  promptQueryCNContent,
   mdSyntaxCNContent,
   superblockCNContent,
   templateActionCNContent,
   promptTemplateCNContent,
 };
-
-// Legacy prompt exports (used by server/index.ts)
-export const promptCreateCardsCN = promptCreateCardsCNContent;
-export const promptQueryCN = promptQueryCNContent;
 
 /** Static content registry */
 export const staticFiles: Record<string, string> = {

@@ -16,7 +16,7 @@ import { createErrorResponse } from '../utils/mcpResponse';
 import { initKernel, cachedPostRequest, normalizePath } from '../syapi';
 
 // Import prompts from static index
-import { promptCreateCardsCN, promptQueryCN, promptTemplateCNContent } from '../static';
+import { promptCreateCardsCNContent, promptQueryCNContent, promptTemplateCNContent } from '../static';
 
 // Re-export types for convenience
 export type { SiyuanMCPConfig } from '../../../index';
@@ -196,7 +196,7 @@ async function loadPrompts(server: McpServer): Promise<void> {
     },
     () => ({
       messages: [
-        { role: 'user', content: { type: 'text', text: promptCreateCardsCN } },
+        { role: 'user', content: { type: 'text', text: promptCreateCardsCNContent } },
       ],
     })
   );
@@ -209,7 +209,7 @@ async function loadPrompts(server: McpServer): Promise<void> {
     },
     () => ({
       messages: [
-        { role: 'assistant', content: { type: 'text', text: promptQueryCN } },
+        { role: 'assistant', content: { type: 'text', text: promptQueryCNContent } },
       ],
     })
   );
