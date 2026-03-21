@@ -26,7 +26,7 @@ import { initKernel, getFileAPIv2, normalizePath } from "../mcp-backend/syapi";
 import { decryptGrant } from "../mcp-backend/utils/crypto";
 
 // Import static files accessor
-import { getFileContent } from "../mcp-backend/static";
+import { getFileContent } from "./static";
 
 type Env = AuthCfAccessEnv;
 
@@ -55,13 +55,12 @@ app.onError((error, c) => {
 
 // Static file routes (public, no auth required)
 app.get("/static/:name", async (c) => {
-	const name = c.req.param("name");
-	const content = await getFileContent(name);
-	if (!content) {
+	const result = await getFileContent(c.req.param("name"));
+	if (!result) {
 		return c.text("Not found", 404);
 	}
-	return c.text(content, 200, {
-		"Content-Type": "text/markdown; charset=utf-8",
+	return c.text(result.content, 200, {
+		"Content-Type": result.mimeType,
 		"Cache-Control": "public, max-age=86400",
 	});
 });
