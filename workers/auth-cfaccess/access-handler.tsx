@@ -164,17 +164,17 @@ app.get("/authorize", async (c) => {
 	c.header("Content-Security-Policy", "frame-ancestors 'none'");
 	c.header("X-Frame-Options", "DENY");
 	return c.html(
-		ApprovalPage({
-			request,
-			client: clientInfo,
-			server: {
+		<ApprovalPage
+			request={request}
+			client={clientInfo}
+			server={{
 				description: "SiYuan Note MCP Server with Cloudflare Access authentication.",
 				logo: "https://b3log.org/images/brand/siyuan-128.png",
 				name: "SiYuan MCP Server",
-			},
-			state: { oauthReqInfo },
-			csrfToken,
-		}),
+			}}
+			state={{ oauthReqInfo }}
+			csrfToken={csrfToken}
+		/>,
 	);
 });
 
