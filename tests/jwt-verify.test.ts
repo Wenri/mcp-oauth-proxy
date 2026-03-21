@@ -104,9 +104,9 @@ describe('parseJWT', () => {
   });
 
   it('throws when token does not have 3 parts', () => {
-    expect(() => parseJWT('only.two')).toThrow('token must have 3 parts');
-    expect(() => parseJWT('one')).toThrow('token must have 3 parts');
-    expect(() => parseJWT('a.b.c.d')).toThrow('token must have 3 parts');
+    expect(() => parseJWT('only.two')).toThrow('invalid JWT token');
+    expect(() => parseJWT('one')).toThrow('invalid JWT token');
+    expect(() => parseJWT('a.b.c.d')).toThrow('invalid JWT token');
   });
 
   it('correctly base64url-decodes header and payload', async () => {

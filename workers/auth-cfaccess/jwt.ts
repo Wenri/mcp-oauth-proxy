@@ -17,11 +17,8 @@ export interface ParsedJWT {
 }
 
 export function parseJWT(token: string): ParsedJWT {
-	const tokenParts = token.split(".");
-	if (tokenParts.length !== 3) {
-		throw new Error("token must have 3 parts");
-	}
 	const { header, payload } = decode(token);
+	const tokenParts = token.split(".");
 	return {
 		data: `${tokenParts[0]}.${tokenParts[1]}`,
 		header: header as { kid: string; alg: string },
