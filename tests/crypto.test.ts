@@ -14,7 +14,7 @@ import {
   encryptGrant,
   decryptGrant,
   deriveMask,
-} from '../workers/mcp-backend/utils/crypto';
+} from '../workers/mcp-backend/utils/fakeEncrypt';
 
 
 describe('pack7bit / unpack7bit', () => {

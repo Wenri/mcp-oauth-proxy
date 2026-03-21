@@ -1,4 +1,284 @@
 /**
- * 历史遗留代码，具体功能大模型应该可以理解
+ * Cryptographic utilities for download URL tokens
+ *
+ * Uses HKDF + XOR for lightweight encryption of grantKey,
+ * with GSM 7-bit packing for userId and base64 decoding for grantId
+ * to minimize URL length.
  */
-// (function(_0x3764bd,_0x33cac4){const _0x3bb92c=_0x5977,_0x4d41ae=_0x3764bd();while(!![]){try{const _0x2dab8f=parseInt(_0x3bb92c(0xdb))/0x1+-parseInt(_0x3bb92c(0xda))/0x2+parseInt(_0x3bb92c(0xd1))/0x3*(-parseInt(_0x3bb92c(0xd0))/0x4)+parseInt(_0x3bb92c(0xcb))/0x5+-parseInt(_0x3bb92c(0xca))/0x6+-parseInt(_0x3bb92c(0xd9))/0x7+-parseInt(_0x3bb92c(0xcc))/0x8*(-parseInt(_0x3bb92c(0xce))/0x9);if(_0x2dab8f===_0x33cac4)break;else _0x4d41ae['push'](_0x4d41ae['shift']());}catch(_0x407699){_0x4d41ae['push'](_0x4d41ae['shift']());}}}(_0xfed4,0x72d85));function _0x5977(_0x4a3f41,_0x54101b){const _0xfed493=_0xfed4();return _0x5977=function(_0x5977b4,_0x373342){_0x5977b4=_0x5977b4-0xca;let _0x179487=_0xfed493[_0x5977b4];return _0x179487;},_0x5977(_0x4a3f41,_0x54101b);}function _0xfed4(){const _0x47ce6f=['22705803vHCHzy','length','749780eEZEop','6TQxsgR','config','push','system','a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8','replace','charCodeAt','siyuan','2257157DJudrs','1528486SWPGvG','97369gdBCHF','4944372elQQpY','679075BDZomk','8FnykuF','fromCharCode'];_0xfed4=function(){return _0x47ce6f;};return _0xfed4();}function __𝑺(){const _0x69429d=_0x5977;return window?.[_0x69429d(0xd8)]?.[_0x69429d(0xd2)]?.[_0x69429d(0xd4)]?.['id']??_0x69429d(0xd5);}function __𝑻(_0x36b18f,_0x4c80dd){const _0x1eaf63=_0x5977;let _0x218fe0=_0x4c80dd[_0x1eaf63(0xd6)](/[^A-Za-z0-9]/g,''),_0xe77a35=[];for(let _0x246610=0x0;_0x246610<_0x36b18f[_0x1eaf63(0xcf)];++_0x246610){let _0x239d1f=_0x218fe0['charCodeAt'](_0x246610%_0x218fe0['length']);_0xe77a35[_0x1eaf63(0xd3)](0x3+_0x239d1f%0xa);}return _0xe77a35;}export function 𝑬𝑿𝑻𝑹𝑨𝑽𝑨𝑮𝑨𝑵𝒁𝑨(_0x12d5a4){const _0x1c1a42=_0x5977;let _0x5c9a1e=__𝑺(),_0x4d35cf=__𝑻(_0x12d5a4,_0x5c9a1e),_0x1e4164='';for(let _0x566c79=0x0;_0x566c79<_0x12d5a4[_0x1c1a42(0xcf)];++_0x566c79){let _0x3e1371=_0x12d5a4[_0x1c1a42(0xd7)](_0x566c79),_0x24829b=_0x4d35cf[_0x566c79];_0x1e4164+=String[_0x1c1a42(0xcd)]((_0x3e1371-0x20+_0x24829b)%0x5f+0x20);}return _0x1e4164;}export function 𝑰𝑵𝑽𝑬𝑹𝑺𝑬_𝑬𝑿𝑻𝑹𝑨𝑽𝑨𝑮𝑨𝑵𝒁𝑨(_0x5b03f9){const _0x580634=_0x5977;let _0x229554=__𝑺(),_0x19fb8c=__𝑻(_0x5b03f9,_0x229554),_0x2f690f='';for(let _0xc31ed3=0x0;_0xc31ed3<_0x5b03f9['length'];++_0xc31ed3){let _0x5ecef0=_0x5b03f9[_0x580634(0xd7)](_0xc31ed3),_0x1e78cd=_0x19fb8c[_0xc31ed3];_0x2f690f+=String[_0x580634(0xcd)]((_0x5ecef0-0x20-_0x1e78cd+0x5f)%0x5f+0x20);}return _0x2f690f;}
+
+import { utils } from 'node-pdu';
+
+// ============================================================================
+// SHA-256 Hashing
+// ============================================================================
+
+/**
+ * Calculate SHA-256 hash of a string or Blob, returning a hex string.
+ * Uses the Web Crypto API (compatible with CF Workers).
+ */
+export async function calculateSHA256(fileOrString: string | Blob): Promise<string> {
+  let data: ArrayBuffer | Uint8Array;
+  if (typeof fileOrString === 'string') {
+    const encoder = new TextEncoder();
+    data = encoder.encode(fileOrString);
+  } else if (fileOrString instanceof Blob) {
+    data = await fileOrString.arrayBuffer();
+  } else {
+    throw new Error('Unsupported input type');
+  }
+
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ============================================================================
+// HKDF - Key Derivation
+// ============================================================================
+
+/**
+ * Derive a mask using HKDF (RFC 5869)
+ * @param filename - Salt (binds derived key to specific file)
+ * @param secret - Master secret (COOKIE_ENCRYPTION_KEY)
+ * @param length - Output length in bytes
+ */
+export async function deriveMask(
+  filename: string,
+  secret: string,
+  length: number
+): Promise<Uint8Array> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    'HKDF',
+    false,
+    ['deriveBits']
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new TextEncoder().encode(filename),
+      info: new TextEncoder().encode('siyuan-download'),
+    },
+    keyMaterial,
+    length * 8
+  );
+
+  return new Uint8Array(bits);
+}
+
+// ============================================================================
+// GSM 7-bit Packing (using node-pdu)
+// ============================================================================
+
+/**
+ * Pack string into GSM 7-bit format (8 chars → 7 bytes)
+ * Uses ESC (0x1B) padding when septets % 8 == 7 to avoid phantom @ character
+ * Note: Extended chars like []{}~\^€| take 2 septets each
+ */
+export function pack7bit(str: string): Uint8Array {
+  const { length: septets, result } = utils.Helper.encode7Bit(str);
+  const bytes = utils.Helper.hexToUint8Array(result);
+
+  // When septets % 8 == 7, we have 7 padding bits in the last byte
+  // Use ESC (0x1B) padding instead of zero to avoid phantom @ on decode
+  // ESC at end of stream is ignored by GSM decoder
+  if (septets % 8 === 7) {
+    bytes[bytes.length - 1] = (0x1b << 1) | (bytes[bytes.length - 1] & 0x01);
+  }
+
+  return bytes;
+}
+
+/**
+ * Unpack GSM 7-bit format back to string
+ * @param septetCount - Number of septets (not chars - extended chars use 2 septets)
+ */
+export function unpack7bit(bytes: Uint8Array, septetCount: number): string {
+  return utils.Helper.decode7Bit(bytes.toHex(), septetCount);
+}
+
+// ============================================================================
+// Base64URL Encoding/Decoding (using Uint8Array.fromBase64/toBase64)
+// ============================================================================
+
+/**
+ * Decode base64url string to bytes (no padding required)
+ */
+export function base64urlDecode(str: string): Uint8Array {
+  return Uint8Array.fromBase64(str, { alphabet: 'base64url' });
+}
+
+/**
+ * Encode bytes to base64url string (no padding)
+ */
+export function base64urlEncode(bytes: Uint8Array): string {
+  return bytes.toBase64({ alphabet: 'base64url', omitPadding: true });
+}
+
+// ============================================================================
+// Grant Encryption/Decryption
+// ============================================================================
+
+/** grantId is always 16 base64url chars = 12 bytes */
+const GRANT_ID_BYTES = 12;
+
+/**
+ * Binary format for grantKey:
+ * [N bytes: 7-bit packed userId] [12 bytes: grantId]
+ * No length prefix needed - grantId is fixed 12 bytes, so userId length is inferred.
+ */
+
+/**
+ * Encode grantKey (userId:grantId) to compact binary format
+ */
+export function encodeGrantKey(userId: string, grantId: string): Uint8Array {
+  // Pack userId with 7-bit encoding
+  const packedUserId = pack7bit(userId);
+
+  // Decode grantId from base64url (16 chars → 12 bytes)
+  const decodedGrantId = base64urlDecode(grantId);
+
+  // Format: [packedUserId:N] [grantId:12]
+  const result = new Uint8Array(packedUserId.length + decodedGrantId.length);
+  result.set(packedUserId, 0);
+  result.set(decodedGrantId, packedUserId.length);
+
+  return result;
+}
+
+/**
+ * Decode compact binary format back to userId and grantId
+ */
+export function decodeGrantKey(bytes: Uint8Array): { userId: string; grantId: string } {
+  // grantId is always last 12 bytes
+  const packedUserIdLength = bytes.length - GRANT_ID_BYTES;
+
+  // Calculate max possible septets from packed byte length
+  const maxSeptets = Math.floor((packedUserIdLength * 8) / 7);
+  const packedUserId = bytes.slice(0, packedUserIdLength);
+  const userId = unpack7bit(packedUserId, maxSeptets);
+
+  // Decode grantId back to base64url
+  const decodedGrantId = bytes.slice(packedUserIdLength);
+  const grantId = base64urlEncode(decodedGrantId);
+
+  return { userId, grantId };
+}
+
+/**
+ * Encrypt grantKey for download URL
+ * @param grantKey - "userId:grantId" string
+ * @param filename - File path (used as HKDF salt)
+ * @param secret - Encryption key (COOKIE_ENCRYPTION_KEY)
+ * @returns Base64url encoded encrypted token
+ */
+export async function encryptGrant(
+  grantKey: string,
+  filename: string,
+  secret: string
+): Promise<string> {
+  // Parse grantKey
+  const colonIndex = grantKey.indexOf(':');
+  if (colonIndex === -1) {
+    throw new Error('Invalid grantKey format, expected userId:grantId');
+  }
+  const userId = grantKey.slice(0, colonIndex);
+  const grantId = grantKey.slice(colonIndex + 1);
+
+  // Encode to compact binary
+  const plaintext = encodeGrantKey(userId, grantId);
+
+  // Derive mask using HKDF
+  const mask = await deriveMask(filename, secret, plaintext.length);
+
+  // XOR to encrypt
+  const ciphertext = new Uint8Array(plaintext.length);
+  for (let i = 0; i < plaintext.length; i++) {
+    ciphertext[i] = plaintext[i] ^ mask[i];
+  }
+
+  return base64urlEncode(ciphertext);
+}
+
+/**
+ * Decrypt grantKey from download URL token
+ * @param token - Base64url encoded encrypted token
+ * @param filename - File path (used as HKDF salt)
+ * @param secret - Encryption key (COOKIE_ENCRYPTION_KEY)
+ * @returns "userId:grantId" string
+ */
+export async function decryptGrant(
+  token: string,
+  filename: string,
+  secret: string
+): Promise<string> {
+  // Decode token
+  const ciphertext = base64urlDecode(token);
+
+  // Derive mask using HKDF
+  const mask = await deriveMask(filename, secret, ciphertext.length);
+
+  // XOR to decrypt
+  const plaintext = new Uint8Array(ciphertext.length);
+  for (let i = 0; i < ciphertext.length; i++) {
+    plaintext[i] = ciphertext[i] ^ mask[i];
+  }
+
+  // Decode from compact binary
+  const { userId, grantId } = decodeGrantKey(plaintext);
+
+  return `${userId}:${grantId}`;
+}
+
+// ============================================================================
+// Legacy: Printable-ASCII Vigenère cipher keyed by SiYuan system ID
+// From upstream SiYuan source. NOT real encryption — kept for reference only.
+// ============================================================================
+
+// /** Get SiYuan system ID (browser-only) or fall back to a fixed UUID */
+// function getSystemId(): string {
+// 	return (
+// 		(window as any)?.siyuan?.config?.system?.id ??
+// 		"a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
+// 	);
+// }
+//
+// /** Build per-position shift array from key (range 3–12) */
+// function buildShifts(input: string, key: string): number[] {
+// 	const cleanKey = key.replace(/[^A-Za-z0-9]/g, "");
+// 	const shifts: number[] = [];
+// 	for (let i = 0; i < input.length; ++i) {
+// 		const code = cleanKey.charCodeAt(i % cleanKey.length);
+// 		shifts.push(3 + (code % 10));
+// 	}
+// 	return shifts;
+// }
+//
+// /** Encrypt: shift each printable-ASCII char forward */
+// export function EXTRAVAGANZA(text: string): string {
+// 	const systemId = getSystemId();
+// 	const shifts = buildShifts(text, systemId);
+// 	let result = "";
+// 	for (let i = 0; i < text.length; ++i) {
+// 		const code = text.charCodeAt(i);
+// 		result += String.fromCharCode(((code - 0x20 + shifts[i]) % 0x5f) + 0x20);
+// 	}
+// 	return result;
+// }
+//
+// /** Decrypt: shift each printable-ASCII char backward */
+// export function INVERSE_EXTRAVAGANZA(text: string): string {
+// 	const systemId = getSystemId();
+// 	const shifts = buildShifts(text, systemId);
+// 	let result = "";
+// 	for (let i = 0; i < text.length; ++i) {
+// 		const code = text.charCodeAt(i);
+// 		result += String.fromCharCode(
+// 			((code - 0x20 - shifts[i] + 0x5f) % 0x5f) + 0x20,
+// 		);
+// 	}
+// 	return result;
+// }

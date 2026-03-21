@@ -6,7 +6,7 @@ import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
 import { getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
-import { pack7bit, unpack7bit } from "../mcp-backend/utils/crypto";
+import { pack7bit, unpack7bit } from "../mcp-backend/utils/fakeEncrypt";
 
 /**
  * OAuth 2.1 compliant error class.

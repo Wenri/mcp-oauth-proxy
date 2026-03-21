@@ -11,7 +11,7 @@ import type { SiyuanConfig } from '../types';
 import { getAllToolProviders } from '../tools';
 import { getAllResourceProviders, type ResourceContext } from '../resources';
 import { logPush, debugPush, errorPush } from '../logger';
-import { encryptGrant } from '../utils/crypto';
+import { encryptGrant } from '../utils/fakeEncrypt';
 import { createErrorResponse } from '../utils/mcpResponse';
 import { initKernel, cachedPostRequest, normalizePath } from '../syapi';
 

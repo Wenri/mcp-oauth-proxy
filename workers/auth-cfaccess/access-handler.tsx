@@ -25,7 +25,7 @@ import {
 import { ApprovalPage } from "./approval-page";
 import { ConsentPage } from "./consent-page";
 import { initKernel, getFileAPIv2, normalizePath } from "../mcp-backend/syapi";
-import { decryptGrant } from "../mcp-backend/utils/crypto";
+import { decryptGrant } from "../mcp-backend/utils/fakeEncrypt";
 
 // Import static files accessor
 import { getFileContent } from "./static";

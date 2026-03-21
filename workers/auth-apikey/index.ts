@@ -7,7 +7,7 @@
 
 import type { AuthApiKeyEnv, Props } from '../../index';
 import { initKernel, getFileAPIv2, normalizePath } from '../mcp-backend/syapi';
-import { decryptGrant } from '../mcp-backend/utils/crypto';
+import { decryptGrant } from '../mcp-backend/utils/fakeEncrypt';
 
 type Env = AuthApiKeyEnv;
 
