@@ -254,7 +254,7 @@ export function unpackState(buf: Uint8Array): { oauthReqInfo: AuthRequest; codeV
 			redirectUri: parts[1],
 			scope: parts[2].split(" "),
 			state: parts[3],
-			codeChallenge: arr[2]?.toBase64({ alphabet: "base64url" }),
+			codeChallenge: arr[2]?.toBase64({ alphabet: "base64url", omitPadding: true }),
 			codeChallengeMethod: arr[2] ? "S256" : undefined,
 			resource: parts.length > 5 ? parts.slice(4) : (parts[4] || undefined),
 		},
