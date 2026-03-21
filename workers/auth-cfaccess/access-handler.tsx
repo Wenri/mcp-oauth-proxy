@@ -9,21 +9,23 @@ import type { AuthCfAccessEnv } from "../../index";
 import type { Props } from "../../index";
 import {
 	addApprovedClient,
+	deflateToBase64url,
 	fetchUpstreamAuthToken,
 	generateCodeChallenge,
 	generateCodeVerifier,
 	generateCSRFProtection,
 	getUpstreamAuthorizeUrl,
+	inflateFromBase64url,
 	isClientApproved,
 	OAuthError,
+	packState,
+	unpackState,
 	validateCSRFToken,
 } from "./workers-oauth-utils";
 import { ApprovalPage } from "./approval-page";
 import { ConsentPage } from "./consent-page";
 import { initKernel, getFileAPIv2, normalizePath } from "../mcp-backend/syapi";
-import { decryptGrant, pack7bit, unpack7bit } from "../mcp-backend/utils/crypto";
-
-import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
+import { decryptGrant } from "../mcp-backend/utils/crypto";
 
 // Import static files accessor
 import { getFileContent } from "./static";
@@ -41,66 +43,6 @@ interface GrantRecord {
 	scope: string[];
 	encryptedProps: string;
 	expiresAt?: number;
-}
-
-/** Deflate-compress + base64url encode */
-async function deflateToBase64url(data: Uint8Array): Promise<string> {
-	const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate-raw"));
-	const buf = await new Response(stream).arrayBuffer();
-	return btoa(String.fromCharCode(...new Uint8Array(buf)))
-		.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-/** Base64url decode + inflate-decompress */
-async function inflateFromBase64url(encoded: string): Promise<Uint8Array> {
-	const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
-	const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-	const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-	return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-/**
- * Pack AuthRequest + codeVerifier as MessagePack array.
- * Text fields are GSM 7-bit packed (12.5% savings on ASCII).
- * Binary fields (hex/base64url) decoded to raw bytes.
- * Constants (responseType="code", codeChallengeMethod="S256") omitted.
- * Format: [packed7bitText, codeChallenge|null, codeVerifier]
- */
-function packState(oauthReqInfo: AuthRequest, codeVerifier: string): Uint8Array {
-	const text = [
-		oauthReqInfo.clientId,
-		oauthReqInfo.redirectUri,
-		oauthReqInfo.scope.join(" "),
-		oauthReqInfo.state,
-		Array.isArray(oauthReqInfo.resource)
-			? oauthReqInfo.resource.join(" ") : (oauthReqInfo.resource ?? ""),
-	].join("\n");
-	return msgpackEncode([
-		pack7bit(text),
-		oauthReqInfo.codeChallenge
-			? Uint8Array.fromBase64(oauthReqInfo.codeChallenge, { alphabet: "base64url" })
-			: null,
-		Uint8Array.fromHex(codeVerifier),
-	]);
-}
-
-function unpackState(buf: Uint8Array): { oauthReqInfo: AuthRequest; codeVerifier: string } {
-	const arr = msgpackDecode(buf) as [Uint8Array, Uint8Array | null, Uint8Array];
-	const maxSeptets = Math.floor((arr[0].length * 8) / 7);
-	const parts = unpack7bit(arr[0], maxSeptets).split("\n");
-	return {
-		oauthReqInfo: {
-			responseType: "code",
-			clientId: parts[0],
-			redirectUri: parts[1],
-			scope: parts[2].split(" "),
-			state: parts[3],
-			codeChallenge: arr[1]?.toBase64({ alphabet: "base64url" }),
-			codeChallengeMethod: arr[1] ? "S256" : undefined,
-			resource: parts[4] || undefined,
-		},
-		codeVerifier: (arr[2] as Uint8Array).toHex(),
-	};
 }
 
 /** Build upstream CF Access redirect URL with compact state */

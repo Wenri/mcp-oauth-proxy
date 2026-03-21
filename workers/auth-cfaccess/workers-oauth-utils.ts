@@ -2,8 +2,11 @@
 // OAuth utility functions with CSRF and state validation security fixes
 // Based on: https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-cf-access/src/workers-oauth-utils.ts
 
+import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
 import { getSignedCookie, setSignedCookie } from "hono/cookie";
+import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
+import { pack7bit, unpack7bit } from "../mcp-backend/utils/crypto";
 
 /**
  * OAuth 2.1 compliant error class.
@@ -194,4 +197,69 @@ export async function fetchUpstreamAuthToken(params: {
 	}
 
 	return [accessToken, idToken, null];
+}
+
+/** Deflate-compress + base64url encode */
+export async function deflateToBase64url(data: Uint8Array): Promise<string> {
+	const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+	const buf = await new Response(stream).arrayBuffer();
+	return btoa(String.fromCharCode(...new Uint8Array(buf)))
+		.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Base64url decode + inflate-decompress */
+export async function inflateFromBase64url(encoded: string): Promise<Uint8Array> {
+	const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
+	const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+	const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+	return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/**
+ * Pack AuthRequest + codeVerifier as MessagePack array.
+ * Text fields are GSM 7-bit packed (12.5% savings on ASCII).
+ * Binary fields (hex/base64url) decoded to raw bytes.
+ * Constants (responseType="code", codeChallengeMethod="S256") omitted.
+ * Text: clientId\nredirectUri\nscope\nstate[\nresource...]
+ * Format: [codeVerifier, packed7bitText, codeChallenge?]
+ */
+export function packState(oauthReqInfo: AuthRequest, codeVerifier: string): Uint8Array {
+	const textParts = [
+		oauthReqInfo.clientId,
+		oauthReqInfo.redirectUri,
+		oauthReqInfo.scope.join(" "),
+		oauthReqInfo.state,
+	];
+	const resource = oauthReqInfo.resource;
+	if (resource) {
+		if (Array.isArray(resource)) textParts.push(...resource);
+		else textParts.push(resource);
+	}
+	const arr: unknown[] = [
+		Uint8Array.fromHex(codeVerifier),
+		pack7bit(textParts.join("\n")),
+	];
+	if (oauthReqInfo.codeChallenge) {
+		arr.push(Uint8Array.fromBase64(oauthReqInfo.codeChallenge, { alphabet: "base64url" }));
+	}
+	return msgpackEncode(arr);
+}
+
+export function unpackState(buf: Uint8Array): { oauthReqInfo: AuthRequest; codeVerifier: string } {
+	const arr = msgpackDecode(buf) as [Uint8Array, Uint8Array, Uint8Array?];
+	const maxSeptets = Math.floor((arr[1].length * 8) / 7);
+	const parts = unpack7bit(arr[1], maxSeptets).split("\n");
+	return {
+		oauthReqInfo: {
+			responseType: "code",
+			clientId: parts[0],
+			redirectUri: parts[1],
+			scope: parts[2].split(" "),
+			state: parts[3],
+			codeChallenge: arr[2]?.toBase64({ alphabet: "base64url" }),
+			codeChallengeMethod: arr[2] ? "S256" : undefined,
+			resource: parts.length > 5 ? parts.slice(4) : (parts[4] || undefined),
+		},
+		codeVerifier: (arr[0] as Uint8Array).toHex(),
+	};
 }
