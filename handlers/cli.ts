@@ -22,14 +22,14 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { SiyuanMCPConfig } from '..';
+import type { KernelConfig, SiyuanToolConfig } from '..';
 import { initializeSiyuanMCPServer } from '../workers/mcp-backend/server';
 import pkg from '../package.json' with { type: 'json' };
 
 // Parse command line arguments
-function parseArgs(): SiyuanMCPConfig {
+function parseArgs(): KernelConfig & SiyuanToolConfig {
   const args = process.argv.slice(2);
-  const config: SiyuanMCPConfig = {
+  const config: KernelConfig & SiyuanToolConfig = {
     SIYUAN_KERNEL_URL: '',
   };
 
@@ -56,7 +56,7 @@ function parseArgs(): SiyuanMCPConfig {
         config.FILTER_DOCUMENTS = args[++i];
         break;
       case '--read-only':
-        config.READ_ONLY_MODE = args[++i] as SiyuanMCPConfig['READ_ONLY_MODE'];
+        config.READ_ONLY_MODE = args[++i] as SiyuanToolConfig['READ_ONLY_MODE'];
         break;
       case '--help':
       case '-h':

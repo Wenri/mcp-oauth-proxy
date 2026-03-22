@@ -5,13 +5,13 @@
  * It can be triggered by CF Cron or called manually to index documents.
  */
 
-import type { SiyuanMCPConfig } from '../server';
+import type { KernelConfig, SiyuanToolConfig } from '../server';
 import { initKernel, exportMdContent } from '../syapi';
 import { cachedQuery } from '../syapi/custom';
 import { isValidStr } from '../utils/commonCheck';
 import { debugPush, logPush, errorPush } from '../logger';
 
-export type IndexerConfig = Pick<SiyuanMCPConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN' | 'RAG_BASE_URL' | 'RAG_API_KEY'> & {
+export type IndexerConfig = Pick<KernelConfig, 'SIYUAN_KERNEL_URL' | 'SIYUAN_KERNEL_TOKEN'> & Pick<SiyuanToolConfig, 'RAG_BASE_URL' | 'RAG_API_KEY'> & {
   BATCH_SIZE?: number;
   MAX_DOCUMENTS?: number;
 };

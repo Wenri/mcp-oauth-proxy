@@ -6,7 +6,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { SiyuanMCPConfig } from '../../../index';
+import type { KernelConfig, SiyuanToolConfig } from '../../../index';
 import type { SiyuanConfig } from '../types';
 import { getAllToolProviders } from '../tools';
 import { getAllResourceProviders, type ResourceContext } from '../resources';
@@ -19,7 +19,7 @@ import { initKernel, cachedPostRequest, normalizePath } from '../syapi';
 import { promptCreateCardsCNContent, promptQueryCNContent, promptTemplateCNContent } from '../static';
 
 // Re-export types for convenience
-export type { SiyuanMCPConfig } from '../../../index';
+export type { KernelConfig, SiyuanToolConfig } from '../../../index';
 export type { SiyuanConfig } from '../types';
 
 // Re-export for external use (handlers)
@@ -95,7 +95,7 @@ export function getAppId(): string {
  */
 export async function initializeSiyuanMCPServer(
   server: McpServer,
-  mcpConfig: SiyuanMCPConfig,
+  mcpConfig: KernelConfig & SiyuanToolConfig,
   baseUrl?: string,
   cookieEncryptionKey?: string
 ): Promise<void> {

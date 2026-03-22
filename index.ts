@@ -10,27 +10,31 @@
 // ============================================================================
 
 /**
- * SiYuan-specific config subset
- * Used by initializeSiyuanMCPServer() - can pass full Env or just these fields
- * Uses string types (not literals) for CLI compatibility
+ * Kernel connection config — shared by all three workers.
+ * Includes CF Access Service Token for authenticating worker-to-kernel requests.
  */
-export type SiyuanMCPConfig = {
+export type KernelConfig = {
   SIYUAN_KERNEL_URL?: string;
   SIYUAN_KERNEL_TOKEN?: string;
+  CF_ACCESS_SERVICE_CLIENT_ID?: string;
+  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
+};
+
+/**
+ * Tool behaviour tunables — mcp-backend only.
+ */
+export type SiyuanToolConfig = {
   RAG_BASE_URL?: string;
   RAG_API_KEY?: string;
   FILTER_NOTEBOOKS?: string;
   FILTER_DOCUMENTS?: string;
   READ_ONLY_MODE?: 'allow_all' | 'allow_non_destructive' | 'deny_all';
   AUTO_APPROVE_LOCAL_CHANGE?: boolean;
-  // CF Access Service Token for kernel API authentication
-  CF_ACCESS_SERVICE_CLIENT_ID?: string;
-  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
 };
 
+
 /**
- * Cloudflare Access OAuth configuration
- * Used by auth-cfaccess worker
+ * Cloudflare Access OAuth configuration — auth-cfaccess worker only.
  */
 export type AccessOAuthConfig = {
   ACCESS_CLIENT_ID: string;
@@ -38,7 +42,6 @@ export type AccessOAuthConfig = {
   ACCESS_TOKEN_URL: string;
   ACCESS_AUTHORIZATION_URL: string;
   ACCESS_JWKS_URL: string;
-  COOKIE_ENCRYPTION_KEY: string;
 };
 
 /**
@@ -67,7 +70,7 @@ export interface AuthContext {
 /**
  * MCP Backend Worker environment
  */
-export type MCPBackendEnv = Cloudflare.Env & SiyuanMCPConfig & {
+export type MCPBackendEnv = Cloudflare.Env & KernelConfig & SiyuanToolConfig & {
   MCP_OBJECT: DurableObjectNamespace;
   COOKIE_ENCRYPTION_KEY: string;
 };
@@ -75,28 +78,22 @@ export type MCPBackendEnv = Cloudflare.Env & SiyuanMCPConfig & {
 /**
  * Auth Worker environment (CF Access)
  */
-export type AuthCfAccessEnv = Cloudflare.Env & AccessOAuthConfig & {
+export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig & {
   OAUTH_KV: KVNamespace;
   MCP_BACKEND: Fetcher;
-  SIYUAN_KERNEL_TOKEN?: string;
-  SIYUAN_KERNEL_URL?: string;
-  CF_ACCESS_SERVICE_CLIENT_ID?: string;
-  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
+  COOKIE_ENCRYPTION_KEY: string;
 };
 
 /**
  * Auth Worker environment (API Key)
  */
-export type AuthApiKeyEnv = Cloudflare.Env & {
+export type AuthApiKeyEnv = Cloudflare.Env & KernelConfig & {
   MCP_BACKEND: Fetcher;
-  SIYUAN_KERNEL_TOKEN: string;
-  SIYUAN_KERNEL_URL?: string;
+  SIYUAN_KERNEL_TOKEN: string;  // required: primary auth mechanism
   COOKIE_ENCRYPTION_KEY: string;
-  CF_ACCESS_SERVICE_CLIENT_ID?: string;
-  CF_ACCESS_SERVICE_CLIENT_SECRET?: string;
 };
 
 /**
  * Legacy Env type for CLI compatibility
  */
-export type Env = Cloudflare.Env & SiyuanMCPConfig & AccessOAuthConfig;
+export type Env = Cloudflare.Env & KernelConfig & SiyuanToolConfig & AccessOAuthConfig;
