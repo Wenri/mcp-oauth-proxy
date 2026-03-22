@@ -18,10 +18,10 @@ import type { AuthCfAccessEnv as Env } from '../../index';
 export default new OAuthProvider({
   apiHandlers: {
     '/sse': accessApp.basePath('/sse').all(async (c): Promise<Response> => {
-      return c.env.MCP_BACKEND.handleSSE(c.req.raw, extractAuthContext(c));
+      return c.env.MCP_BACKEND.handleSSE(c.req.raw, await extractAuthContext(c));
     }),
     '/mcp': accessApp.basePath('/mcp').all(async (c): Promise<Response> => {
-      return c.env.MCP_BACKEND.handleMCP(c.req.raw, extractAuthContext(c));
+      return c.env.MCP_BACKEND.handleMCP(c.req.raw, await extractAuthContext(c));
     }),
   },
   // OAuth endpoints

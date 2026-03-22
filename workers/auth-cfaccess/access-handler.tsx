@@ -343,7 +343,7 @@ app.post("/callback", async (c) => {
 });
 
 // MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
-export function extractAuthContext(c: Context<HonoEnv>): AuthContext {
+export async function extractAuthContext(c: Context<HonoEnv>): Promise<AuthContext> {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
 	if (!props) {
 		throw new HTTPException(401, {
@@ -358,8 +358,8 @@ export function extractAuthContext(c: Context<HonoEnv>): AuthContext {
 	let secret = '';
 	const authHeader = c.req.header('Authorization');
 	if (authHeader?.startsWith('Bearer ')) {
-		const parts = authHeader.slice(7).split(':');
-		if (parts.length >= 2) secret = `${parts[0]}:${parts[1]}`;
+		const tokenData = await c.env.OAUTH_PROVIDER.unwrapToken(authHeader.slice(7));
+		if (tokenData) secret = `${tokenData.userId}:${tokenData.grantId}`;
 	}
 	return { ...props, secret };
 }
