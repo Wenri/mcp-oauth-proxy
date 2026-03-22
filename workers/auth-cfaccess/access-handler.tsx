@@ -4,6 +4,7 @@
  */
 
 import { Hono, type Context } from "hono";
+import { cors } from "hono/cors";
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { HTTPException } from "hono/http-exception";
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
@@ -14,11 +15,11 @@ import {
 	fetchUpstreamAuthToken,
 	generateCodeChallenge,
 	generateCodeVerifier,
-	generateCSRFProtection,
 	getUpstreamAuthorizeUrl,
 	inflateFromBase64url,
 	isClientApproved,
 	packState,
+	setCSRFToken,
 	unpackState,
 	validateCSRFToken,
 } from "./workers-oauth-utils";
@@ -57,7 +58,23 @@ async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: AuthCfAcces
 	});
 }
 
+async function lookupClient(env: AuthCfAccessEnv, clientId: string) {
+	try { return await env.OAUTH_PROVIDER.lookupClient(clientId); }
+	catch { return null; }
+}
+
 export const app = new Hono<HonoEnv>();
+
+app.use("*", cors({
+	origin: "*",
+	allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+	allowHeaders: ["Content-Type", "Accept", "Authorization", "X-SiYuan-Key", "mcp-session-id", "MCP-Protocol-Version"],
+	maxAge: 86400,
+}), async (c, next) => {
+	await next();
+	c.header("Content-Security-Policy", "frame-ancestors 'none'");
+	c.header("X-Frame-Options", "DENY");
+});
 
 // Static file routes (public, no auth required)
 app.get("/static/:name", async (c) => {
@@ -151,20 +168,9 @@ app.get("/authorize", async (c) => {
 		return c.redirect(await buildUpstreamRedirect(oauthReqInfo, env, request.url));
 	}
 
-	// Generate CSRF protection for the approval form
-	const { token: csrfToken, setCookie } = generateCSRFProtection();
+	const clientInfo = await lookupClient(env, clientId);
+	const csrfToken = setCSRFToken(c);
 
-	// Lookup client info (may return null for unregistered clients)
-	let clientInfo = null;
-	try {
-		clientInfo = await env.OAUTH_PROVIDER.lookupClient(clientId);
-	} catch {
-		// Client not found, continue with null
-	}
-
-	c.header("Set-Cookie", setCookie);
-	c.header("Content-Security-Policy", "frame-ancestors 'none'");
-	c.header("X-Frame-Options", "DENY");
 	return c.html(
 		<ApprovalPage
 			request={request}
@@ -182,7 +188,7 @@ app.post("/authorize", async (c) => {
 	const request = c.req.raw;
 
 	const formData = await request.formData();
-	validateCSRFToken(formData, request);
+	validateCSRFToken(c, formData);
 
 	const encodedState = formData.get("state");
 	if (!encodedState || typeof encodedState !== "string") {
@@ -254,30 +260,22 @@ app.get("/callback", async (c) => {
 		sub: idTokenClaims.sub as string,
 	};
 
-	let clientInfo = null;
-	try {
-		clientInfo = await env.OAUTH_PROVIDER.lookupClient(oauthReqInfo.clientId);
-	} catch { /* client not found */ }
+	const clientInfo = await lookupClient(env, oauthReqInfo.clientId);
+	const csrfToken = setCSRFToken(c);
 
-	const { token: csrfToken, setCookie } = generateCSRFProtection();
-	const state = btoa(JSON.stringify({ oauthReqInfo, user }));
-
-	c.header("Set-Cookie", setCookie);
-	c.header("Content-Security-Policy", "frame-ancestors 'none'");
-	c.header("X-Frame-Options", "DENY");
 	return c.html(
-		ConsentPage({
-			client: clientInfo,
-			user: { email: user.email, name: user.name },
-			server: serverInfo,
-			defaults: {
+		<ConsentPage
+			client={clientInfo}
+			user={{ email: user.email, name: user.name }}
+			server={serverInfo}
+			defaults={{
 				label: user.name,
 				hasServerKernelUrl: !!env.SIYUAN_KERNEL_URL,
 				hasServerKernelToken: !!env.SIYUAN_KERNEL_TOKEN,
-			},
-			state,
-			csrfToken,
-		}),
+			}}
+			state={btoa(JSON.stringify({ oauthReqInfo, user }))}
+			csrfToken={csrfToken}
+		/>,
 	);
 });
 
@@ -287,7 +285,7 @@ app.post("/callback", async (c) => {
 	const request = c.req.raw;
 
 	const formData = await request.formData();
-	validateCSRFToken(formData, request);
+	validateCSRFToken(c, formData);
 
 	const encodedState = formData.get("state");
 	if (!encodedState || typeof encodedState !== "string") {

@@ -6,30 +6,29 @@ import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { getSignedCookie, setSignedCookie } from "hono/cookie";
+import { getCookie, setCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
 import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-backend/utils/fakeEncrypt";
 
-export function generateCSRFProtection(): { token: string; setCookie: string } {
-	const csrfCookieName = "__Host-CSRF_TOKEN";
+const CSRF_COOKIE = "__Host-CSRF_TOKEN";
+
+/** Set CSRF cookie and return the token value for embedding in forms */
+export function setCSRFToken(c: Context): string {
 	const token = crypto.randomUUID();
-	const setCookie = `${csrfCookieName}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`;
-	return { token, setCookie };
+	setCookie(c, CSRF_COOKIE, token, {
+		httpOnly: true, secure: true, path: "/", sameSite: "Lax", maxAge: 600,
+	});
+	return token;
 }
 
-export function validateCSRFToken(formData: FormData, request: Request): void {
-	const csrfCookieName = "__Host-CSRF_TOKEN";
-
+/** Validate CSRF token from form data against cookie */
+export function validateCSRFToken(c: Context, formData: FormData): void {
 	const tokenFromForm = formData.get("csrf_token");
 	if (!tokenFromForm || typeof tokenFromForm !== "string") {
 		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token in form data" }, { status: 400 }) });
 	}
 
-	const cookieHeader = request.headers.get("Cookie") || "";
-	const cookies = cookieHeader.split(";").map((c) => c.trim());
-	const csrfCookie = cookies.find((c) => c.startsWith(`${csrfCookieName}=`));
-	const tokenFromCookie = csrfCookie ? csrfCookie.substring(csrfCookieName.length + 1) : null;
-
+	const tokenFromCookie = getCookie(c, CSRF_COOKIE);
 	if (!tokenFromCookie) {
 		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token cookie" }, { status: 400 }) });
 	}
