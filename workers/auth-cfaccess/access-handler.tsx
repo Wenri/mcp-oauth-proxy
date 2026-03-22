@@ -4,6 +4,7 @@
  */
 
 import { Hono, type Context } from "hono";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv } from "../../index";
 import type { Props } from "../../index";
@@ -358,7 +359,7 @@ app.post("/callback", async (c) => {
 async function mcpForward(c: Context<HonoEnv>) {
 	const props = (c.executionCtx as ExecutionContext & { props?: Props }).props;
 	if (!props) {
-		return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized' }, id: null }, 401);
+		return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
 	}
 
 	let secret = '';

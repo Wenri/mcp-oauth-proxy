@@ -8,71 +8,53 @@
  * via HTTP headers (X-Auth-Props, X-Auth-Secret, etc.).
  */
 
-import type { MCPBackendEnv } from '../../index';
-import { SiyuanMCP, extractAuthContext, buildMCPProps } from './server/agent';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import type { MCPBackendEnv, AuthContext } from '../../index';
+import { SiyuanMCP, extractAuthContext } from './server/agent';
 
 // Re-export for wrangler DO binding
 export { SiyuanMCP };
 
-export default {
-  async fetch(request: Request, env: MCPBackendEnv, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+type HonoEnv = { Bindings: MCPBackendEnv; Variables: { authContext: AuthContext } };
 
-    // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, X-Auth-Props, X-Auth-Secret',
-          'Access-Control-Max-Age': '86400',
-        },
-      });
-    }
+const app = new Hono<HonoEnv>();
 
-    // Extract auth context from headers (set by auth workers)
-    const authContext = extractAuthContext(request);
-    if (!authContext) {
-      return new Response(JSON.stringify({
-        jsonrpc: '2.0',
-        error: { code: -32000, message: 'Unauthorized: Missing auth context' },
-        id: null,
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+app.use('*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Accept', 'Authorization', 'mcp-session-id', 'MCP-Protocol-Version', 'X-Auth-Props', 'X-Auth-Secret'],
+  maxAge: 86400,
+}));
 
-    // Build props from auth context
-    const props = buildMCPProps(authContext);
+app.use('*', async (c, next) => {
+  const authContext = extractAuthContext(c.req.raw);
+  if (!authContext) {
+    return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Missing auth context' }, id: null }, 401);
+  }
+  c.set('authContext', authContext);
+  return next();
+});
 
-    // Create execution context with props for McpAgent.serve()
-    const ctxWithProps = { ...ctx, props };
+app.all('/sse', async (c) => {
+  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  return SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+});
 
-    // Route to appropriate MCP transport
-    if (url.pathname === '/sse' || url.pathname.startsWith('/sse/')) {
-      return SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' }).fetch(
-        request,
-        env,
-        ctxWithProps as ExecutionContext
-      );
-    }
+app.all('/sse/*', async (c) => {
+  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  return SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+});
 
-    if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) {
-      return SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' }).fetch(
-        request,
-        env,
-        ctxWithProps as ExecutionContext
-      );
-    }
+app.all('/mcp', async (c) => {
+  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  return SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+});
 
-    return new Response(JSON.stringify({
-      jsonrpc: '2.0',
-      error: { code: -32000, message: 'Not Found' },
-      id: null,
-    }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  },
-};
+app.all('/mcp/*', async (c) => {
+  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  return SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+});
+
+export default app;

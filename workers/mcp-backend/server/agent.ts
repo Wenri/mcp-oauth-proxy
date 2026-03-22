@@ -16,20 +16,13 @@ import {
 import pkg from '../../../package.json' with { type: 'json' };
 
 /**
- * Extended Props with auth context from auth workers
- */
-export interface MCPProps extends Props {
-  secret?: string;
-}
-
-/**
  * SiYuan MCP Agent
  *
  * - Receives props from auth workers via ctx.props
  * - Stores props in DO storage for session persistence
  * - Initializes MCP server with SiYuan tools
  */
-export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MCPProps> {
+export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, AuthContext> {
   server = new McpServer({
     name: pkg.name,
     version: pkg.version,
@@ -93,9 +86,3 @@ export function extractAuthContext(request: Request): AuthContext | null {
   }
 }
 
-/**
- * Build MCPProps from AuthContext
- */
-export function buildMCPProps(authContext: AuthContext): MCPProps {
-  return authContext;
-}
