@@ -29,6 +29,7 @@
   // Environment variables
   // Required secrets:
   // - SIYUAN_KERNEL_TOKEN: SiYuan API token for authentication
+  // - COOKIE_ENCRYPTION_KEY: Encryption key for download URL tokens (openssl rand -hex 32)
   // - CF_ACCESS_SERVICE_CLIENT_ID: Service token for kernel behind CF Access
   // - CF_ACCESS_SERVICE_CLIENT_SECRET: Service token secret
   //

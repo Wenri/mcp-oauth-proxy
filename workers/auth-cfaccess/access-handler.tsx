@@ -3,7 +3,7 @@
  * Based on: https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-cf-access/src/access-handler.ts
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv } from "../../index";
 import type { Props } from "../../index";
@@ -357,6 +357,34 @@ app.post("/callback", async (c) => {
 
 	return c.redirect(redirectTo, 302);
 });
+
+// MCP forwarding handler (called by OAuthProvider apiHandlers after token validation)
+async function mcpForward(c: Context<HonoEnv>) {
+	const props = (c.executionCtx as ExecutionContext & { props?: Props }).props;
+	if (!props) {
+		return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized' }, id: null }, 401);
+	}
+
+	let secret = '';
+	const authHeader = c.req.header('Authorization');
+	if (authHeader?.startsWith('Bearer ')) {
+		const parts = authHeader.slice(7).split(':');
+		if (parts.length >= 2) secret = `${parts[0]}:${parts[1]}`;
+	}
+
+	const headers = new Headers(c.req.raw.headers);
+	headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
+	headers.set('X-Auth-Secret', secret);
+
+	return c.env.MCP_BACKEND.fetch(new Request(c.req.url, {
+		method: c.req.method,
+		headers,
+		body: c.req.raw.body,
+	}));
+}
+
+app.all('/sse', mcpForward);
+app.all('/mcp', mcpForward);
 
 // Export the Hono app directly (has .fetch method compatible with OAuthProvider)
 export const accessApp = app;

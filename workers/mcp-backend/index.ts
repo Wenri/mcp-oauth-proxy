@@ -24,7 +24,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, X-Auth-Props, X-Auth-Secret, X-Auth-Worker-Base-Url, X-Auth-Encryption-Key',
+          'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, X-Auth-Props, X-Auth-Secret',
           'Access-Control-Max-Age': '86400',
         },
       });

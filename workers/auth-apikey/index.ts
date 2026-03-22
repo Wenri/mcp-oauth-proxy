@@ -92,8 +92,6 @@ async function forwardToBackend(
   const headers = new Headers(request.headers);
   headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
   headers.set('X-Auth-Secret', secret);
-  headers.set('X-Auth-Worker-Base-Url', new URL(request.url).origin);
-  headers.set('X-Auth-Encryption-Key', env.COOKIE_ENCRYPTION_KEY);
 
   // Forward to MCP backend via service binding
   return env.MCP_BACKEND.fetch(new Request(request.url, {

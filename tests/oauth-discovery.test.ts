@@ -83,7 +83,7 @@ describe.skipIf(!serverReachable)('OAuth Discovery', { timeout: 15000 }, () => {
   it('returns Protected Resource Metadata (RFC 9728)', async () => {
     const response = await fetch(`${url.origin}/.well-known/oauth-protected-resource`);
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as { resource: string };
     expect(data.resource).toBeTruthy();
   });
 });

@@ -20,7 +20,6 @@ import pkg from '../../../package.json' with { type: 'json' };
  */
 export interface MCPProps extends Props {
   secret?: string;
-  encryptionKey?: string;
 }
 
 /**
@@ -47,11 +46,11 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       return;
     }
 
-    // Set download context from props (for buildDownloadUrl)
-    if (this.props?.secret && this.props?.encryptionKey && this.props?.workerBaseUrl) {
+    // Set download context from props + env (for buildDownloadUrl)
+    if (this.props?.secret && this.env.COOKIE_ENCRYPTION_KEY && this.props?.workerBaseUrl) {
       setDownloadContext({
         secret: this.props.secret,
-        encryptionKey: this.props.encryptionKey,
+        encryptionKey: this.env.COOKIE_ENCRYPTION_KEY,
         workerBaseUrl: this.props.workerBaseUrl,
       });
     }
@@ -68,7 +67,7 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MC
       this.server,
       mcpConfig,
       this.props?.workerBaseUrl,
-      this.props?.encryptionKey
+      this.env.COOKIE_ENCRYPTION_KEY
     );
 
     // Log authenticated user info
@@ -91,8 +90,6 @@ export function extractAuthContext(request: Request): AuthContext | null {
     return {
       props,
       secret: request.headers.get('X-Auth-Secret') || '',
-      workerBaseUrl: request.headers.get('X-Auth-Worker-Base-Url') || '',
-      encryptionKey: request.headers.get('X-Auth-Encryption-Key') || '',
     };
   } catch {
     return null;
@@ -106,7 +103,5 @@ export function buildMCPProps(authContext: AuthContext): MCPProps {
   return {
     ...authContext.props,
     secret: authContext.secret,
-    encryptionKey: authContext.encryptionKey,
-    workerBaseUrl: authContext.workerBaseUrl || authContext.props.workerBaseUrl,
   };
 }

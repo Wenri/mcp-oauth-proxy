@@ -94,6 +94,7 @@ export function pack7bit(str: string): Uint8Array {
 
 /**
  * Unpack GSM 7-bit format back to string
+ * @param bytes - Uint8 Array for decode
  * @param septetCount - Number of septets (not chars - extended chars use 2 septets)
  */
 export function unpack7bit(bytes: Uint8Array, septetCount: number): string {

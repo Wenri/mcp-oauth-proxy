@@ -61,9 +61,7 @@ export interface Props {
  */
 export interface AuthContext {
   props: Props;
-  secret: string;           // For download URL encryption
-  workerBaseUrl: string;    // Download URL domain
-  encryptionKey: string;    // For encryption
+  secret: string;           // For download URL encryption (grant key)
 }
 
 /**
@@ -71,6 +69,7 @@ export interface AuthContext {
  */
 export type MCPBackendEnv = Cloudflare.Env & SiyuanMCPConfig & {
   MCP_OBJECT: DurableObjectNamespace;
+  COOKIE_ENCRYPTION_KEY: string;
 };
 
 /**
