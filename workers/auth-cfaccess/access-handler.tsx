@@ -47,7 +47,7 @@ interface GrantRecord {
 async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: AuthCfAccessEnv, requestUrl: string): Promise<string> {
 	const codeVerifier = generateCodeVerifier();
 	const codeChallenge = await generateCodeChallenge(codeVerifier);
-	const state = await deflateToBase64url(packState(oauthReqInfo, codeVerifier));
+	const state = await deflateToBase64url(packState({ oauthReqInfo, codeVerifier }));
 	return getUpstreamAuthorizeUrl({
 		client_id: env.ACCESS_CLIENT_ID,
 		redirect_uri: new URL("/callback", requestUrl).href,
@@ -169,15 +169,15 @@ app.get("/authorize", async (c) => {
 	}
 
 	const clientInfo = await lookupClient(env, clientId);
-	const csrfToken = setCSRFToken(c);
+	const state = await deflateToBase64url(packState({ oauthReqInfo }));
 
 	return c.html(
 		<ApprovalPage
 			request={request}
 			client={clientInfo}
 			server={serverInfo}
-			state={{ oauthReqInfo }}
-			csrfToken={csrfToken}
+			state={state}
+			csrfToken={setCSRFToken(c)}
 		/>,
 	);
 });
@@ -197,7 +197,7 @@ app.post("/authorize", async (c) => {
 
 	let state: { oauthReqInfo?: AuthRequest };
 	try {
-		state = JSON.parse(atob(encodedState));
+		state = unpackState(await inflateFromBase64url(encodedState));
 	} catch {
 		return c.text("Invalid state data", 400);
 	}
@@ -234,7 +234,7 @@ app.get("/callback", async (c) => {
 	try {
 		const unpacked = unpackState(await inflateFromBase64url(stateParam));
 		oauthReqInfo = unpacked.oauthReqInfo;
-		codeVerifier = unpacked.codeVerifier;
+		codeVerifier = unpacked.codeVerifier!;
 	} catch {
 		return c.text("Invalid state data", 400);
 	}
@@ -253,28 +253,22 @@ app.get("/callback", async (c) => {
 		code_verifier: codeVerifier,
 	});
 
-	const idTokenClaims = await verifyToken(env, idToken);
-	const user = {
-		email: idTokenClaims.email as string,
-		name: idTokenClaims.name as string,
-		sub: idTokenClaims.sub as string,
-	};
-
+	const { email, name, sub } = await verifyToken(env, idToken) as { email: string; name: string; sub: string };
 	const clientInfo = await lookupClient(env, oauthReqInfo.clientId);
-	const csrfToken = setCSRFToken(c);
+	const state = await deflateToBase64url(packState({ oauthReqInfo, user: { email, name, sub } }));
 
 	return c.html(
 		<ConsentPage
 			client={clientInfo}
-			user={{ email: user.email, name: user.name }}
+			user={{ email, name }}
 			server={serverInfo}
 			defaults={{
-				label: user.name,
+				label: name,
 				hasServerKernelUrl: !!env.SIYUAN_KERNEL_URL,
 				hasServerKernelToken: !!env.SIYUAN_KERNEL_TOKEN,
 			}}
-			state={btoa(JSON.stringify({ oauthReqInfo, user }))}
-			csrfToken={csrfToken}
+			state={state}
+			csrfToken={setCSRFToken(c)}
 		/>,
 	);
 });
@@ -292,10 +286,14 @@ app.post("/callback", async (c) => {
 		return c.text("Missing state", 400);
 	}
 
-	let state: { oauthReqInfo: AuthRequest; user: { email: string; name: string; sub: string } };
+	let state: { oauthReqInfo: AuthRequest; user?: { email: string; name: string; sub: string } };
 	try {
-		state = JSON.parse(atob(encodedState));
+		state = unpackState(await inflateFromBase64url(encodedState));
 	} catch {
+		return c.text("Invalid state data", 400);
+	}
+
+	if (!state.oauthReqInfo?.clientId || !state.user) {
 		return c.text("Invalid state data", 400);
 	}
 

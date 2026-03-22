@@ -181,14 +181,19 @@ export async function inflateFromBase64url(encoded: string): Promise<Uint8Array>
 }
 
 /**
- * Pack AuthRequest + codeVerifier as MessagePack array.
+ * Pack AuthRequest (+ optional codeVerifier/user) as MessagePack array.
  * Text fields are GSM 7-bit packed (12.5% savings on ASCII).
  * Binary fields (hex/base64url) decoded to raw bytes.
  * Constants (responseType="code", codeChallengeMethod="S256") omitted.
- * Text: clientId\nredirectUri\nscope\nstate[\nresource...]
- * Format: [codeVerifier, packed7bitText, codeChallenge?]
+ * Text: clientId\nredirectUri\nscope\nstate[\nresource...]\remail\nname\nsub
+ * Format: [packed7bitText, codeVerifier?, codeChallenge?]
  */
-export function packState(oauthReqInfo: AuthRequest, codeVerifier: string): Uint8Array {
+export function packState(opts: {
+	oauthReqInfo: AuthRequest;
+	codeVerifier?: string;
+	user?: { email: string; name: string; sub: string };
+}): Uint8Array {
+	const { oauthReqInfo, codeVerifier, user } = opts;
 	const textParts = [
 		oauthReqInfo.clientId,
 		oauthReqInfo.redirectUri,
@@ -200,21 +205,31 @@ export function packState(oauthReqInfo: AuthRequest, codeVerifier: string): Uint
 		if (Array.isArray(resource)) textParts.push(...resource);
 		else textParts.push(resource);
 	}
-	const arr: unknown[] = [
-		Uint8Array.fromHex(codeVerifier),
-		pack7bit(textParts.join("\n")),
-	];
-	if (oauthReqInfo.codeChallenge) {
-		arr.push(Uint8Array.fromBase64(oauthReqInfo.codeChallenge, { alphabet: "base64url" }));
+	let text = textParts.join("\n");
+	if (user) {
+		text += "\r" + [user.email, user.name, user.sub].join("\n");
+	}
+	const arr: unknown[] = [pack7bit(text)];
+	if (codeVerifier) {
+		arr.push(Uint8Array.fromHex(codeVerifier));
+		if (oauthReqInfo.codeChallenge) {
+			arr.push(Uint8Array.fromBase64(oauthReqInfo.codeChallenge, { alphabet: "base64url" }));
+		}
 	}
 	return msgpackEncode(arr);
 }
 
-export function unpackState(buf: Uint8Array): { oauthReqInfo: AuthRequest; codeVerifier: string } {
-	const arr = msgpackDecode(buf) as [Uint8Array, Uint8Array, Uint8Array?];
-	const maxSeptets = Math.floor((arr[1].length * 8) / 7);
-	const parts = unpack7bit(arr[1], maxSeptets).split("\n");
-	return {
+export function unpackState(buf: Uint8Array): {
+	oauthReqInfo: AuthRequest;
+	codeVerifier?: string;
+	user?: { email: string; name: string; sub: string };
+} {
+	const arr = msgpackDecode(buf) as [Uint8Array, Uint8Array?, Uint8Array?];
+	const maxSeptets = Math.floor((arr[0].length * 8) / 7);
+	const fullText = unpack7bit(arr[0], maxSeptets);
+	const [oauthText, userText] = fullText.split("\r");
+	const parts = oauthText.split("\n");
+	const result: ReturnType<typeof unpackState> = {
 		oauthReqInfo: {
 			responseType: "code",
 			clientId: parts[0],
@@ -225,6 +240,13 @@ export function unpackState(buf: Uint8Array): { oauthReqInfo: AuthRequest; codeV
 			codeChallengeMethod: arr[2] ? "S256" : undefined,
 			resource: parts.length > 5 ? parts.slice(4) : (parts[4] || undefined),
 		},
-		codeVerifier: (arr[0] as Uint8Array).toHex(),
 	};
+	if (arr[1]) {
+		result.codeVerifier = (arr[1] as Uint8Array).toHex();
+	}
+	if (userText) {
+		const userParts = userText.split("\n");
+		result.user = { email: userParts[0], name: userParts[1], sub: userParts[2] };
+	}
+	return result;
 }
