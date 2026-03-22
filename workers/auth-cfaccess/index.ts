@@ -6,25 +6,12 @@
  */
 
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
-import { accessApp, HonoEnv, extractAuthContext } from './access-handler';
+import type { Context } from 'hono';
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { accessApp, type HonoEnv, extractAuthContext } from './access-handler';
 import type { AuthCfAccessEnv } from '../../index';
-import type {Context} from "hono";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 type Env = AuthCfAccessEnv;
-
-
-accessApp.all('/sse', async (c: Context<HonoEnv>): Promise<Response> => {
-  const auth = extractAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-  return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
-});
-
-accessApp.all('/mcp', async (c: Context<HonoEnv>): Promise<Response> => {
-  const auth = extractAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-  return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
-});
 
 /**
  * OAuthProvider configuration
@@ -33,10 +20,17 @@ accessApp.all('/mcp', async (c: Context<HonoEnv>): Promise<Response> => {
  * Also supports X-SiYuan-Key header auth using SIYUAN_KERNEL_TOKEN.
  */
 export default new OAuthProvider({
-  // MCP handlers - reuse accessApp which includes /sse and /mcp routes
   apiHandlers: {
-    '/sse': accessApp,
-    '/mcp': accessApp,
+    '/sse': accessApp.basePath('/sse').all(async (c: Context<HonoEnv>): Promise<Response> => {
+      const auth = extractAuthContext(c);
+      if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
+      return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+    }),
+    '/mcp': accessApp.basePath('/mcp').all(async (c: Context<HonoEnv>): Promise<Response> => {
+      const auth = extractAuthContext(c);
+      if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
+      return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+    }),
   },
   // OAuth endpoints
   authorizeEndpoint: '/authorize',
