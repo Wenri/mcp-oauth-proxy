@@ -87,10 +87,7 @@ export function extractAuthContext(request: Request): AuthContext | null {
 
   try {
     const props = JSON.parse(atob(propsHeader)) as Props;
-    return {
-      props,
-      secret: request.headers.get('X-Auth-Secret') || '',
-    };
+    return { ...props, secret: request.headers.get('X-Auth-Secret') || '' };
   } catch {
     return null;
   }
@@ -100,8 +97,5 @@ export function extractAuthContext(request: Request): AuthContext | null {
  * Build MCPProps from AuthContext
  */
 export function buildMCPProps(authContext: AuthContext): MCPProps {
-  return {
-    ...authContext.props,
-    secret: authContext.secret,
-  };
+  return authContext;
 }

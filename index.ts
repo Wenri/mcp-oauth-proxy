@@ -62,10 +62,9 @@ export interface Props {
 /**
  * Auth context passed via HTTP headers from auth workers to MCP backend
  */
-export interface AuthContext {
-  props: Props;
+export type AuthContext = Props & {
   secret: string;           // For download URL encryption (grant key)
-}
+};
 
 /**
  * MCP Backend Worker environment
