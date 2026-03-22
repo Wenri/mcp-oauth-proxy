@@ -37,24 +37,17 @@ app.use('*', async (c, next) => {
   return next();
 });
 
-app.all('/sse', async (c) => {
-  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
-  return SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
-});
+const sseHandler = SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' });
+const mcpHandler = SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' });
 
 app.all('/sse/*', async (c) => {
   const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
-  return SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
-});
-
-app.all('/mcp', async (c) => {
-  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
-  return SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+  return sseHandler.fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
 });
 
 app.all('/mcp/*', async (c) => {
   const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
-  return SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' }).fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
+  return mcpHandler.fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
 });
 
 export default app;

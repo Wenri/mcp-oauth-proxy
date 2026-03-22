@@ -5,14 +5,14 @@
  * and forwards MCP requests to the backend via service binding.
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { AuthApiKeyEnv, Props } from '../../index';
 import { initKernel, getFileAPIv2, normalizePath } from '../mcp-backend/syapi';
 import { decryptGrant } from '../mcp-backend/utils/fakeEncrypt';
 
-type HonoEnv = { Bindings: AuthApiKeyEnv; Variables: { props: Props } };
+type HonoEnv = { Bindings: AuthApiKeyEnv };
 
 const app = new Hono<HonoEnv>();
 
@@ -51,72 +51,21 @@ app.get('/download/:token/*', async (c) => {
   return new Response(response.body, { status: response.status, headers });
 });
 
-// Auth middleware — applies only to MCP routes
-app.use('/sse', async (c, next) => {
+// MCP routes: auth + forward
+async function mcpForward(c: Context<HonoEnv>) {
   const apiKey = c.req.header('X-SiYuan-Key');
   if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
     return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
   }
   const origin = new URL(c.req.url).origin;
-  c.set('props', { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin });
-  return next();
-});
-app.use('/sse/*', async (c, next) => {
-  const apiKey = c.req.header('X-SiYuan-Key');
-  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
-    return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
-  }
-  const origin = new URL(c.req.url).origin;
-  c.set('props', { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin });
-  return next();
-});
-app.use('/mcp', async (c, next) => {
-  const apiKey = c.req.header('X-SiYuan-Key');
-  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
-    return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
-  }
-  const origin = new URL(c.req.url).origin;
-  c.set('props', { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin });
-  return next();
-});
-app.use('/mcp/*', async (c, next) => {
-  const apiKey = c.req.header('X-SiYuan-Key');
-  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
-    return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
-  }
-  const origin = new URL(c.req.url).origin;
-  c.set('props', { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin });
-  return next();
-});
+  const props: Props = { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin };
+  const headers = new Headers(c.req.raw.headers);
+  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
+  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
+  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
+}
 
-// Forward to MCP backend with auth context headers
-app.all('/sse', async (c) => {
-  const props = c.get('props');
-  const headers = new Headers(c.req.raw.headers);
-  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
-  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
-});
-app.all('/sse/*', async (c) => {
-  const props = c.get('props');
-  const headers = new Headers(c.req.raw.headers);
-  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
-  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
-});
-app.all('/mcp', async (c) => {
-  const props = c.get('props');
-  const headers = new Headers(c.req.raw.headers);
-  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
-  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
-});
-app.all('/mcp/*', async (c) => {
-  const props = c.get('props');
-  const headers = new Headers(c.req.raw.headers);
-  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
-  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
-});
+app.all('/sse/*', mcpForward);
+app.all('/mcp/*', mcpForward);
 
 export default app;
