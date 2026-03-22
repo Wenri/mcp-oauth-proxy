@@ -7,6 +7,7 @@
 
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { AuthApiKeyEnv } from '../../index';
 import { initKernel, getFileAPIv2, normalizePath } from '../mcp-backend/syapi';
@@ -54,7 +55,15 @@ app.get('/download/:token/*', async (c) => {
 // MCP routes: auth + forward via RPC
 function buildAuthContext(c: Context<HonoEnv>) {
   const apiKey = c.req.header('X-SiYuan-Key');
-  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) return null;
+  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
+    throw new HTTPException(401, {
+      res: Response.json({
+        jsonrpc: '2.0', error: {
+          code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key'
+        }, id: null
+      }, {status: 401})
+    });
+  }
   const origin = new URL(c.req.url).origin;
   return {
     email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth',
@@ -63,20 +72,12 @@ function buildAuthContext(c: Context<HonoEnv>) {
   };
 }
 
-app.all('/sse/*', async (c: Context<HonoEnv>): Promise<Response> => {
-  const auth = buildAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: {
-    code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key'
-    }, id: null }, 401);
-  return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+app.all('/sse', async (c): Promise<Response> => {
+  return c.env.MCP_BACKEND.handleSSE(c.req.raw, buildAuthContext(c));
 });
 
-app.all('/mcp/*', async (c: Context<HonoEnv>): Promise<Response> => {
-  const auth = buildAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: {
-    code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key'
-    }, id: null }, 401);
-  return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+app.all('/mcp', async (c): Promise<Response> => {
+  return c.env.MCP_BACKEND.handleMCP(c.req.raw, buildAuthContext(c));
 });
 
 export default app;

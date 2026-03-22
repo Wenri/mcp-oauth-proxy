@@ -4,6 +4,7 @@
  */
 
 import { Hono, type Context } from "hono";
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { HTTPException } from "hono/http-exception";
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv, AuthContext, Props } from "../../index";
@@ -346,7 +347,11 @@ export function extractAuthContext(c: Context<HonoEnv>): AuthContext {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
 	if (!props) {
 		throw new HTTPException(401, {
-			res: c.json({ jsonrpc: '2.0', error: { code: -1, message: 'Unauthorized' }, id: null }, 401),
+			res: c.json({
+				jsonrpc: '2.0', error: {
+					code: ErrorCode.ConnectionClosed, message: 'Unauthorized'
+				}, id: null
+			}, 401),
 		});
 	}
 
