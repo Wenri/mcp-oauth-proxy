@@ -4,8 +4,9 @@
  */
 
 import { Hono, type Context } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
-import type { AuthCfAccessEnv, Props } from "../../index";
+import type { AuthCfAccessEnv, AuthContext, Props } from "../../index";
 import {
 	addApprovedClient,
 	deflateToBase64url,
@@ -16,7 +17,6 @@ import {
 	getUpstreamAuthorizeUrl,
 	inflateFromBase64url,
 	isClientApproved,
-	OAuthError,
 	packState,
 	unpackState,
 	validateCSRFToken,
@@ -57,15 +57,6 @@ async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: AuthCfAcces
 }
 
 export const app = new Hono<HonoEnv>();
-
-// Error handler
-app.onError((error, c) => {
-	console.error("handleAccessRequest error:", error);
-	if (error instanceof OAuthError) {
-		return error.toResponse();
-	}
-	return c.text(`Error: ${error.message}`, 500);
-});
 
 // Static file routes (public, no auth required)
 app.get("/static/:name", async (c) => {
@@ -351,9 +342,13 @@ app.post("/callback", async (c) => {
 });
 
 // MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
-export function extractAuthContext(c: Context<HonoEnv>) {
+export function extractAuthContext(c: Context<HonoEnv>): AuthContext {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
-	if (!props) return null;
+	if (!props) {
+		throw new HTTPException(401, {
+			res: c.json({ jsonrpc: '2.0', error: { code: -1, message: 'Unauthorized' }, id: null }, 401),
+		});
+	}
 
 	let secret = '';
 	const authHeader = c.req.header('Authorization');

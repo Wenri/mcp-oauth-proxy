@@ -4,36 +4,17 @@
 
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
+import { HTTPException } from "hono/http-exception";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
 import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-backend/utils/fakeEncrypt";
 
-/**
- * OAuth 2.1 compliant error class.
- * Represents errors that occur during OAuth operations with standardized error codes and descriptions.
- */
-export class OAuthError extends Error {
-	constructor(
-		public code: string,
-		public description: string,
-		public statusCode = 400,
-	) {
-		super(description);
-		this.name = "OAuthError";
-	}
-
-	toResponse(): Response {
-		return new Response(
-			JSON.stringify({
-				error: this.code,
-				error_description: this.description,
-			}),
-			{
-				status: this.statusCode,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
+/** Throw an OAuth 2.1 compliant JSON error response */
+function oauthError(code: string, description: string, statusCode = 400): never {
+	throw new HTTPException(statusCode as ContentfulStatusCode, {
+		res: Response.json({ error: code, error_description: description }, { status: statusCode }),
+	});
 }
 
 export function generateCSRFProtection(): { token: string; setCookie: string } {
@@ -48,7 +29,7 @@ export function validateCSRFToken(formData: FormData, request: Request): void {
 
 	const tokenFromForm = formData.get("csrf_token");
 	if (!tokenFromForm || typeof tokenFromForm !== "string") {
-		throw new OAuthError("invalid_request", "Missing CSRF token in form data", 400);
+		oauthError("invalid_request", "Missing CSRF token in form data", 400);
 	}
 
 	const cookieHeader = request.headers.get("Cookie") || "";
@@ -57,11 +38,11 @@ export function validateCSRFToken(formData: FormData, request: Request): void {
 	const tokenFromCookie = csrfCookie ? csrfCookie.substring(csrfCookieName.length + 1) : null;
 
 	if (!tokenFromCookie) {
-		throw new OAuthError("invalid_request", "Missing CSRF token cookie", 400);
+		oauthError("invalid_request", "Missing CSRF token cookie", 400);
 	}
 
 	if (tokenFromForm !== tokenFromCookie) {
-		throw new OAuthError("invalid_request", "CSRF token mismatch", 400);
+		oauthError("invalid_request", "CSRF token mismatch", 400);
 	}
 }
 
@@ -156,7 +137,7 @@ export async function fetchUpstreamAuthToken(params: {
 	code_verifier?: string;
 }): Promise<string> {
 	if (!params.code) {
-		throw new OAuthError("invalid_request", "Missing authorization code");
+		oauthError("invalid_request", "Missing authorization code");
 	}
 
 	const data = new URLSearchParams({
@@ -181,13 +162,13 @@ export async function fetchUpstreamAuthToken(params: {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		throw new OAuthError("server_error", `Failed to exchange code for token: ${errorText}`, response.status);
+		oauthError("server_error", `Failed to exchange code for token: ${errorText}`, response.status);
 	}
 
 	const body = (await response.json()) as { id_token?: string };
 	const idToken = body.id_token;
 	if (!idToken) {
-		throw new OAuthError("server_error", "Missing id token");
+		oauthError("server_error", "Missing id token");
 	}
 
 	return idToken;

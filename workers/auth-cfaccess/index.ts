@@ -6,7 +6,6 @@
  */
 
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { app as accessApp, extractAuthContext } from './access-handler';
 import type { AuthCfAccessEnv as Env } from '../../index';
 
@@ -19,14 +18,10 @@ import type { AuthCfAccessEnv as Env } from '../../index';
 export default new OAuthProvider({
   apiHandlers: {
     '/sse': accessApp.basePath('/sse').all(async (c): Promise<Response> => {
-      const auth = extractAuthContext(c);
-      if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-      return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+      return c.env.MCP_BACKEND.handleSSE(c.req.raw, extractAuthContext(c));
     }),
     '/mcp': accessApp.basePath('/mcp').all(async (c): Promise<Response> => {
-      const auth = extractAuthContext(c);
-      if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-      return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+      return c.env.MCP_BACKEND.handleMCP(c.req.raw, extractAuthContext(c));
     }),
   },
   // OAuth endpoints
