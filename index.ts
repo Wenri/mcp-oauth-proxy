@@ -48,15 +48,14 @@ export type AccessOAuthConfig = {
  * Props passed from auth workers to MCP backend
  * Stored in DO storage for session persistence
  */
-export interface Props {
+export type Props = {
   email: string;
   login: string;
   name: string;
   workerBaseUrl: string;
   kernelUrl: string;
   kernelToken?: string;
-  [key: string]: unknown;
-}
+};
 
 /**
  * Auth context passed via HTTP headers from auth workers to MCP backend

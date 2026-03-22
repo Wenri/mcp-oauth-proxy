@@ -17,7 +17,7 @@ import { SiyuanMCP, extractAuthContext } from './server/agent';
 // Re-export for wrangler DO binding
 export { SiyuanMCP };
 
-type HonoEnv = { Bindings: MCPBackendEnv; Variables: { authContext: AuthContext } };
+type HonoEnv = { Bindings: MCPBackendEnv; Variables: AuthContext };
 
 const app = new Hono<HonoEnv>();
 
@@ -33,7 +33,13 @@ app.use('*', async (c, next) => {
   if (!authContext) {
     return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Missing auth context' }, id: null }, 401);
   }
-  c.set('authContext', authContext);
+  c.set('email', authContext.email);
+  c.set('login', authContext.login);
+  c.set('name', authContext.name);
+  c.set('workerBaseUrl', authContext.workerBaseUrl);
+  c.set('kernelUrl', authContext.kernelUrl);
+  c.set('kernelToken', authContext.kernelToken);
+  c.set('secret', authContext.secret);
   return next();
 });
 
@@ -41,12 +47,12 @@ const sseHandler = SiyuanMCP.serveSSE('/sse', { binding: 'MCP_OBJECT' });
 const mcpHandler = SiyuanMCP.serve('/mcp', { binding: 'MCP_OBJECT' });
 
 app.all('/sse/*', async (c) => {
-  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  const ctxWithProps = { ...c.executionCtx, props: c.var };
   return sseHandler.fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
 });
 
 app.all('/mcp/*', async (c) => {
-  const ctxWithProps = { ...c.executionCtx, props: c.get('authContext') };
+  const ctxWithProps = { ...c.executionCtx, props: c.var };
   return mcpHandler.fetch(c.req.raw, c.env, ctxWithProps as ExecutionContext);
 });
 
