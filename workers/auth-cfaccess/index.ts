@@ -6,26 +6,25 @@
  */
 
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
-import { accessApp } from './access-handler';
-import type { AuthCfAccessEnv, Props } from '../../index';
+import { accessApp, HonoEnv, extractAuthContext } from './access-handler';
+import type { AuthCfAccessEnv } from '../../index';
+import type {Context} from "hono";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 type Env = AuthCfAccessEnv;
 
-/**
- * Validate X-SiYuan-Key header against SIYUAN_KERNEL_TOKEN
- */
-function validateSiyuanKey(key: string, env: Env): Props | null {
-  if (!env.SIYUAN_KERNEL_TOKEN || key !== env.SIYUAN_KERNEL_TOKEN) {
-    return null;
-  }
-  return {
-    email: 'siyuan-key-auth',
-    login: 'siyuan-key-user',
-    name: 'SiYuan Key Auth',
-    workerBaseUrl: '',
-    kernelUrl: '',
-  };
-}
+
+accessApp.all('/sse', async (c: Context<HonoEnv>): Promise<Response> => {
+  const auth = extractAuthContext(c);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
+  return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+});
+
+accessApp.all('/mcp', async (c: Context<HonoEnv>): Promise<Response> => {
+  const auth = extractAuthContext(c);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
+  return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+});
 
 /**
  * OAuthProvider configuration
@@ -51,12 +50,16 @@ export default new OAuthProvider({
   resolveExternalToken: async ({ token, request, env }: { token: string; request: Request; env: unknown }) => {
     if (!token) return null;
 
-    const props = validateSiyuanKey(token, env as Env);
-    if (!props) return null;
+    const e = env as Env;
+    if (!e.SIYUAN_KERNEL_TOKEN || token !== e.SIYUAN_KERNEL_TOKEN) return null;
 
     const origin = new URL(request.url).origin;
-    props.workerBaseUrl = origin;
-    props.kernelUrl = (env as Env).SIYUAN_KERNEL_URL || origin;
-    return { props };
+    return { props: {
+      email: 'siyuan-key-auth',
+      login: 'siyuan-key-user',
+      name: 'SiYuan Key Auth',
+      workerBaseUrl: origin,
+      kernelUrl: e.SIYUAN_KERNEL_URL || origin,
+    } };
   },
 });

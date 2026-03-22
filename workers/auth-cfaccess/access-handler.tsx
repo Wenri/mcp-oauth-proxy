@@ -4,10 +4,8 @@
  */
 
 import { Hono, type Context } from "hono";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
-import type { AuthCfAccessEnv } from "../../index";
-import type { Props } from "../../index";
+import type { AuthCfAccessEnv, Props } from "../../index";
 import {
 	addApprovedClient,
 	deflateToBase64url,
@@ -35,7 +33,7 @@ import { verifyToken } from "./jwt";
 type Env = AuthCfAccessEnv;
 
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
-type HonoEnv = { Bindings: EnvWithOAuth };
+export type HonoEnv = { Bindings: EnvWithOAuth };
 
 /** Grant record structure from KV */
 interface GrantRecord {
@@ -356,7 +354,7 @@ app.post("/callback", async (c) => {
 });
 
 // MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
-function extractAuthContext(c: Context<HonoEnv>) {
+export function extractAuthContext(c: Context<HonoEnv>) {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
 	if (!props) return null;
 
@@ -368,18 +366,6 @@ function extractAuthContext(c: Context<HonoEnv>) {
 	}
 	return { ...props, secret };
 }
-
-app.all('/sse', async (c: Context<HonoEnv>): Promise<Response> => {
-	const auth = extractAuthContext(c);
-	if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-	return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
-});
-
-app.all('/mcp', async (c: Context<HonoEnv>): Promise<Response> => {
-	const auth = extractAuthContext(c);
-	if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-	return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
-});
 
 // Export the Hono app directly (has .fetch method compatible with OAuthProvider)
 export const accessApp = app;
