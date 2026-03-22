@@ -72,20 +72,15 @@ export type MCPBackendEnv = Cloudflare.Env & KernelConfig & SiyuanToolConfig & {
   COOKIE_ENCRYPTION_KEY: string;
 };
 
-/**
- * RPC stub for the MCP backend service binding
- */
-export type McpBackendBinding = {
-  handleSSE(request: Request, authContext: AuthContext): Promise<Response>;
-  handleMCP(request: Request, authContext: AuthContext): Promise<Response>;
-};
+// Import backend entrypoint type for Service<> binding
+import type McpRpc from './workers/mcp-backend/index';
 
 /**
  * Auth Worker environment (CF Access)
  */
 export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig & {
   OAUTH_KV: KVNamespace;
-  MCP_BACKEND: McpBackendBinding;
+  MCP_BACKEND: Service<typeof McpRpc>;
   COOKIE_ENCRYPTION_KEY: string;
 };
 
@@ -93,7 +88,7 @@ export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig 
  * Auth Worker environment (API Key)
  */
 export type AuthApiKeyEnv = Cloudflare.Env & KernelConfig & {
-  MCP_BACKEND: McpBackendBinding;
+  MCP_BACKEND: Service<typeof McpRpc>;
   SIYUAN_KERNEL_TOKEN: string;  // required: primary auth mechanism
   COOKIE_ENCRYPTION_KEY: string;
 };

@@ -7,6 +7,7 @@
 
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { AuthApiKeyEnv } from '../../index';
 import { initKernel, getFileAPIv2, normalizePath } from '../mcp-backend/syapi';
 import { decryptGrant } from '../mcp-backend/utils/fakeEncrypt';
@@ -62,15 +63,19 @@ function buildAuthContext(c: Context<HonoEnv>) {
   };
 }
 
-app.all('/sse/*', (c: Context<HonoEnv>) => {
+app.all('/sse/*', async (c: Context<HonoEnv>): Promise<Response> => {
   const auth = buildAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: {
+    code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key'
+    }, id: null }, 401);
   return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
 });
 
-app.all('/mcp/*', (c: Context<HonoEnv>) => {
+app.all('/mcp/*', async (c: Context<HonoEnv>): Promise<Response> => {
   const auth = buildAuthContext(c);
-  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: {
+    code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key'
+    }, id: null }, 401);
   return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
 });
 
