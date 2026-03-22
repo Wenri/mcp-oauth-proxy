@@ -1,13 +1,12 @@
 import type { ClientInfo } from "@cloudflare/workers-oauth-provider";
 import { resolveClient, ClientDetails, PageLayout } from "./page-utils";
 
-export function ConsentPage({ client, user, server, defaults, state, csrfToken }: {
+export function ConsentPage({ client, user, server, defaults, state }: {
 	client: ClientInfo | null;
 	user: { email: string; name: string };
 	server: { name: string; logo?: string };
 	defaults: { label: string; hasServerKernelUrl: boolean; hasServerKernelToken: boolean };
 	state: string;
-	csrfToken: string;
 }) {
 	const vars = resolveClient(client, server);
 	const kernelUrlRequired = !defaults.hasServerKernelUrl;
@@ -23,7 +22,6 @@ export function ConsentPage({ client, user, server, defaults, state, csrfToken }
 
 			<form method="post" action="/callback">
 				<input type="hidden" name="state" value={state} />
-				<input type="hidden" name="csrf_token" value={csrfToken} />
 
 				<div class="section-title">Connection Settings</div>
 

@@ -12,29 +12,26 @@ import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-b
 
 const CSRF_COOKIE = "__Host-CSRF_TOKEN";
 
-/** Set CSRF cookie and return the token value for embedding in forms */
-export function setCSRFToken(c: Context): string {
-	const token = crypto.randomUUID();
+/** Set CSRF cookie as a truncated SHA-256 hash of the state value */
+export async function setStateCSRF(c: Context, state: string): Promise<void> {
+	const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(state));
+	const token = new Uint8Array(hash, 0, 16).toHex();
 	setCookie(c, CSRF_COOKIE, token, {
 		httpOnly: true, secure: true, path: "/", sameSite: "Lax", maxAge: 600,
 	});
-	return token;
 }
 
-/** Validate CSRF token from form data against cookie */
-export function validateCSRFToken(c: Context, formData: FormData): void {
-	const tokenFromForm = formData.get("csrf_token");
-	if (!tokenFromForm || typeof tokenFromForm !== "string") {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token in form data" }, { status: 400 }) });
-	}
-
+/** Validate that the submitted state matches the CSRF cookie hash */
+export async function validateStateCSRF(c: Context, state: string): Promise<void> {
 	const tokenFromCookie = getCookie(c, CSRF_COOKIE);
 	if (!tokenFromCookie) {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token cookie" }, { status: 400 }) });
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF cookie" }, { status: 400 }) });
 	}
 
-	if (tokenFromForm !== tokenFromCookie) {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "CSRF token mismatch" }, { status: 400 }) });
+	const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(state));
+	const expected = new Uint8Array(hash, 0, 16).toHex();
+	if (expected !== tokenFromCookie) {
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "CSRF validation failed" }, { status: 400 }) });
 	}
 }
 

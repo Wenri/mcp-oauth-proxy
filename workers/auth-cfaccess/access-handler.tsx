@@ -19,9 +19,9 @@ import {
 	inflateFromBase64url,
 	isClientApproved,
 	packState,
-	setCSRFToken,
+	setStateCSRF,
 	unpackState,
-	validateCSRFToken,
+	validateStateCSRF,
 } from "./workers-oauth-utils";
 import { ApprovalPage } from "./approval-page";
 import { ConsentPage } from "./consent-page";
@@ -170,6 +170,7 @@ app.get("/authorize", async (c) => {
 
 	const clientInfo = await lookupClient(env, clientId);
 	const state = await deflateToBase64url(packState({ oauthReqInfo }));
+	await setStateCSRF(c, state);
 
 	return c.html(
 		<ApprovalPage
@@ -177,7 +178,6 @@ app.get("/authorize", async (c) => {
 			client={clientInfo}
 			server={serverInfo}
 			state={state}
-			csrfToken={setCSRFToken(c)}
 		/>,
 	);
 });
@@ -188,12 +188,13 @@ app.post("/authorize", async (c) => {
 	const request = c.req.raw;
 
 	const formData = await request.formData();
-	validateCSRFToken(c, formData);
 
 	const encodedState = formData.get("state");
 	if (!encodedState || typeof encodedState !== "string") {
 		return c.text("Missing state in form data", 400);
 	}
+
+	await validateStateCSRF(c, encodedState);
 
 	let state: { oauthReqInfo?: AuthRequest };
 	try {
@@ -256,6 +257,7 @@ app.get("/callback", async (c) => {
 	const { email, name, sub } = await verifyToken(env, idToken) as { email: string; name: string; sub: string };
 	const clientInfo = await lookupClient(env, oauthReqInfo.clientId);
 	const state = await deflateToBase64url(packState({ oauthReqInfo, user: { email, name, sub } }));
+	await setStateCSRF(c, state);
 
 	return c.html(
 		<ConsentPage
@@ -268,7 +270,6 @@ app.get("/callback", async (c) => {
 				hasServerKernelToken: !!env.SIYUAN_KERNEL_TOKEN,
 			}}
 			state={state}
-			csrfToken={setCSRFToken(c)}
 		/>,
 	);
 });
@@ -279,12 +280,13 @@ app.post("/callback", async (c) => {
 	const request = c.req.raw;
 
 	const formData = await request.formData();
-	validateCSRFToken(c, formData);
 
 	const encodedState = formData.get("state");
 	if (!encodedState || typeof encodedState !== "string") {
 		return c.text("Missing state", 400);
 	}
+
+	await validateStateCSRF(c, encodedState);
 
 	let state: { oauthReqInfo: AuthRequest; user?: { email: string; name: string; sub: string } };
 	try {
