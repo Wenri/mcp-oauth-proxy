@@ -10,13 +10,6 @@ import { getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
 import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-backend/utils/fakeEncrypt";
 
-/** Throw an OAuth 2.1 compliant JSON error response */
-function oauthError(code: string, description: string, statusCode = 400): never {
-	throw new HTTPException(statusCode as ContentfulStatusCode, {
-		res: Response.json({ error: code, error_description: description }, { status: statusCode }),
-	});
-}
-
 export function generateCSRFProtection(): { token: string; setCookie: string } {
 	const csrfCookieName = "__Host-CSRF_TOKEN";
 	const token = crypto.randomUUID();
@@ -29,7 +22,7 @@ export function validateCSRFToken(formData: FormData, request: Request): void {
 
 	const tokenFromForm = formData.get("csrf_token");
 	if (!tokenFromForm || typeof tokenFromForm !== "string") {
-		oauthError("invalid_request", "Missing CSRF token in form data", 400);
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token in form data" }, { status: 400 }) });
 	}
 
 	const cookieHeader = request.headers.get("Cookie") || "";
@@ -38,11 +31,11 @@ export function validateCSRFToken(formData: FormData, request: Request): void {
 	const tokenFromCookie = csrfCookie ? csrfCookie.substring(csrfCookieName.length + 1) : null;
 
 	if (!tokenFromCookie) {
-		oauthError("invalid_request", "Missing CSRF token cookie", 400);
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF token cookie" }, { status: 400 }) });
 	}
 
 	if (tokenFromForm !== tokenFromCookie) {
-		oauthError("invalid_request", "CSRF token mismatch", 400);
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "CSRF token mismatch" }, { status: 400 }) });
 	}
 }
 
@@ -137,7 +130,7 @@ export async function fetchUpstreamAuthToken(params: {
 	code_verifier?: string;
 }): Promise<string> {
 	if (!params.code) {
-		oauthError("invalid_request", "Missing authorization code");
+		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing authorization code" }, { status: 400 }) });
 	}
 
 	const data = new URLSearchParams({
@@ -162,13 +155,13 @@ export async function fetchUpstreamAuthToken(params: {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		oauthError("server_error", `Failed to exchange code for token: ${errorText}`, response.status);
+		throw new HTTPException(response.status as ContentfulStatusCode, { res: Response.json({ error: "server_error", error_description: `Failed to exchange code for token: ${errorText}` }, { status: response.status }) });
 	}
 
 	const body = (await response.json()) as { id_token?: string };
 	const idToken = body.id_token;
 	if (!idToken) {
-		oauthError("server_error", "Missing id token");
+		throw new HTTPException(400, { res: Response.json({ error: "server_error", error_description: "Missing id token" }, { status: 400 }) });
 	}
 
 	return idToken;
