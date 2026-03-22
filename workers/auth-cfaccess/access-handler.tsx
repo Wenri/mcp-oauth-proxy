@@ -169,7 +169,7 @@ app.get("/authorize", async (c) => {
 	}
 
 	const clientInfo = await lookupClient(env, clientId);
-	const state = await deflateToBase64url(packState({ oauthReqInfo }));
+	const state = await deflateToBase64url(packState({ oauthReqInfo, codeVerifier: generateCodeVerifier() }));
 	await setStateCSRF(c, state);
 
 	return c.html(
@@ -256,7 +256,7 @@ app.get("/callback", async (c) => {
 
 	const { email, name, sub } = await verifyToken(env, idToken) as { email: string; name: string; sub: string };
 	const clientInfo = await lookupClient(env, oauthReqInfo.clientId);
-	const state = await deflateToBase64url(packState({ oauthReqInfo, user: { email, name, sub } }));
+	const state = await deflateToBase64url(packState({ oauthReqInfo, user: { email, name, sub }, codeVerifier: generateCodeVerifier() }));
 	await setStateCSRF(c, state);
 
 	return c.html(
