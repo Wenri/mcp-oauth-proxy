@@ -6,12 +6,9 @@
  */
 
 import OAuthProvider from '@cloudflare/workers-oauth-provider';
-import type { Context } from 'hono';
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { accessApp, type HonoEnv, extractAuthContext } from './access-handler';
-import type { AuthCfAccessEnv } from '../../index';
-
-type Env = AuthCfAccessEnv;
+import { app as accessApp, extractAuthContext } from './access-handler';
+import type { AuthCfAccessEnv as Env } from '../../index';
 
 /**
  * OAuthProvider configuration
@@ -21,12 +18,12 @@ type Env = AuthCfAccessEnv;
  */
 export default new OAuthProvider({
   apiHandlers: {
-    '/sse': accessApp.basePath('/sse').all(async (c: Context<HonoEnv>): Promise<Response> => {
+    '/sse': accessApp.basePath('/sse').all(async (c): Promise<Response> => {
       const auth = extractAuthContext(c);
       if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
       return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
     }),
-    '/mcp': accessApp.basePath('/mcp').all(async (c: Context<HonoEnv>): Promise<Response> => {
+    '/mcp': accessApp.basePath('/mcp').all(async (c): Promise<Response> => {
       const auth = extractAuthContext(c);
       if (!auth) return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
       return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
@@ -41,11 +38,8 @@ export default new OAuthProvider({
   defaultHandler: accessApp as any,
   // External token authentication via Bearer token
   // Called when Bearer token not found in internal KV
-  resolveExternalToken: async ({ token, request, env }: { token: string; request: Request; env: unknown }) => {
-    if (!token) return null;
-
-    const e = env as Env;
-    if (!e.SIYUAN_KERNEL_TOKEN || token !== e.SIYUAN_KERNEL_TOKEN) return null;
+  resolveExternalToken: async ({ token, request, env }: { token: string; request: Request; env: Env }) => {
+    if (!token || !env.SIYUAN_KERNEL_TOKEN || token !== env.SIYUAN_KERNEL_TOKEN) return null;
 
     const origin = new URL(request.url).origin;
     return { props: {
@@ -53,7 +47,7 @@ export default new OAuthProvider({
       login: 'siyuan-key-user',
       name: 'SiYuan Key Auth',
       workerBaseUrl: origin,
-      kernelUrl: e.SIYUAN_KERNEL_URL || origin,
+      kernelUrl: env.SIYUAN_KERNEL_URL || origin,
     } };
   },
 });
