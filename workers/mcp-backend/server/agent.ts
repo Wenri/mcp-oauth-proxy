@@ -7,7 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
-import type { MCPBackendEnv, Props, AuthContext } from '../../../index';
+import type { MCPBackendEnv, AuthContext } from '../../../index';
 import {
   initializeSiyuanMCPServer,
   setDownloadContext,
@@ -70,19 +70,4 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, Au
   }
 }
 
-/**
- * Extract auth context from request headers
- * Headers are set by auth workers before forwarding via service binding
- */
-export function extractAuthContext(request: Request): AuthContext | null {
-  const propsHeader = request.headers.get('X-Auth-Props');
-  if (!propsHeader) return null;
-
-  try {
-    const props = JSON.parse(atob(propsHeader)) as Props;
-    return { ...props, secret: request.headers.get('X-Auth-Secret') || '' };
-  } catch {
-    return null;
-  }
-}
 

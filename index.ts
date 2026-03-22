@@ -58,7 +58,7 @@ export type Props = {
 };
 
 /**
- * Auth context passed via HTTP headers from auth workers to MCP backend
+ * Auth context passed from auth workers to MCP backend via RPC
  */
 export type AuthContext = Props & {
   secret: string;           // For download URL encryption (grant key)
@@ -73,11 +73,19 @@ export type MCPBackendEnv = Cloudflare.Env & KernelConfig & SiyuanToolConfig & {
 };
 
 /**
+ * RPC stub for the MCP backend service binding
+ */
+export type McpBackendBinding = {
+  handleSSE(request: Request, authContext: AuthContext): Promise<Response>;
+  handleMCP(request: Request, authContext: AuthContext): Promise<Response>;
+};
+
+/**
  * Auth Worker environment (CF Access)
  */
 export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig & {
   OAUTH_KV: KVNamespace;
-  MCP_BACKEND: Fetcher;
+  MCP_BACKEND: McpBackendBinding;
   COOKIE_ENCRYPTION_KEY: string;
 };
 
@@ -85,7 +93,7 @@ export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig 
  * Auth Worker environment (API Key)
  */
 export type AuthApiKeyEnv = Cloudflare.Env & KernelConfig & {
-  MCP_BACKEND: Fetcher;
+  MCP_BACKEND: McpBackendBinding;
   SIYUAN_KERNEL_TOKEN: string;  // required: primary auth mechanism
   COOKIE_ENCRYPTION_KEY: string;
 };

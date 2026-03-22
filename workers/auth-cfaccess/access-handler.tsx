@@ -4,7 +4,6 @@
  */
 
 import { Hono, type Context } from "hono";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv } from "../../index";
 import type { Props } from "../../index";
@@ -355,12 +354,10 @@ app.post("/callback", async (c) => {
 	return c.redirect(redirectTo, 302);
 });
 
-// MCP forwarding handler (called by OAuthProvider apiHandlers after token validation)
-async function mcpForward(c: Context<HonoEnv>) {
+// MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
+function extractAuthContext(c: Context<HonoEnv>) {
 	const props = (c.executionCtx as ExecutionContext & { props?: Props }).props;
-	if (!props) {
-		return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized' }, id: null }, 401);
-	}
+	if (!props) return null;
 
 	let secret = '';
 	const authHeader = c.req.header('Authorization');
@@ -368,20 +365,20 @@ async function mcpForward(c: Context<HonoEnv>) {
 		const parts = authHeader.slice(7).split(':');
 		if (parts.length >= 2) secret = `${parts[0]}:${parts[1]}`;
 	}
-
-	const headers = new Headers(c.req.raw.headers);
-	headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-	headers.set('X-Auth-Secret', secret);
-
-	return c.env.MCP_BACKEND.fetch(new Request(c.req.url, {
-		method: c.req.method,
-		headers,
-		body: c.req.raw.body,
-	}));
+	return { ...props, secret };
 }
 
-app.all('/sse', mcpForward);
-app.all('/mcp', mcpForward);
+app.all('/sse', (c) => {
+	const auth = extractAuthContext(c);
+	if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized' }, id: null }, 401);
+	return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+});
+
+app.all('/mcp', (c) => {
+	const auth = extractAuthContext(c);
+	if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized' }, id: null }, 401);
+	return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+});
 
 // Export the Hono app directly (has .fetch method compatible with OAuthProvider)
 export const accessApp = app;

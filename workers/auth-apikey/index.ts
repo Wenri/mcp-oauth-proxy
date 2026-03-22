@@ -7,8 +7,7 @@
 
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import type { AuthApiKeyEnv, Props } from '../../index';
+import type { AuthApiKeyEnv } from '../../index';
 import { initKernel, getFileAPIv2, normalizePath } from '../mcp-backend/syapi';
 import { decryptGrant } from '../mcp-backend/utils/fakeEncrypt';
 
@@ -51,21 +50,28 @@ app.get('/download/:token/*', async (c) => {
   return new Response(response.body, { status: response.status, headers });
 });
 
-// MCP routes: auth + forward
-async function mcpForward(c: Context<HonoEnv>) {
+// MCP routes: auth + forward via RPC
+function buildAuthContext(c: Context<HonoEnv>) {
   const apiKey = c.req.header('X-SiYuan-Key');
-  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) {
-    return c.json({ jsonrpc: '2.0', error: { code: ErrorCode.ConnectionClosed, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
-  }
+  if (!apiKey || apiKey !== c.env.SIYUAN_KERNEL_TOKEN) return null;
   const origin = new URL(c.req.url).origin;
-  const props: Props = { email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth', workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin };
-  const headers = new Headers(c.req.raw.headers);
-  headers.set('X-Auth-Props', btoa(JSON.stringify(props)));
-  headers.set('X-Auth-Secret', c.env.SIYUAN_KERNEL_TOKEN);
-  return c.env.MCP_BACKEND.fetch(new Request(c.req.url, { method: c.req.method, headers, body: c.req.raw.body }));
+  return {
+    email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth',
+    workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin,
+    secret: c.env.SIYUAN_KERNEL_TOKEN,
+  };
 }
 
-app.all('/sse/*', mcpForward);
-app.all('/mcp/*', mcpForward);
+app.all('/sse/*', (c: Context<HonoEnv>) => {
+  const auth = buildAuthContext(c);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
+  return c.env.MCP_BACKEND.handleSSE(c.req.raw, auth);
+});
+
+app.all('/mcp/*', (c: Context<HonoEnv>) => {
+  const auth = buildAuthContext(c);
+  if (!auth) return c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Unauthorized: Invalid or missing X-SiYuan-Key' }, id: null }, 401);
+  return c.env.MCP_BACKEND.handleMCP(c.req.raw, auth);
+});
 
 export default app;
