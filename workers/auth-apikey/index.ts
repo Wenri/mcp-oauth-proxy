@@ -21,7 +21,6 @@ function validateApiKey(request: Request, env: Env): Props | null {
   }
   const origin = new URL(request.url).origin;
   return {
-    accessToken: '',
     email: 'api-key-auth',
     login: 'api-key-user',
     name: 'API Key Auth',

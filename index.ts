@@ -49,7 +49,6 @@ export type AccessOAuthConfig = {
  * Stored in DO storage for session persistence
  */
 export interface Props {
-  accessToken: string;
   email: string;
   login: string;
   name: string;

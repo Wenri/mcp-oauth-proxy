@@ -250,7 +250,7 @@ app.get("/callback", async (c) => {
 	}
 
 	// Exchange the code for an access token
-	const [accessToken, idToken, errResponse] = await fetchUpstreamAuthToken({
+	const idToken = await fetchUpstreamAuthToken({
 		client_id: env.ACCESS_CLIENT_ID,
 		client_secret: env.ACCESS_CLIENT_SECRET,
 		code: code ?? undefined,
@@ -258,9 +258,6 @@ app.get("/callback", async (c) => {
 		upstream_url: env.ACCESS_TOKEN_URL,
 		code_verifier: codeVerifier,
 	});
-	if (errResponse) {
-		return errResponse;
-	}
 
 	const idTokenClaims = await verifyToken(env, idToken);
 	const user = {
@@ -275,7 +272,7 @@ app.get("/callback", async (c) => {
 	} catch { /* client not found */ }
 
 	const { token: csrfToken, setCookie } = generateCSRFProtection();
-	const state = btoa(JSON.stringify({ oauthReqInfo, user, accessToken }));
+	const state = btoa(JSON.stringify({ oauthReqInfo, user }));
 
 	c.header("Set-Cookie", setCookie);
 	c.header("Content-Security-Policy", "frame-ancestors 'none'");
@@ -309,7 +306,7 @@ app.post("/callback", async (c) => {
 		return c.text("Missing state", 400);
 	}
 
-	let state: { oauthReqInfo: AuthRequest; user: { email: string; name: string; sub: string }; accessToken: string };
+	let state: { oauthReqInfo: AuthRequest; user: { email: string; name: string; sub: string } };
 	try {
 		state = JSON.parse(atob(encodedState));
 	} catch {
@@ -338,7 +335,6 @@ app.post("/callback", async (c) => {
 	const kernelUrl = userKernelUrl || env.SIYUAN_KERNEL_URL || workerBaseUrl;
 
 	const props: Props = {
-		accessToken: state.accessToken,
 		email: state.user.email,
 		login: state.user.sub,
 		name: state.user.name,

@@ -19,7 +19,6 @@ function validateSiyuanKey(key: string, env: Env): Props | null {
     return null;
   }
   return {
-    accessToken: '',
     email: 'siyuan-key-auth',
     login: 'siyuan-key-user',
     name: 'SiYuan Key Auth',

@@ -154,9 +154,9 @@ export async function fetchUpstreamAuthToken(params: {
 	code?: string;
 	redirect_uri: string;
 	code_verifier?: string;
-}): Promise<[string, string, null] | [null, null, Response]> {
+}): Promise<string> {
 	if (!params.code) {
-		return [null, null, new Response("Missing authorization code", { status: 400 })];
+		throw new OAuthError("invalid_request", "Missing authorization code");
 	}
 
 	const data = new URLSearchParams({
@@ -181,22 +181,16 @@ export async function fetchUpstreamAuthToken(params: {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		return [null, null, new Response(`Failed to exchange code for token: ${errorText}`, { status: response.status })];
+		throw new OAuthError("server_error", `Failed to exchange code for token: ${errorText}`, response.status);
 	}
 
-	const body = (await response.json()) as { access_token?: string; id_token?: string };
-
-	const accessToken = body.access_token;
-	if (!accessToken) {
-		return [null, null, new Response("Missing access token", { status: 400 })];
-	}
-
+	const body = (await response.json()) as { id_token?: string };
 	const idToken = body.id_token;
 	if (!idToken) {
-		return [null, null, new Response("Missing id token", { status: 400 })];
+		throw new OAuthError("server_error", "Missing id token");
 	}
 
-	return [accessToken, idToken, null];
+	return idToken;
 }
 
 /** Deflate-compress + base64url encode */
