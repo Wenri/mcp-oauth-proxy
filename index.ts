@@ -5,6 +5,8 @@
  * The actual worker implementations are in workers/ directory.
  */
 
+import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+
 // ============================================================================
 // Shared Types
 // ============================================================================
@@ -80,6 +82,7 @@ import type McpRpc from './workers/mcp-backend/index';
  */
 export type AuthCfAccessEnv = Cloudflare.Env & KernelConfig & AccessOAuthConfig & {
   OAUTH_KV: KVNamespace;
+  OAUTH_PROVIDER: OAuthHelpers;
   MCP_BACKEND: Service<typeof McpRpc>;
   COOKIE_ENCRYPTION_KEY: string;
 };

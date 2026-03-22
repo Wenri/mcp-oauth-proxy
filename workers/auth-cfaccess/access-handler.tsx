@@ -4,7 +4,7 @@
  */
 
 import { Hono, type Context } from "hono";
-import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv, Props } from "../../index";
 import {
 	addApprovedClient,
@@ -30,10 +30,7 @@ import { decryptGrant } from "../mcp-backend/utils/fakeEncrypt";
 import { getFileContent } from "./static";
 import { verifyToken } from "./jwt";
 
-type Env = AuthCfAccessEnv;
-
-type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
-export type HonoEnv = { Bindings: EnvWithOAuth };
+type HonoEnv = { Bindings: AuthCfAccessEnv };
 
 /** Grant record structure from KV */
 interface GrantRecord {
@@ -45,7 +42,7 @@ interface GrantRecord {
 }
 
 /** Build upstream CF Access redirect URL with compact state */
-async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: EnvWithOAuth, requestUrl: string): Promise<string> {
+async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: AuthCfAccessEnv, requestUrl: string): Promise<string> {
 	const codeVerifier = generateCodeVerifier();
 	const codeChallenge = await generateCodeChallenge(codeVerifier);
 	const state = await deflateToBase64url(packState(oauthReqInfo, codeVerifier));
@@ -59,7 +56,7 @@ async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: EnvWithOAut
 	});
 }
 
-const app = new Hono<HonoEnv>();
+export const app = new Hono<HonoEnv>();
 
 // Error handler
 app.onError((error, c) => {
@@ -366,6 +363,3 @@ export function extractAuthContext(c: Context<HonoEnv>) {
 	}
 	return { ...props, secret };
 }
-
-// Export the Hono app directly (has .fetch method compatible with OAuthProvider)
-export const accessApp = app;
