@@ -33,16 +33,13 @@ export default new OAuthProvider({
   defaultHandler: accessApp as any,
   // External token authentication via Bearer token
   // Called when Bearer token not found in internal KV
-  resolveExternalToken: async ({ token, request, env }: { token: string; request: Request; env: Env }) => {
+  resolveExternalToken: async ({ token, request: _, env }: { token: string; request: Request; env: Env }) => {
     if (!token || !env.SIYUAN_KERNEL_TOKEN || token !== env.SIYUAN_KERNEL_TOKEN) return null;
 
-    const origin = new URL(request.url).origin;
     return { props: {
       email: 'siyuan-key-auth',
       login: 'siyuan-key-user',
       name: 'SiYuan Key Auth',
-      workerBaseUrl: origin,
-      kernelUrl: env.SIYUAN_KERNEL_URL || origin,
     } };
   },
 });

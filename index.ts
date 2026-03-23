@@ -47,6 +47,15 @@ export type AccessOAuthConfig = {
 };
 
 /**
+ * Metadata stored alongside OAuth grants in KV
+ */
+export type GrantMetadata = {
+  label: string;             // User-friendly grant label
+  fetchBaseUrl: string;      // Auth worker origin for download URLs
+  kernelUrl: string;         // Per-user SiYuan kernel URL
+};
+
+/**
  * Props passed from auth workers to MCP backend
  * Stored in DO storage for session persistence
  */
@@ -54,16 +63,14 @@ export type Props = {
   email: string;
   login: string;
   name: string;
-  workerBaseUrl: string;
-  kernelUrl: string;
   kernelToken?: string;
 };
 
 /**
  * Auth context passed from auth workers to MCP backend via RPC
  */
-export type AuthContext = Props & {
-  secret: string;           // For download URL encryption (grant key)
+export type AuthContext = GrantMetadata & Props & {
+  secret: string;            // For download URL encryption (grant key)
 };
 
 /**

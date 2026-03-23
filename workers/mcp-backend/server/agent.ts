@@ -40,11 +40,11 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, Au
     }
 
     // Set download context from props + env (for buildDownloadUrl)
-    if (this.props?.secret && this.env.COOKIE_ENCRYPTION_KEY && this.props?.workerBaseUrl) {
+    if (this.props?.secret && this.env.COOKIE_ENCRYPTION_KEY && this.props?.fetchBaseUrl) {
       setDownloadContext({
         secret: this.props.secret,
         encryptionKey: this.env.COOKIE_ENCRYPTION_KEY,
-        workerBaseUrl: this.props.workerBaseUrl,
+        fetchBaseUrl: this.props.fetchBaseUrl,
       });
     }
 
@@ -59,7 +59,7 @@ export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, Au
     await initializeSiyuanMCPServer(
       this.server,
       mcpConfig,
-      this.props?.workerBaseUrl,
+      this.props?.fetchBaseUrl,
       this.env.COOKIE_ENCRYPTION_KEY
     );
 

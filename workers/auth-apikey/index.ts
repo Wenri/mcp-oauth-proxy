@@ -67,7 +67,7 @@ function buildAuthContext(c: Context<HonoEnv>) {
   const origin = new URL(c.req.url).origin;
   return {
     email: 'api-key-auth', login: 'api-key-user', name: 'API Key Auth',
-    workerBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin,
+    label: 'API Key', fetchBaseUrl: origin, kernelUrl: c.env.SIYUAN_KERNEL_URL || origin,
     secret: c.env.SIYUAN_KERNEL_TOKEN,
   };
 }

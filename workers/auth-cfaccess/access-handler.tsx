@@ -5,8 +5,8 @@
 
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
-import type { AuthCfAccessEnv, AuthContext, Props } from "../../index";
+import type { AuthRequest, Grant } from "@cloudflare/workers-oauth-provider";
+import type { AuthCfAccessEnv, AuthContext, GrantMetadata, Props } from "../../index";
 import {
 	addApprovedClient,
 	deflateToBase64url,
@@ -33,15 +33,6 @@ import { verifyToken } from "./jwt";
 
 type HonoEnv = { Bindings: AuthCfAccessEnv };
 
-/** Grant record structure from KV */
-interface GrantRecord {
-	userId: string;
-	clientId: string;
-	scope: string[];
-	encryptedProps: string;
-	expiresAt?: number;
-	metadata?: { label?: string; workerBaseUrl?: string; kernelUrl?: string };
-}
 
 /** Build upstream CF Access redirect URL with compact state */
 async function buildUpstreamRedirect(oauthReqInfo: AuthRequest, env: AuthCfAccessEnv, requestUrl: string): Promise<string> {
@@ -114,7 +105,7 @@ app.get("/download/:token/*", async (c) => {
 	const grantId = grantKey.slice(colonIndex + 1);
 
 	// Verify grant exists and is not expired
-	const grant = await env.OAUTH_KV.get<GrantRecord>(`grant:${userId}:${grantId}`, "json");
+	const grant = await env.OAUTH_KV.get<Grant>(`grant:${userId}:${grantId}`, "json");
 	if (!grant) {
 		return c.text("Grant not found or revoked", 401);
 	}
@@ -127,7 +118,8 @@ app.get("/download/:token/*", async (c) => {
 	const cacheTtl = grant.expiresAt ? Math.max(0, grant.expiresAt - now) : 3600;
 
 	// Initialize kernel — prefer per-user URL from metadata, then env, then origin
-	const kernelUrl = grant.metadata?.kernelUrl || env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
+	const meta = grant.metadata as GrantMetadata | undefined;
+	const kernelUrl = meta?.kernelUrl || env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 	initKernel(
 		kernelUrl,
 		env.SIYUAN_KERNEL_TOKEN,
@@ -169,7 +161,7 @@ app.get("/authorize", async (c) => {
 	}
 
 	const clientInfo = await lookupClient(env, clientId);
-	const state = await deflateToBase64url(packState({oauthReqInfo, codeVerifier: generateCodeVerifier()}));
+	const state = await deflateToBase64url(packState({ oauthReqInfo, codeVerifier: generateCodeVerifier() }));
 	await setStateCSRF(c, state);
 
 	return c.html(
@@ -258,7 +250,7 @@ app.get("/callback", async (c) => {
 	const clientInfo = await lookupClient(env, oauthReqInfo.clientId);
 	const state = await deflateToBase64url(packState({
 		oauthReqInfo,
-		user: {email, name, sub},
+		user: { email, name, sub },
 		codeVerifier: generateCodeVerifier()
 	}));
 	await setStateCSRF(c, state);
@@ -321,20 +313,18 @@ app.post("/callback", async (c) => {
 	}
 
 	// Resolve kernel URL: user input > env default > same origin fallback
-	const workerBaseUrl = new URL(request.url).origin;
-	const kernelUrl = userKernelUrl || env.SIYUAN_KERNEL_URL || workerBaseUrl;
+	const fetchBaseUrl = new URL(request.url).origin;
+	const kernelUrl = userKernelUrl || env.SIYUAN_KERNEL_URL || fetchBaseUrl;
 
 	const props: Props = {
 		email: state.user.email,
 		login: state.user.sub,
 		name: state.user.name,
-		workerBaseUrl,
-		kernelUrl,
 		kernelToken: kernelToken || env.SIYUAN_KERNEL_TOKEN || undefined,
 	};
 
 	const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
-		metadata: { label, workerBaseUrl, kernelUrl },
+		metadata: { label, fetchBaseUrl, kernelUrl } satisfies GrantMetadata,
 		props,
 		request: state.oauthReqInfo,
 		scope: state.oauthReqInfo.scope,
@@ -357,5 +347,10 @@ export async function extractAuthContext(c: Context<HonoEnv>): Promise<AuthConte
 	if (parts.length !== 3) unauthorized(c);
 
 	const [userId, grantId] = parts;
-	return { ...props, secret: `${userId}:${grantId}` };
+	const secret = `${userId}:${grantId}`;
+	// Read grant metadata (fetchBaseUrl, kernelUrl, label)
+	const grant = await c.env.OAUTH_KV.get<Grant>(`grant:${secret}`, 'json');
+	if (!grant) unauthorized(c);
+
+	return { ...props, ...grant.metadata, secret };
 }

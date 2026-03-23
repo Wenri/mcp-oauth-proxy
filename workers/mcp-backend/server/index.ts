@@ -31,7 +31,7 @@ export { buildKernelHeaders } from '../syapi';
 // ============================================================================
 
 let config: SiyuanConfig | null = null;
-let workerBaseUrl: string | undefined;
+let fetchBaseUrl: string | undefined;
 let oauthTokenExpiresAt: number | undefined;
 let grantKey: string | undefined;
 let encryptionKey: string | undefined;
@@ -40,11 +40,11 @@ let encryptionKey: string | undefined;
 export function setDownloadContext(ctx: {
   secret: string;
   encryptionKey: string;
-  workerBaseUrl: string;
+  fetchBaseUrl: string;
 }): void {
   grantKey = ctx.secret;
   encryptionKey = ctx.encryptionKey;
-  workerBaseUrl = ctx.workerBaseUrl;
+  fetchBaseUrl = ctx.fetchBaseUrl;
 }
 
 /** Set the OAuth token expiry (captured from Authorization header) */
@@ -99,7 +99,7 @@ export async function initializeSiyuanMCPServer(
   baseUrl?: string,
   cookieEncryptionKey?: string
 ): Promise<void> {
-  workerBaseUrl = baseUrl;
+  fetchBaseUrl = baseUrl;
   encryptionKey = cookieEncryptionKey;
 
   // Initialize kernel connection
@@ -140,11 +140,11 @@ export async function initializeSiyuanMCPServer(
  */
 export async function buildDownloadUrl(path: string): Promise<string> {
   const normalizedPath = normalizePath(path);
-  if (workerBaseUrl && grantKey && encryptionKey) {
+  if (fetchBaseUrl && grantKey && encryptionKey) {
     const token = await encryptGrant(grantKey, normalizedPath, encryptionKey);
-    return `${workerBaseUrl}/download/${token}${normalizedPath}`;
+    return `${fetchBaseUrl}/download/${token}${normalizedPath}`;
   }
-  debugPush('buildDownloadUrl fallback:', { workerBaseUrl: !!workerBaseUrl, grantKey: !!grantKey, encryptionKey: !!encryptionKey });
+  debugPush('buildDownloadUrl fallback:', { fetchBaseUrl: !!fetchBaseUrl, grantKey: !!grantKey, encryptionKey: !!encryptionKey });
   return `/download/<token>${normalizedPath}`;
 }
 
@@ -230,7 +230,7 @@ async function loadPrompts(server: McpServer): Promise<void> {
 
 /** Load and register resources with the MCP server */
 async function loadResources(server: McpServer): Promise<void> {
-  const ctx: ResourceContext = { baseUrl: workerBaseUrl };
+  const ctx: ResourceContext = { baseUrl: fetchBaseUrl };
   const providers = getAllResourceProviders();
   for (const provider of providers) {
     await provider.registerResources(server, ctx);
