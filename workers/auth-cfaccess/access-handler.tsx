@@ -5,8 +5,6 @@
 
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { HTTPException } from "hono/http-exception";
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { AuthCfAccessEnv, AuthContext, Props } from "../../index";
 import {
@@ -22,6 +20,7 @@ import {
 	setStateCSRF,
 	unpackState,
 	validateStateCSRF,
+	unauthorized,
 } from "./workers-oauth-utils";
 import { ApprovalPage } from "./approval-page";
 import { ConsentPage } from "./consent-page";
@@ -345,16 +344,6 @@ app.post("/callback", async (c) => {
 });
 
 // MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
-function unauthorized(c: Context<HonoEnv>): never {
-	throw new HTTPException(401, {
-		res: c.json({
-			jsonrpc: '2.0', error: {
-				code: ErrorCode.ConnectionClosed, message: 'Unauthorized'
-			}, id: null
-		}, 401),
-	});
-}
-
 export async function extractAuthContext(c: Context<HonoEnv>): Promise<AuthContext> {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
 	if (!props) unauthorized(c);

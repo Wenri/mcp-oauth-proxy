@@ -4,11 +4,29 @@
 
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { Context } from "hono";
-import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { HTTPException } from "hono/http-exception";
 import { getCookie, setCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { encode as msgpackEncode, decode as msgpackDecode } from "@msgpack/msgpack";
 import { pack7bit, unpack7bit, base64urlEncode, base64urlDecode } from "../mcp-backend/utils/fakeEncrypt";
+
+/** Throw an OAuth-style error response as HTTPException */
+function oauthError(status: number, error: string, description: string): never {
+	throw new HTTPException(status as ContentfulStatusCode, {
+		res: Response.json({ error, error_description: description }, { status }),
+	});
+}
+
+export function unauthorized(c: Context): never {
+	throw new HTTPException(401, {
+		res: c.json({
+			jsonrpc: '2.0', error: {
+				code: ErrorCode.ConnectionClosed, message: 'Unauthorized'
+			}, id: null
+		}, 401),
+	});
+}
 
 const CSRF_COOKIE = "__Host-CSRF_TOKEN";
 
@@ -25,13 +43,13 @@ export async function setStateCSRF(c: Context, state: string): Promise<void> {
 export async function validateStateCSRF(c: Context, state: string): Promise<void> {
 	const tokenFromCookie = getCookie(c, CSRF_COOKIE);
 	if (!tokenFromCookie) {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing CSRF cookie" }, { status: 400 }) });
+		oauthError(400, "invalid_request", "Missing CSRF cookie");
 	}
 
 	const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(state));
 	const expected = new Uint8Array(hash, 0, 16).toHex();
 	if (expected !== tokenFromCookie) {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "CSRF validation failed" }, { status: 400 }) });
+		oauthError(400, "invalid_request", "CSRF validation failed");
 	}
 }
 
@@ -126,7 +144,7 @@ export async function fetchUpstreamAuthToken(params: {
 	code_verifier?: string;
 }): Promise<string> {
 	if (!params.code) {
-		throw new HTTPException(400, { res: Response.json({ error: "invalid_request", error_description: "Missing authorization code" }, { status: 400 }) });
+		oauthError(400, "invalid_request", "Missing authorization code");
 	}
 
 	const data = new URLSearchParams({
@@ -151,13 +169,13 @@ export async function fetchUpstreamAuthToken(params: {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		throw new HTTPException(response.status as ContentfulStatusCode, { res: Response.json({ error: "server_error", error_description: `Failed to exchange code for token: ${errorText}` }, { status: response.status }) });
+		oauthError(response.status, "server_error", `Failed to exchange code for token: ${errorText}`);
 	}
 
 	const body = (await response.json()) as { id_token?: string };
 	const idToken = body.id_token;
 	if (!idToken) {
-		throw new HTTPException(400, { res: Response.json({ error: "server_error", error_description: "Missing id token" }, { status: 400 }) });
+		oauthError(400, "server_error", "Missing id token");
 	}
 
 	return idToken;
