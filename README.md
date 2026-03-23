@@ -57,8 +57,11 @@ A Model Context Protocol (MCP) server for [SiYuan Note](https://b3log.org/siyuan
 | **Daily Notes** | Create and manage daily notes |
 | **Flashcards** | Create and review flashcards |
 | **Attributes** | Manage custom attributes on documents/blocks |
+| **Relations** | Manage block relations |
 | **Assets** | Upload assets (batch, URL fetch, JSON auto-serialize) |
 | **File System** | Read/write files, create archives |
+| **Templates** | Render and manage SiYuan templates |
+| **Help Docs** | Built-in documentation resources |
 | **Utilities** | Get time, push notifications, reindex, flush transactions |
 
 ## Quick Start
@@ -102,16 +105,19 @@ Deploy multi-worker MCP server to Cloudflare Workers.
 ```
 workers/
 ├── mcp-backend/           # MCP Backend (internal, no public routes)
-│   ├── index.ts          # Entry point
-│   ├── agent.ts          # SiyuanMCP Durable Object
+│   ├── index.ts          # Entry point, WorkerEntrypoint with RPC methods
+│   ├── server/           # MCP server core
+│   │   ├── agent.ts      # SiyuanMCP Durable Object
+│   │   └── index.ts      # Server initialization
 │   └── wrangler.jsonc    # DO bindings
 │
 ├── auth-cfaccess/         # CF Access OAuth (sy.wenri.org)
-│   ├── index.ts          # OAuthProvider
+│   ├── index.ts          # OAuthProvider + RPC forwarding
+│   ├── access-handler.tsx # Hono app: OAuth flow, consent (JSX)
 │   └── wrangler.jsonc    # KV + service binding
 │
 └── auth-apikey/           # API Key Auth (api-sy.wenri.org)
-    ├── index.ts          # X-SiYuan-Key validation
+    ├── index.ts          # Hono app: X-SiYuan-Key validation
     └── wrangler.jsonc    # Service binding
 ```
 
@@ -189,6 +195,7 @@ claude mcp add siyuan https://api-sy.wenri.org/sse \
 | `FILTER_NOTEBOOKS` | Optional | Newline-separated notebook IDs to include |
 | `FILTER_DOCUMENTS` | Optional | Newline-separated document IDs to include |
 | `READ_ONLY_MODE` | Optional | `allow_all`, `allow_non_destructive`, or `deny_all` |
+| `AUTO_APPROVE_LOCAL_CHANGE` | Optional | Auto-approve local change operations |
 
 ### CF Access Auth Worker Secrets
 
@@ -218,15 +225,16 @@ Options:
 
 ### OAuth Auth Worker (sy.wenri.org)
 - `GET /authorize` - Initiate OAuth flow
-- `GET /callback` - OAuth callback handler
+- `GET /callback` - OAuth callback, consent page
+- `POST /callback` - Complete authorization
 - `POST /token` - Token endpoint
 - `POST /register` - Dynamic client registration
 - `GET /.well-known/oauth-authorization-server` - OAuth metadata
-- `POST /mcp`, `GET /sse` - MCP endpoints (forwarded to backend)
+- `POST /mcp`, `GET /sse` - MCP endpoints (forwarded to backend via RPC)
 - `GET /download/*` - File downloads (grant-based validation)
 
 ### API Key Auth Worker (api-sy.wenri.org)
-- `POST /mcp`, `GET /sse` - MCP endpoints (X-SiYuan-Key required)
+- `POST /mcp`, `GET /sse` - MCP endpoints (X-SiYuan-Key required, forwarded via RPC)
 - `GET /download/*` - File downloads (stateless validation)
 
 ## Development

@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding assistants when working with code in this repository.
 
 ## Related Repositories
 
@@ -75,25 +75,36 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 │   └── cli.ts                 # CLI entry point for stdio transport
 ├── workers/
 │   ├── mcp-backend/           # MCP Backend Worker (internal only)
-│   │   ├── index.ts           # Entry point, auth context extraction
-│   │   ├── agent.ts           # SiyuanMCP Durable Object class
-│   │   ├── server.ts          # MCP server initialization
+│   │   ├── index.ts           # Entry point, WorkerEntrypoint with RPC methods
+│   │   ├── server/            # MCP server core
+│   │   │   ├── agent.ts       # SiyuanMCP Durable Object class
+│   │   │   └── index.ts       # Server initialization, tool/prompt/resource loading
 │   │   ├── wrangler.jsonc     # DO bindings, no public routes
 │   │   ├── tools/             # MCP tool implementations
 │   │   ├── syapi/             # SiYuan kernel API wrappers
 │   │   ├── utils/             # Utility functions
-│   │   ├── resources/         # MCP resources
-│   │   ├── static/            # Schema docs and SQL cheatsheet
-│   │   └── types/             # SiYuan-specific types
+│   │   ├── resources/         # MCP resources (docs, files, blocks, paths)
+│   │   ├── static/            # Schema docs, SQL cheatsheet, prompts
+│   │   ├── types/             # SiYuan-specific types
+│   │   ├── logger/            # Connection logger
+│   │   ├── indexer/           # Index providers
+│   │   ├── i18n/              # Localization (en_US, zh_CN)
+│   │   ├── audit/             # Audit redo helpers
+│   │   └── components/        # Vue components (history)
 │   │
 │   ├── auth-cfaccess/         # CF Access OAuth Worker (sy.wenri.org)
-│   │   ├── index.ts           # OAuthProvider + MCP forwarding
-│   │   ├── access-handler.ts  # OAuth flow + /download (grant-based)
-│   │   ├── workers-oauth-utils.ts
+│   │   ├── index.ts           # OAuthProvider + RPC-based MCP forwarding
+│   │   ├── access-handler.tsx # Hono app: OAuth flow, consent, download (JSX)
+│   │   ├── approval-page.tsx  # OAuth client approval JSX page
+│   │   ├── consent-page.tsx   # Post-callback consent JSX page
+│   │   ├── page-utils.tsx     # Shared JSX layout components
+│   │   ├── jwt.ts             # JWT verification via Hono helpers
+│   │   ├── workers-oauth-utils.ts # State packing, CSRF, cookie helpers
+│   │   ├── static/            # CSS and static content
 │   │   └── wrangler.jsonc     # KV + service binding
 │   │
 │   └── auth-apikey/           # API Key Auth Worker (api-sy.wenri.org)
-│       ├── index.ts           # X-SiYuan-Key + /download (stateless)
+│       ├── index.ts           # Hono app: X-SiYuan-Key + /download
 │       └── wrangler.jsonc     # Service binding
 │
 └── package.json
@@ -103,55 +114,69 @@ npx tsx handlers/cli.ts --kernel-url http://localhost:6806
 
 ### Multi-Worker Design
 
-The system uses three workers connected via Cloudflare service bindings:
+The system uses three workers connected via **Cloudflare Workers RPC** (Service Bindings):
 
 1. **mcp-backend** - Internal MCP server with Durable Object for session state
-2. **auth-cfaccess** - OAuth authentication via Cloudflare Access
-3. **auth-apikey** - Simple API key authentication via X-SiYuan-Key header
+2. **auth-cfaccess** - OAuth authentication via Cloudflare Access (Hono + JSX)
+3. **auth-apikey** - Simple API key authentication via X-SiYuan-Key header (Hono)
 
-Auth workers forward requests to the backend with auth context headers:
-- `X-Auth-Props` - Base64 encoded user identity
-- `X-Auth-Secret` - Secret for download URL encryption
-- `X-Auth-Worker-Base-Url` - Domain for download URLs
-- `X-Auth-Encryption-Key` - Shared encryption key
+Auth workers forward requests to the backend via direct RPC calls:
+- `MCP_BACKEND.handleSSE(request, authContext)` - Forward SSE connections
+- `MCP_BACKEND.handleMCP(request, authContext)` - Forward JSON-RPC requests
+- `AuthContext` contains `Props` (email, login, name, workerBaseUrl, kernelUrl, kernelToken?) + `secret`
 
-### workers/mcp-backend/agent.ts - SiyuanMCP Durable Object
+### workers/mcp-backend/server/agent.ts - SiyuanMCP Durable Object
 
 ```typescript
-export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, MCPProps> {
-  server = new McpServer({ name: 'siyuan-mcp', version: '1.0.0' });
+export class SiyuanMCP extends McpAgent<MCPBackendEnv, Record<string, never>, AuthContext> {
+  server = new McpServer({ name: pkg.name, version: pkg.version });
 
   async init() {
     // Restore props from DO storage if not provided
     if (!this.props) {
       this.props = await this.ctx.storage.get('props');
     }
-    // Initialize MCP server with SiYuan tools
-    await initializeSiyuanMCPServer(this.server, this.env, ...);
+    // Set download context, initialize MCP server with SiYuan tools
+    setDownloadContext({ secret, encryptionKey, workerBaseUrl });
+    await initializeSiyuanMCPServer(this.server, mcpConfig, workerBaseUrl, encryptionKey);
+  }
+}
+```
+
+### workers/mcp-backend/index.ts - RPC Entry Point
+
+```typescript
+export default class McpRpc extends WorkerEntrypoint<MCPBackendEnv> {
+  async handleSSE(request: Request, authContext: AuthContext): Promise<Response> {
+    return sseHandler.fetch(request, this.env, { ...this.ctx, props: authContext });
+  }
+  async handleMCP(request: Request, authContext: AuthContext): Promise<Response> {
+    return mcpHandler.fetch(request, this.env, { ...this.ctx, props: authContext });
   }
 }
 ```
 
 ### workers/auth-cfaccess - CF Access OAuth Worker
 
-Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Based on [Cloudflare's official MCP demo](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access).
+Implements OAuth 2.1 with PKCE using Cloudflare Access as IdP. Built with **Hono** framework and **JSX** page templates. Based on [Cloudflare's official MCP demo](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access).
 
 **Flow:**
-1. `/authorize` - Shows approval dialog, then redirects to CF Access with PKCE challenge
-2. `/callback` - Validates state, exchanges code for tokens, verifies JWT
-3. `/sse`, `/mcp` - Forward to mcp-backend via service binding with auth headers
-4. `/download` - Grant-based validation (KV lookup for expiry/revocation)
+1. `GET /authorize` - Shows approval dialog, then redirects to CF Access with PKCE challenge
+2. `GET /callback` - Exchanges code for tokens, verifies JWT, shows **consent page** (user can configure kernel URL/token)
+3. `POST /callback` - Processes consent form, resolves kernel URL, completes authorization
+4. `/sse`, `/mcp` - Forward to mcp-backend via Workers RPC with `AuthContext`
+5. `/download` - Grant-based validation (KV lookup for expiry/revocation)
 
 ### workers/auth-apikey - API Key Auth Worker
 
-Lightweight worker for X-SiYuan-Key header authentication:
+Lightweight worker built with **Hono** for X-SiYuan-Key header authentication:
 
 **Flow:**
 1. Validate `X-SiYuan-Key` header against `SIYUAN_KERNEL_TOKEN`
-2. Forward `/sse`, `/mcp` to mcp-backend via service binding
-3. `/download` - Stateless validation (API key verification)
+2. Forward `/sse`, `/mcp` to mcp-backend via Workers RPC
+3. `/download` - Stateless validation (token decryption + API key match)
 
-### workers/mcp-backend/server.ts - MCP Server Core
+### workers/mcp-backend/server/index.ts - MCP Server Core
 
 - `initializeSiyuanMCPServer(server, config)` - Initializes server with tools, prompts, and resources
 
@@ -167,12 +192,15 @@ Each tool provider implements `McpToolsProvider` interface:
 
 Available tool categories:
 - **Document Operations**: read, write, create, move, rename, delete, outline, HTML export
-- **Block Operations**: insert, update, delete (batch), move (batch), fold/unfold blocks
+- **Block Operations**: insert, update, delete (batch), fold/unfold blocks
+- **Block Move/Reorder**: move blocks (batch), reorder within parent
 - **Search**: `siyuan_find_block` (full-text search with scope filter), SQL queries, vector search (RAG)
 - **SQL**: query with advanced features (REGEXP, window functions, JSON), database schema, SQL cheatsheet
 - **Organization**: daily notes, flashcards, attributes (single & batch), relations
 - **Assets**: upload assets (batch support, JSON auto-serialize, auto-insert into docs), file system operations
 - **File System**: read/write files (JSON objects auto-serialized), create/remove/rename, list directories, create archives
+- **Templates**: SiYuan template rendering and management
+- **Help Documentation**: built-in documentation resources
 - **Utilities**: get time, push notifications, reindex documents, flush database transactions
 
 ### ID and hpath Resolution
@@ -290,6 +318,7 @@ If your SiYuan kernel is protected by Cloudflare Access, create a [Service Token
 | `FILTER_NOTEBOOKS` | Newline-separated notebook IDs to filter |
 | `FILTER_DOCUMENTS` | Newline-separated document IDs to filter |
 | `READ_ONLY_MODE` | `allow_all`, `allow_non_destructive`, or `deny_all` |
+| `AUTO_APPROVE_LOCAL_CHANGE` | Auto-approve local change operations (boolean) |
 
 ### KV Namespace
 
@@ -354,7 +383,8 @@ npx @modelcontextprotocol/inspector@latest
 ### OAuth Endpoints
 - `GET /authorize` - Shows approval dialog, redirects to CF Access
 - `POST /authorize` - Handles approval form submission
-- `GET /callback` - CF Access callback, token exchange, JWT verification
+- `GET /callback` - CF Access callback, token exchange, JWT verification, consent page
+- `POST /callback` - Process consent form, complete authorization
 - `POST /token` - Token endpoint (handled by OAuthProvider)
 - `POST /register` - Dynamic client registration (handled by OAuthProvider)
 - `GET /.well-known/oauth-authorization-server` - OAuth metadata
@@ -369,11 +399,15 @@ npx @modelcontextprotocol/inspector@latest
 ## Token Storage (KV) and Cookies
 
 **KV Storage:**
-- `oauth:state:{uuid}` - OAuth state + PKCE verifier (10 min TTL)
 - Token grants and client registrations managed by OAuthProvider
+- Grant metadata includes `workerBaseUrl` and `kernelUrl` for download proxy
+
+**OAuth State:**
+- Compact base64url-encoded state params (MessagePack + GSM 7-bit pack + deflate)
+- No KV storage needed for OAuth state — embedded in URL/form params
 
 **Cookies:**
-- `__Host-csrf` - CSRF protection for approval form
+- CSRF protection via state hash verification
 - `__Host-approved-clients` - Encrypted list of approved client IDs (30 days)
 - Uses `__Host-` prefix for enhanced security (requires HTTPS, no domain/path override)
 
@@ -500,19 +534,33 @@ syfile:///data/widgets/config.json
 - `resources/list` returns files only (directories excluded - not readable)
 - Supports both text and binary files (binary returned as base64 blob)
 
+### Block Resources
+Block content accessible via MCP resources.
+
+### Path Resources
+Document path resources for navigating the SiYuan document tree.
+
 ## Static Files Architecture
 
 Static content (documentation, prompts) uses `.txt` extension due to Wrangler's `.md` loader issues.
 
-**Pattern**: Getter functions to avoid module initialization order issues:
+**Pattern**: Direct named exports and registry maps:
 ```typescript
 // workers/mcp-backend/static/index.ts
-import content from './file.txt';
-export const getContent = () => content;  // Getter defers access to runtime
+import databaseSchemaContent from './siyuan-database-schema.txt';
+export { databaseSchemaContent };
 
-// Consumer
-import { getContent } from '../static';
-const text = getContent();  // Called at runtime, not module load
+/** Static content registry */
+export const staticFiles: Record<string, string> = {
+  'database-schema': databaseSchemaContent,
+  // ...
+};
+
+/** Dynamic content registry */
+export const dynamicFiles: Record<string, () => Promise<string>> = {
+  'tool-types': generateAllToolTypes,
+  'tool-signatures': generateAllToolSignatures,
+};
 ```
 
 ## Adding New Tools
