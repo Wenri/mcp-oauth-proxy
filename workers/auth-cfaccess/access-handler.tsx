@@ -345,27 +345,27 @@ app.post("/callback", async (c) => {
 });
 
 // MCP forwarding helpers (called by OAuthProvider apiHandlers after token validation)
+function unauthorized(c: Context<HonoEnv>): never {
+	throw new HTTPException(401, {
+		res: c.json({
+			jsonrpc: '2.0', error: {
+				code: ErrorCode.ConnectionClosed, message: 'Unauthorized'
+			}, id: null
+		}, 401),
+	});
+}
+
 export async function extractAuthContext(c: Context<HonoEnv>): Promise<AuthContext> {
 	const props = (c.executionCtx as ExecutionContext).props as Props;
-	if (!props) {
-		throw new HTTPException(401, {
-			res: c.json({
-				jsonrpc: '2.0', error: {
-					code: ErrorCode.ConnectionClosed, message: 'Unauthorized'
-				}, id: null
-			}, 401),
-		});
-	}
+	if (!props) unauthorized(c);
 
-	let secret = '';
 	const authHeader = c.req.header('Authorization');
-	if (authHeader?.startsWith('Bearer ')) {
-		// Token format is userId:grantId:secret — extract without full unwrap
-		const parts = authHeader.slice(7).split(':');
-		if (parts.length === 3) {
-			const [userId, grantId] = parts;
-			secret = `${userId}:${grantId}`;
-		}
-	}
-	return { ...props, secret };
+	if (!authHeader?.startsWith('Bearer ')) unauthorized(c);
+
+	// Token format is userId:grantId:secret — extract without full unwrap
+	const parts = authHeader.slice(7).split(':');
+	if (parts.length !== 3) unauthorized(c);
+
+	const [userId, grantId] = parts;
+	return { ...props, secret: `${userId}:${grantId}` };
 }
