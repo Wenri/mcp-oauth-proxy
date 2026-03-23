@@ -40,6 +40,7 @@ interface GrantRecord {
 	scope: string[];
 	encryptedProps: string;
 	expiresAt?: number;
+	metadata?: { label?: string; workerBaseUrl?: string; kernelUrl?: string };
 }
 
 /** Build upstream CF Access redirect URL with compact state */
@@ -125,8 +126,8 @@ app.get("/download/:token/*", async (c) => {
 	const now = Math.floor(Date.now() / 1000);
 	const cacheTtl = grant.expiresAt ? Math.max(0, grant.expiresAt - now) : 3600;
 
-	// Initialize kernel with service token
-	const kernelUrl = env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
+	// Initialize kernel — prefer per-user URL from metadata, then env, then origin
+	const kernelUrl = grant.metadata?.kernelUrl || env.SIYUAN_KERNEL_URL || new URL(c.req.url).origin;
 	initKernel(
 		kernelUrl,
 		env.SIYUAN_KERNEL_TOKEN,
@@ -333,7 +334,7 @@ app.post("/callback", async (c) => {
 	};
 
 	const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
-		metadata: { label },
+		metadata: { label, workerBaseUrl, kernelUrl },
 		props,
 		request: state.oauthReqInfo,
 		scope: state.oauthReqInfo.scope,
