@@ -362,7 +362,10 @@ export async function extractAuthContext(c: Context<HonoEnv>): Promise<AuthConte
 	if (authHeader?.startsWith('Bearer ')) {
 		// Token format is userId:grantId:secret — extract without full unwrap
 		const parts = authHeader.slice(7).split(':');
-		if (parts.length === 3) secret = `${parts[0]}:${parts[1]}`;
+		if (parts.length === 3) {
+			const [userId, grantId] = parts;
+			secret = `${userId}:${grantId}`;
+		}
 	}
 	return { ...props, secret };
 }
